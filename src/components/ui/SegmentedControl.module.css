@@ -1,0 +1,48 @@
+.group {
+  display: flex;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: none;
+}
+
+.option {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--ln);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.option:last-child {
+  border-right: 0;
+}
+
+.option:hover:not(:disabled):not(.selected) {
+  color: var(--fg);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+
+.selected {
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.option:disabled {
+  color: var(--mu);
+  opacity: 0.5;
+}
+
+.sm .option {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}

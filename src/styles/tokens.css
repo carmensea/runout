@@ -1,0 +1,73 @@
+/*
+ * Runout design tokens (dark only). Source: Claude Design project, HANDOFF.md "Tokens".
+ * Every colour, type style and spacing value used by components comes from here.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces and lines */
+  --bg: #17191a;
+  --s1: #1e2122;
+  --s2: #272b2c;
+  --ln: #373b3d;
+  --ln2: #26292a;
+
+  /* Text */
+  --fg: #f5f2eb;
+  --fg2: #c8c5bd;
+  --mu: #8c918f;
+
+  /* Accent and status */
+  --ac: #e4653d;
+  --acfg: #17191a;
+  --err: #e8735a;
+
+  /* Categorical chart slots, fixed order */
+  --c1: #e4653d;
+  --c2: #d9a73e;
+  --c3: #5da99b;
+  --c4: #7e9dcb;
+  --c5: #c98b9c;
+  --c6: #a3ad63;
+  --c7: #8c918f;
+
+  /* Unknown / missing pattern (a meaning, not decoration) */
+  --hatch: repeating-linear-gradient(45deg, var(--mu) 0 2px, transparent 2px 6px);
+
+  /* Type families */
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-sans: 'Schibsted Grotesk', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-icon: 'Material Symbols Sharp';
+
+  /* Spacing scale, 4px base */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-18: 72px;
+
+  /* Layout */
+  --sidebar-w: 232px;
+  --bar-h: 56px;
+  --content-max: 1200px;
+  --radius: 2px;
+}
+
+@media (max-width: 1279px) {
+  :root {
+    --sidebar-w: 64px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --sidebar-w: 0px;
+    --bar-h: 52px;
+  }
+}

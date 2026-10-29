@@ -1,0 +1,37 @@
+.wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 10px 12px 10px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  height: 40px;
+  padding: 0 12px 0 0;
+  border-top: 1px solid var(--ln);
+}
+
+.num {
+  text-align: right !important;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.table tbody tr:hover {
+  background: var(--s1);
+}

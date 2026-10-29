@@ -1,0 +1,176 @@
+/* Bump chart */
+.bumpFrame {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 72px;
+  gap: 8px;
+}
+
+.yRanks {
+  position: relative;
+  height: 200px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+.yRanks span {
+  position: absolute;
+  transform: translateY(-50%);
+}
+
+.bumpSvg {
+  display: block;
+  border-left: 1px solid var(--ln);
+  border-bottom: 1px solid var(--ln);
+}
+
+.bumpLabels {
+  position: relative;
+  height: 200px;
+  font-size: 12px;
+}
+
+.bumpLabels span {
+  position: absolute;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.bumpYears {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 80px 0 32px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+/* Link lists (on repeat, back in rotation, first heard, rediscovered) */
+.stackLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ln);
+  text-decoration: none;
+}
+
+.inlineLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  border-top: 1px solid var(--ln);
+  text-decoration: none;
+}
+
+.primary {
+  font-weight: 500;
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+/* Discovery */
+.discFrame {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 8px;
+}
+
+.discAxis {
+  position: relative;
+  height: 200px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+.discAxis span {
+  position: absolute;
+  transform: translateY(-50%);
+}
+
+.discPlot {
+  position: relative;
+  height: 200px;
+  border-bottom: 1px solid var(--fg2);
+}
+
+.discBars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.discBars > div {
+  flex: 1;
+  background: var(--c3);
+}
+
+.discX {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+/* Metadata share bar */
+.shareBar {
+  display: flex;
+  height: 16px;
+  gap: 2px;
+}
+
+.hatch {
+  background: var(--hatch);
+  outline: 1px solid var(--mu);
+  outline-offset: -1px;
+}
+
+.shareLegend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shareLegend li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--ln);
+  padding-top: 8px;
+}
+
+.shareName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.shareValue {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg2);
+}
+
+@media (max-width: 767px) {
+  .shareLegend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

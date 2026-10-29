@@ -1,0 +1,142 @@
+.frame {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.yAxis {
+  position: relative;
+  height: 220px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+  text-align: right;
+}
+
+.yAxis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.plot {
+  position: relative;
+  height: 220px;
+  border-bottom: 1px solid var(--fg2);
+}
+
+.plot:focus-visible {
+  outline-offset: 4px;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.grid div {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--ln2);
+}
+
+.bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+}
+
+.slot {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+}
+
+.bar {
+  width: 100%;
+  background: var(--ac);
+}
+
+.slot:hover .bar,
+.active .bar {
+  background: var(--fg);
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--fg2);
+  pointer-events: none;
+}
+
+.tooltip {
+  position: absolute;
+  top: 8px;
+  z-index: 2;
+  width: 190px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--fg);
+  color: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.tooltipTitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tooltipValue {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.tooltipValue small {
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.tooltip a {
+  color: var(--bg);
+  text-decoration: underline;
+}
+
+.tooltip a:hover {
+  color: var(--ac);
+}
+
+.tooltip a:focus-visible {
+  outline-color: var(--bg);
+}
+
+.xAxis {
+  position: relative;
+  height: 18px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+.xAxis span {
+  position: absolute;
+  top: 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .frame {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+}

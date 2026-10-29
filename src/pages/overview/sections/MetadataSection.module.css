@@ -1,0 +1,15 @@
+/* Aligns with the title column of the section heading (220 + 24 gutter). */
+.body {
+  margin: -12px 0 0 244px;
+}
+
+.info {
+  color: var(--c2);
+  vertical-align: -3px;
+}
+
+@media (max-width: 1023px) {
+  .body {
+    margin-left: 0;
+  }
+}

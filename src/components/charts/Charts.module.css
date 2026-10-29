@@ -1,0 +1,201 @@
+/* Ranked rows with inline bar (most active days / months) */
+.rankRow {
+  display: grid;
+  grid-template-columns: 24px 120px minmax(0, 1fr) 64px;
+  gap: 12px;
+  align-items: center;
+  height: 40px;
+  border-top: 1px solid var(--ln);
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.rankRow:hover {
+  background: var(--s1);
+  color: var(--fg);
+}
+
+.rank {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.mono12 {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.right {
+  text-align: right;
+}
+
+.track6 {
+  height: 6px;
+  background: var(--ln2);
+}
+
+.track6 > div {
+  height: 6px;
+}
+
+/* Hour of day */
+.hourPlot {
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  border-bottom: 1px solid var(--fg2);
+}
+
+.hourSlot {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.hourSlot > div {
+  flex: 1;
+}
+
+.outlineBar {
+  border: 1.5px solid var(--fg2);
+  border-bottom: 0;
+}
+
+.axis {
+  display: flex;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+.axis span {
+  flex: 3;
+}
+
+.note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.note strong {
+  font-weight: 600;
+}
+
+/* Day of week */
+.weekRow {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 56px;
+  gap: 12px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.weekLabel {
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.weekBars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Heatmap */
+.heatGrid {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 3px;
+}
+
+.heatDay {
+  font-size: 12px;
+  color: var(--fg2);
+  line-height: 22px;
+}
+
+.heatRow {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.heatCell {
+  height: 22px;
+}
+
+.ramp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+.rampStep {
+  width: 14px;
+  height: 14px;
+  outline: 1px solid var(--ln2);
+}
+
+/* Seasonal */
+.seasonPlot {
+  height: 132px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--fg2);
+}
+
+.seasonPlot > div {
+  flex: 1;
+}
+
+.months12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+  text-align: center;
+}
+
+.seasons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--fg2);
+}
+
+.seasons span {
+  border-top: 1px solid var(--ln);
+  padding-top: 4px;
+}
+
+@media (max-width: 767px) {
+  .rankRow {
+    grid-template-columns: 20px 96px minmax(0, 1fr) 56px;
+    gap: 8px;
+    min-height: 44px;
+  }
+
+  .heatGrid {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .heatRow {
+    gap: 1px;
+  }
+}

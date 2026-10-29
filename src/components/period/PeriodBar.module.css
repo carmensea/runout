@@ -1,0 +1,282 @@
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+}
+
+.toolbar {
+  height: var(--bar-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--ln);
+}
+
+.mobileBrand {
+  display: none;
+}
+
+.stepper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  flex: none;
+}
+
+.step {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--fg2);
+}
+
+.step:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.step:disabled {
+  opacity: 0.35;
+}
+
+.value {
+  height: 30px;
+  min-width: 150px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-left: 1px solid var(--ln);
+  border-right: 1px solid var(--ln);
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.value .icon {
+  color: var(--mu);
+}
+
+.periodButton {
+  display: none;
+}
+
+.compareButton {
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.compareButton:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--mu);
+}
+
+.compareButton:disabled {
+  opacity: 0.45;
+}
+
+.chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--mu);
+  border-radius: var(--radius);
+}
+
+.vs {
+  padding: 0 6px 0 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chipValue {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--fg2);
+  flex: none;
+}
+
+.clear {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid var(--ln);
+  background: transparent;
+  color: var(--fg2);
+}
+
+.clear:hover {
+  color: var(--fg);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 32px;
+  border-bottom: 1px solid var(--ln);
+  background: var(--s1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.bannerTag {
+  color: var(--ac);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.banner a {
+  color: var(--fg);
+}
+
+@media (max-width: 1279px) {
+  .periodEyebrow {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 12px;
+    padding: 0 24px;
+  }
+}
+
+/* 768 to 1023: the segmented control becomes a single Period button. */
+@media (max-width: 1023px) {
+  .segments,
+  .periodEyebrow {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 12px;
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  .toolbar {
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  .mobileBrand {
+    display: flex;
+    color: var(--fg);
+  }
+
+  .stepper .step {
+    width: 44px;
+    height: 42px;
+  }
+
+  .stepper {
+    height: 44px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .value {
+    flex: 1;
+    min-width: 0;
+    height: 42px;
+  }
+
+  .value > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .compareButton,
+  .chip {
+    height: 44px;
+  }
+
+  .compareLabel,
+  .chipLabel {
+    display: none;
+  }
+
+  .compareButton {
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .clear {
+    width: 42px;
+    height: 42px;
+  }
+
+  .banner {
+    padding: 7px 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--bar-h);
+    padding-top: 4px;
+    padding-bottom: 8px;
+  }
+
+  .search {
+    order: 10;
+    flex-basis: 100%;
+  }
+
+  .spacer {
+    display: none;
+  }
+}
