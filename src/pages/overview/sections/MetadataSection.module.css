@@ -6,6 +6,7 @@
 .info {
   color: var(--c2);
   vertical-align: -3px;
+  line-height: inherit;
 }
 
 @media (max-width: 1023px) {

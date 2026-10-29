@@ -36,7 +36,7 @@ function toOptions(r: SearchResults): Option[] {
 }
 
 /** Library search: "/" focuses, arrows move, Enter opens, Escape closes then clears. */
-export function SearchField({ className }: { className?: string }) {
+export function SearchField({ className, autoFocus }: { className?: string; autoFocus?: boolean }) {
   const { api } = useAppData();
   const { withPeriod } = usePeriod();
   const navigate = useNavigate();
@@ -129,6 +129,7 @@ export function SearchField({ className }: { className?: string }) {
         <span className="sr-only">Search artists, albums and tracks</span>
         <input
           ref={inputRef}
+          autoFocus={autoFocus}
           type="search"
           role="combobox"
           className={styles.input}

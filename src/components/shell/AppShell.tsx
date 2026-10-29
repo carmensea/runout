@@ -1,17 +1,20 @@
 import { Link, Outlet } from 'react-router-dom';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAppData } from '../../data/AppDataContext';
 import { BarBanner, PeriodBar } from '../period/PeriodBar';
+import { MobileHeader } from './MobileHeader';
 import { MobileNav } from './MobileNav';
 import { Sidebar } from './Sidebar';
 import styles from './AppShell.module.css';
 
 export function AppShell() {
+  const compact = useMediaQuery('(max-width: 767px)');
   return (
     <div className={styles.shell}>
       <a href="#main" className={styles.skip}>Skip to content</a>
       <Sidebar />
       <div className={styles.column}>
-        <PeriodBar banner={<GlobalBanner />} />
+        {compact ? <MobileHeader banner={<GlobalBanner />} /> : <PeriodBar banner={<GlobalBanner />} />}
         <Outlet />
       </div>
       <MobileNav />

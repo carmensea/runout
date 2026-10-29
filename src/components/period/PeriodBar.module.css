@@ -14,10 +14,6 @@
   border-bottom: 1px solid var(--ln);
 }
 
-.mobileBrand {
-  display: none;
-}
-
 .stepper {
   position: relative;
   display: flex;
@@ -200,83 +196,5 @@
   .toolbar {
     gap: 12px;
     padding: 0 24px;
-  }
-}
-
-@media (max-width: 767px) {
-  .toolbar {
-    padding: 0 16px;
-    gap: 8px;
-  }
-
-  .mobileBrand {
-    display: flex;
-    color: var(--fg);
-  }
-
-  .stepper .step {
-    width: 44px;
-    height: 42px;
-  }
-
-  .stepper {
-    height: 44px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .value {
-    flex: 1;
-    min-width: 0;
-    height: 42px;
-  }
-
-  .value > span:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .compareButton,
-  .chip {
-    height: 44px;
-  }
-
-  .compareLabel,
-  .chipLabel {
-    display: none;
-  }
-
-  .compareButton {
-    width: 44px;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .clear {
-    width: 42px;
-    height: 42px;
-  }
-
-  .banner {
-    padding: 7px 16px;
-  }
-}
-
-@media (max-width: 767px) {
-  .toolbar {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: var(--bar-h);
-    padding-top: 4px;
-    padding-bottom: 8px;
-  }
-
-  .search {
-    order: 10;
-    flex-basis: 100%;
-  }
-
-  .spacer {
-    display: none;
   }
 }

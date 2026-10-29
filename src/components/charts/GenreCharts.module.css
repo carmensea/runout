@@ -195,6 +195,8 @@
 }
 
 .artistRow {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) 64px;
   gap: 10px;
@@ -205,9 +207,6 @@
   color: var(--fg);
 }
 
-.artistRow:last-child {
-  border-bottom: 0;
-}
 
 @media (max-width: 767px) {
   .shareFrame {

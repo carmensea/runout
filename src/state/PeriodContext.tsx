@@ -11,6 +11,8 @@ interface PeriodState {
   today: string;
   setCurrent(p: Period): void;
   setCompare(p: Period | null): void;
+  /** Sets the period and comparison together in one URL update. */
+  setBoth(p: Period, vs: Period | null): void;
   /** Appends the current period query to an in-app path so navigation keeps the selection. */
   withPeriod(path: string): string;
 }
@@ -87,6 +89,7 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
     // move it to the preceding period of the new kind.
     setCurrent: (p) => update(p, !compare ? null : p.kind === current.kind ? compare : defaultComparison(p, today)),
     setCompare: (p) => update(current, p),
+    setBoth: (p, vs) => update(p, vs),
     withPeriod: (path) => {
       const [beforeHash, hash] = path.split('#');
       const [base, query] = (beforeHash ?? '').split('?');

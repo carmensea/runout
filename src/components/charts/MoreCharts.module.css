@@ -19,6 +19,8 @@
 }
 
 .bumpSvg {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   display: block;
   border-left: 1px solid var(--ln);
   border-bottom: 1px solid var(--ln);
@@ -59,6 +61,8 @@
 }
 
 .inlineLink {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -99,6 +103,8 @@
 }
 
 .discPlot {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   position: relative;
   height: 200px;
   border-bottom: 1px solid var(--fg2);

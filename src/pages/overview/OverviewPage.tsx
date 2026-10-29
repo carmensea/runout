@@ -6,6 +6,7 @@ import { NotConnectedError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { ConnectionState, OverviewData } from '../../data/types';
 import { useActiveSection } from '../../hooks/useActiveSection';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { parsePeriod, periodLabel, periodShortLabel } from '../../lib/period';
 import { usePeriod } from '../../state/PeriodContext';
 import { DiscoverySection } from './sections/DiscoverySection';
@@ -14,6 +15,8 @@ import { HabitsSection } from './sections/HabitsSection';
 import { ListeningSection } from './sections/ListeningSection';
 import { MetadataSection } from './sections/MetadataSection';
 import { TopSection } from './sections/TopSection';
+import { MobileOverview } from './mobile/MobileOverview';
+import mobileStyles from './mobile/MobileOverview.module.css';
 import { useOverview } from './useOverview';
 import type { OverviewView } from './view';
 import styles from './OverviewPage.module.css';
@@ -43,6 +46,17 @@ export function OverviewPage() {
 
   const view: OverviewView = { fmt, today, timeZone, current, compare, compareLabel, currentLabel, withPeriod };
   const ready = overview.main.status === 'success' && overview.main.data.stats.scrobbles > 0;
+  const compact = useMediaQuery('(max-width: 767px)');
+
+  if (compact) {
+    // Mobile composition: the page title lives in the top bar (Mobile.dc.html, M1).
+    return (
+      <main id="main" className={mobileStyles.main}>
+        <h1 className="sr-only">Overview, {eyebrowPeriod}</h1>
+        <Body connection={connection} overview={overview} view={view} compact />
+      </main>
+    );
+  }
 
   return (
     <main id="main" className={styles.main}>
@@ -90,9 +104,10 @@ interface BodyProps {
   connection: ReturnType<typeof useAppData>['connection'];
   overview: ReturnType<typeof useOverview>;
   view: OverviewView;
+  compact?: boolean;
 }
 
-function Body({ connection, overview, view }: BodyProps) {
+function Body({ connection, overview, view, compact = false }: BodyProps) {
   const { withPeriod, today, current } = view;
 
   if (connection.status === 'loading') return <LoadingState label="Checking your Last.fm connection" />;
@@ -141,6 +156,7 @@ function Body({ connection, overview, view }: BodyProps) {
 
   const vs = overview.compare?.status === 'success' ? overview.compare.data : null;
   const props = { data: main.data, vs, view };
+  if (compact) return <MobileOverview {...props} />;
   return (
     <>
       {overview.compare?.status === 'error' && (

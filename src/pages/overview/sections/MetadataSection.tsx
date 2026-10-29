@@ -56,7 +56,7 @@ export function MetadataSection({ data, view }: SectionProps) {
           {KINDS.map((k) => (
             <li key={k.key}>
               <span className={styles.shareName}>
-                <span aria-hidden="true" className={k.color ? undefined : styles.hatch} style={{ width: 10, height: 10, background: k.color ?? undefined }} />
+                <span aria-hidden="true" style={{ width: 10, height: 10, background: k.color ?? 'var(--mu)' }} />
                 {k.label}
               </span>
               <span className={styles.shareValue}>

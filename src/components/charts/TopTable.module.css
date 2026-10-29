@@ -9,6 +9,12 @@
   font-size: 14px;
 }
 
+/* Matches the design: column widths exclude cell padding. */
+.table th,
+.table td {
+  box-sizing: content-box;
+}
+
 .table th {
   padding: 10px 0;
   font-family: var(--font-mono);

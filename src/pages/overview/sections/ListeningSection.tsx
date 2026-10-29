@@ -7,7 +7,6 @@ import { Swatch } from '../../../components/charts/Swatch';
 import { Module, ModuleRow, SecondaryButton } from '../../../components/layout/Module';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import type { ActivityBucket, OverviewStats } from '../../../data/types';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { isoWeekStart, parseIsoDate } from '../../../lib/dates';
 import { longDate, periodLengthDays } from '../../../lib/period';
 import { timeMachineHref, type OverviewView, type SectionProps } from '../view';
@@ -87,9 +86,7 @@ function Activity({ data, view }: { data: SectionProps['data']['activity']; view
   const { fmt } = view;
   const length = periodLengthDays(view.current, view.today);
   const weekAllowed = data.week !== null && length !== null && length <= TWO_YEARS_DAYS;
-  const compact = useMediaQuery('(max-width: 767px)');
-  // Mobile shows yearly bars by default (HANDOFF.md "Mobile chart adaptations").
-  const [gran, setGran] = useState<Granularity>(() => (compact ? 'year' : 'month'));
+  const [gran, setGran] = useState<Granularity>('month');
   const [asTable, setAsTable] = useState(false);
   const effective: Granularity = gran === 'week' && !weekAllowed ? 'month' : gran;
   const buckets: ActivityBucket[] = (effective === 'week' ? data.week : data[effective]) ?? [];
@@ -98,14 +95,15 @@ function Activity({ data, view }: { data: SectionProps['data']['activity']; view
     effective === 'year' ? fmt.year(key) : effective === 'month' ? fmt.monthLong(key) : `Week of ${fmt.date(isoWeekStart(Number(key.slice(0, 4)), Number(key.slice(6))))}`;
 
   const yearSpan = buckets.length ? Number(buckets[buckets.length - 1]!.key.slice(0, 4)) - Number(buckets[0]!.key.slice(0, 4)) : 0;
-  const yearStep = compact ? Math.max(1, Math.ceil(yearSpan / 4)) : yearSpan > 12 ? 2 : 1;
+  const yearStep = yearSpan > 12 ? 2 : 1;
   const tickFor = (key: string, i: number): string | null => {
     const year = Number(key.slice(0, 4));
     const first = Number(buckets[0]?.key.slice(0, 4));
-    if (effective === 'year') return (year - first) % yearStep === 0 ? fmt.year(key) : null;
+    // Axis years are structure, shown as-is even in specimen mode (as in the design).
+    if (effective === 'year') return (year - first) % yearStep === 0 ? String(year) : null;
     if (effective === 'month') {
       if (yearSpan === 0) return fmt.monthShort(key).split(' ')[0] ?? null;
-      return key.endsWith('-01') && (year - first) % yearStep === 0 ? fmt.year(key) : i === 0 && buckets.length < 24 ? fmt.monthShort(key) : null;
+      return key.endsWith('-01') && (year - first) % yearStep === 0 ? String(year) : i === 0 && buckets.length < 24 ? fmt.monthShort(key) : null;
     }
     const start = isoWeekStart(year, Number(key.slice(6)));
     const prev = buckets[i - 1];

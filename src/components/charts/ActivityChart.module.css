@@ -20,6 +20,8 @@
 }
 
 .plot {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   position: relative;
   height: 220px;
   border-bottom: 1px solid var(--fg2);

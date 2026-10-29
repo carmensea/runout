@@ -21,7 +21,6 @@
 
 .stat:first-child {
   border-left: 0;
-  padding-left: 0;
 }
 
 .stat dt {
@@ -77,7 +76,6 @@
 
   .stat:nth-child(3) {
     border-left: 0;
-    padding-left: 0;
   }
 }
 

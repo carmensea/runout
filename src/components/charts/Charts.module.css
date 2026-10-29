@@ -1,5 +1,7 @@
 /* Ranked rows with inline bar (most active days / months) */
 .rankRow {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   display: grid;
   grid-template-columns: 24px 120px minmax(0, 1fr) 64px;
   gap: 12px;
@@ -41,6 +43,8 @@
 
 /* Hour of day */
 .hourPlot {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   height: 180px;
   display: flex;
   align-items: flex-end;
@@ -148,6 +152,8 @@
 
 /* Seasonal */
 .seasonPlot {
+  /* Matches the design: height excludes the border. */
+  box-sizing: content-box;
   height: 132px;
   display: flex;
   align-items: flex-end;

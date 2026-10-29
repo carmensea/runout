@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useDismiss } from '../../hooks/useDismiss';
 import {
   BAR_KINDS, canStep, defaultComparison, periodLabel, periodOfKind, stepPeriod, type Period, type PeriodKind,
 } from '../../lib/period';
 import { usePeriod } from '../../state/PeriodContext';
-import { BrandMark } from '../shell/BrandMark';
 import { Icon } from '../ui/Icon';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchField } from '../search/SearchField';
@@ -28,9 +26,6 @@ export function PeriodBar({ banner }: { banner?: ReactNode }) {
   return (
     <div className={styles.bar}>
       <div role="toolbar" aria-label="Period" className={styles.toolbar}>
-        <Link to="/" className={styles.mobileBrand} aria-label="Runout home">
-          <BrandMark size={22} />
-        </Link>
         <span className={`eyebrow ${styles.periodEyebrow}`}>Period</span>
         <SegmentedControl
           className={styles.segments}
@@ -171,7 +166,7 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
         onClick={() => onChange(defaultComparison(current, today))}
       >
         <Icon name="compare_arrows" />
-        <span className={styles.compareLabel}>Compare</span>
+        <span>Compare</span>
       </button>
     );
   }
@@ -201,7 +196,7 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
         onClick={() => onOpenChange(!open)}
       >
         <span className={styles.swatch} />
-        <span className={styles.chipLabel}>{periodLabel(compare, today)}</span>
+        <span>{periodLabel(compare, today)}</span>
       </button>
       <button type="button" className={styles.clear} aria-label="Clear comparison" onClick={clear}>
         <Icon name="close" size={16} />

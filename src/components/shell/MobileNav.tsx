@@ -7,6 +7,7 @@ import { Icon } from '../ui/Icon';
 import styles from './MobileNav.module.css';
 
 const PRIMARY = ['overview', 'time', 'artists'];
+const ICONS: Record<string, string> = { overview: 'bar_chart', time: 'history', artists: 'person' };
 
 /** Bottom bar below 768px: Overview, Time Machine, Artists, More. */
 export function MobileNav() {
@@ -25,7 +26,7 @@ export function MobileNav() {
     <nav ref={ref} aria-label="Primary, compact" className={styles.nav}>
       {primary.map((i) => (
         <NavLink key={i.id} to={withPeriod(i.path)} className={styles.item} onClick={() => setMoreOpen(false)}>
-          <span className={styles.number}>{i.number}</span>
+          <Icon name={ICONS[i.id] ?? 'circle'} size={22} />
           {i.label}
         </NavLink>
       ))}
@@ -37,7 +38,7 @@ export function MobileNav() {
         aria-current={moreActive ? 'page' : undefined}
         onClick={() => setMoreOpen((o) => !o)}
       >
-        <Icon name="more_horiz" />
+        <Icon name="more_horiz" size={22} />
         More
       </button>
       {moreOpen && (
