@@ -26,7 +26,9 @@ jobs:
 
   backend:
     name: Backend (tests, lint, security scan)
-    runs-on: ubuntu-latest
+    # Pinned: ruby/setup-ruby only prebuilds the newest patch of each series on the newest image,
+    # and CI should run the same Ruby as server/.ruby-version (3.4.7).
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: server
