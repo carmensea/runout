@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/shell/AppShell';
 import { OverviewPage } from '../pages/overview/OverviewPage';
 import { PendingScreen } from '../pages/PendingScreen';
+import { SettingsScreen } from '../pages/SettingsScreen';
 import { PeriodProvider } from '../state/PeriodContext';
 
 export function App() {
@@ -22,7 +23,7 @@ export function App() {
           <Route path="/tracks/:trackId" element={<PendingScreen eyebrow="04 / Tracks" title="Track" description="Play frequency for one track, with replay periods marked." />} />
           <Route path="/lyrics" element={<PendingScreen eyebrow="05 / Lyrics" title="Lyrics" planned description="Lyrics search across songs in your own history, with excerpts only where a licensed provider allows them." />} />
           <Route path="/mood" element={<PendingScreen eyebrow="06 / Mood" title="Mood" planned description="How the music you played shifts over time, from fixed and visible tag lists. It describes the music, not you." />} />
-          <Route path="/settings" element={<PendingScreen eyebrow="07 / Settings" title="Settings" description="Last.fm connection and import, metadata coverage, preferences such as timezone, account and data export." />} />
+          <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/connect" element={<PendingScreen eyebrow="Onboarding" title="Connect Last.fm" description="Check your Last.fm username, confirm your timezone and approve read access to your scrobbles." />} />
           <Route path="*" element={<PendingScreen eyebrow="Not found" title="Page not found" description="There is no page at this address." />} />
         </Route>

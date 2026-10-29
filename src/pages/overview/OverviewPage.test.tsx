@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RunoutApi } from '../../data/api';
@@ -13,7 +13,7 @@ describe('Overview, not connected', () => {
     expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
     expect(screen.getAllByText('Last.fm not connected').length).toBeGreaterThan(0);
     expect(screen.queryByText('Scrobbles')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Connect Last.fm' })).toHaveAttribute('href', expect.stringContaining('/connect'));
+    expect(screen.getByRole('link', { name: 'Connect Last.fm' })).toHaveAttribute('href', '/api/auth/lastfm');
   });
 
   it('explains that search needs a connected library', async () => {
@@ -21,6 +21,100 @@ describe('Overview, not connected', () => {
     renderApp(notConnectedApi);
     await user.type(screen.getByRole('combobox'), 'ab');
     expect(await screen.findByText(/Search covers your own listening history/)).toBeInTheDocument();
+  });
+});
+
+describe('Overview, authentication states', () => {
+  it('explains a failed sign-in', async () => {
+    renderApp(notConnectedApi, '/overview?period=all&auth_error=state');
+    expect(await screen.findByRole('alert')).toHaveTextContent('That sign-in link expired or was opened in another browser.');
+  });
+
+  it('shows a signed-in account without history, and loads no charts', async () => {
+    let overviewCalls = 0;
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+      getOverview: async () => {
+        overviewCalls += 1;
+        return makeOverview();
+      },
+    };
+    renderApp(api);
+    expect(await screen.findByText('Signed in as test-user.')).toBeInTheDocument();
+    expect(screen.getByText(/Importing your Last.fm history is not available/)).toBeInTheDocument();
+    expect(overviewCalls).toBe(0);
+    expect(screen.getAllByText('Last.fm connected').length).toBeGreaterThan(0);
+  });
+
+  it('signs out from Settings', async () => {
+    const user = userEvent.setup();
+    let signedIn = true;
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => (signedIn ? { status: 'connected', username: 'test-user', timezone: 'Europe/London' } : { status: 'none' }),
+      signOut: async () => {
+        signedIn = false;
+      },
+    };
+    renderApp(api, '/settings');
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
+    expect(location.current).toMatch(/^\/overview/);
+  });
+
+  it('deletes the account only after the username is typed, then explains how to revoke access', async () => {
+    const user = userEvent.setup();
+    let signedIn = true;
+    const confirmations: string[] = [];
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => (signedIn ? { status: 'connected', username: 'test-user', timezone: 'Europe/London' } : { status: 'none' }),
+      deleteAccount: async (confirm) => {
+        confirmations.push(confirm);
+        signedIn = false;
+        return { revokeAccessUrl: 'https://www.last.fm/settings/applications' };
+      },
+    };
+    renderApp(api, '/settings');
+    const remove = await screen.findByRole('button', { name: 'Delete account' });
+    expect(remove).toBeDisabled();
+    await user.type(screen.getByLabelText(/Type your Last.fm username/), 'wrong');
+    expect(remove).toBeDisabled();
+    await user.clear(screen.getByLabelText(/Type your Last.fm username/));
+    await user.type(screen.getByLabelText(/Type your Last.fm username/), 'TEST-USER');
+    await user.click(remove);
+    expect(await screen.findByText('Your Runout account and its data were deleted.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Last.fm application settings' })).toHaveAttribute('href', 'https://www.last.fm/settings/applications');
+    expect(confirmations).toEqual(['TEST-USER']);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument());
+  });
+
+  it('reports a failed deletion without claiming anything was removed', async () => {
+    const user = userEvent.setup();
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+      deleteAccount: async () => {
+        throw new Error('network');
+      },
+    };
+    renderApp(api, '/settings');
+    await user.type(await screen.findByLabelText(/Type your Last.fm username/), 'test-user');
+    await user.click(screen.getByRole('button', { name: 'Delete account' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Deletion did not complete.');
+  });
+
+  it('explains every sign-in error the server can report', async () => {
+    renderApp(notConnectedApi, '/overview?period=all&auth_error=rate_limited');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many sign-in attempts.');
+  });
+
+  it('credits Last.fm wherever listening data is shown', async () => {
+    renderApp(connectedApi());
+    await screen.findByText('4,321');
+    expect(screen.getByRole('link', { name: 'Last.fm' })).toHaveAttribute('href', 'https://www.last.fm');
+    expect(screen.getByText(/powered by AudioScrobbler/)).toBeInTheDocument();
   });
 });
 

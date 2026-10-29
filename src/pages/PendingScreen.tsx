@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { usePeriod } from '../state/PeriodContext';
 import styles from './PendingScreen.module.css';
@@ -10,6 +10,8 @@ interface Props {
   description: string;
   /** Planned features (Lyrics, Mood) versus designed screens awaiting implementation. */
   planned?: boolean;
+  /** Working controls that exist before the full screen is built. */
+  children?: ReactNode;
 }
 
 /**
@@ -17,7 +19,7 @@ interface Props {
  * States that plainly and shows the parameters the screen received, so links into it
  * (for example from a chart bar into Time Machine) can be verified end to end.
  */
-export function PendingScreen({ eyebrow, title, description, planned = false }: Props) {
+export function PendingScreen({ eyebrow, title, description, planned = false, children }: Props) {
   const params = useParams();
   const [search] = useSearchParams();
   const { withPeriod } = usePeriod();
@@ -51,6 +53,7 @@ export function PendingScreen({ eyebrow, title, description, planned = false }: 
           </dl>
         )}
       </div>
+      {children}
       <Link to={withPeriod('/overview')} className={styles.back}>Back to Overview</Link>
     </main>
   );

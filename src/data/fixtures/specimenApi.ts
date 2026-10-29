@@ -145,4 +145,9 @@ export const specimenApi: RunoutApi = {
     albums: [1, 2].map((i) => ({ id: `albums-${i}`, name: placeholder('Album title', i), artist: placeholder('Artist', i) })),
     tracks: [1, 2].map((i) => ({ id: `tracks-${i}`, name: placeholder('Track title', i), artist: placeholder('Artist', i) })),
   }),
+  signInUrl: () => null,
+  signOut: async () => {},
+  deleteAccount: async () => {
+    throw new Error('Specimen mode has no account to delete.');
+  },
 };

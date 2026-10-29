@@ -69,6 +69,9 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     getConnection: async () => ({ status: 'synced', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' }),
     getOverview: async (p) => overview(serializePeriod(p)),
     search: async () => ({ artists: [{ id: 'a1', name: 'Test Artist A' }], albums: [], tracks: [] }),
+    signInUrl: () => '/api/auth/lastfm',
+    signOut: async () => {},
+    deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
   };
 }
 
@@ -78,6 +81,11 @@ export const notConnectedApi: RunoutApi = {
     throw new NotConnectedError();
   },
   search: async () => {
+    throw new NotConnectedError();
+  },
+  signInUrl: () => '/api/auth/lastfm',
+  signOut: async () => {},
+  deleteAccount: async () => {
     throw new NotConnectedError();
   },
 };

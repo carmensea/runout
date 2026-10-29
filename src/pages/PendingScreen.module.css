@@ -75,3 +75,49 @@
     font-size: 36px;
   }
 }
+
+/* Destructive confirmation (HANDOFF: danger buttons, inputs) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.input {
+  height: 40px;
+  max-width: 320px;
+  padding: 0 10px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.input:focus {
+  border-color: var(--fg);
+}
+
+.danger {
+  align-self: flex-start;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--err);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--err);
+  font-size: 13px;
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--err);
+  color: var(--bg);
+}
+
+.danger:disabled {
+  border-color: var(--ln);
+  color: var(--mu);
+}

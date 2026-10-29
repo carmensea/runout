@@ -1,0 +1,32 @@
+# Development and test use a local PostgreSQL (see server/README.md).
+# Production uses Neon through direct (non-pooled) connection URLs; see docs/backend-plan.md §9.
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  host: <%= ENV.fetch("DATABASE_HOST") { "localhost" } %>
+  port: <%= ENV.fetch("DATABASE_PORT") { 5432 } %>
+  username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
+  password: <%= ENV["DATABASE_PASSWORD"] %>
+
+development:
+  <<: *default
+  database: runout_development
+
+test:
+  <<: *default
+  database: runout_test
+
+production:
+  primary:
+    adapter: postgresql
+    url: <%= ENV["DATABASE_URL"] %>
+    max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  cache:
+    adapter: postgresql
+    url: <%= ENV["CACHE_DATABASE_URL"] %>
+    migrations_paths: db/cache_migrate
+  queue:
+    adapter: postgresql
+    url: <%= ENV["QUEUE_DATABASE_URL"] %>
+    migrations_paths: db/queue_migrate

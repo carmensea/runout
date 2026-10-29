@@ -6,6 +6,8 @@
 
 export type ConnectionState =
   | { status: 'none' }
+  /** Signed in with Last.fm; listening history has not been imported. */
+  | { status: 'connected'; username: string; timezone: string }
   | { status: 'importing'; username: string; timezone: string; progress: number }
   | { status: 'synced'; username: string; timezone: string; lastSyncedAt: string }
   | { status: 'failed'; username: string; timezone: string; lastSyncedAt: string | null; message: string };

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { LoadingState, MessageState } from '../../components/states/States';
 import stateStyles from '../../components/states/States.module.css';
 import { NotConnectedError } from '../../data/api';
@@ -33,7 +33,8 @@ const SECTIONS = [
 export function OverviewPage() {
   const { connection, fmt, timeZone } = useAppData();
   const { current, compare, today, withPeriod } = usePeriod();
-  const connected = connection.status === 'success' && connection.data.status !== 'none';
+  // History endpoints exist only once an import has started.
+  const connected = connection.status === 'success' && connection.data.status !== 'none' && connection.data.status !== 'connected';
   const overview = useOverview(current, compare, connected);
 
   const currentLabel = periodShortLabel(current, today);
@@ -54,6 +55,7 @@ export function OverviewPage() {
       <main id="main" className={mobileStyles.main}>
         <h1 className="sr-only">Overview, {eyebrowPeriod}</h1>
         <Body connection={connection} overview={overview} view={view} compact />
+        <p className={mobileStyles.credit}><LastfmCredit /></p>
       </main>
     );
   }
@@ -78,7 +80,7 @@ export function OverviewPage() {
       />
 
       <footer className={styles.footer}>
-        <span>Scrobbles from Last.fm. Artist metadata from MusicBrainz.</span>
+        <LastfmCredit />
         <SyncNote connection={connection.status === 'success' ? connection.data : null} />
       </footer>
     </main>
@@ -109,6 +111,8 @@ interface BodyProps {
 
 function Body({ connection, overview, view, compact = false }: BodyProps) {
   const { withPeriod, today, current } = view;
+  const { api } = useAppData();
+  const [params] = useSearchParams();
 
   if (connection.status === 'loading') return <LoadingState label="Checking your Last.fm connection" />;
   if (connection.status === 'error') {
@@ -122,16 +126,33 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
     );
   }
   if (connection.data.status === 'none') {
+    const signIn = api.signInUrl();
+    const authError = authErrorMessage(params.get('auth_error'));
     return (
       <MessageState
         icon="link_off"
         message="Connect your Last.fm account to see your listening."
         detail="Runout imports your scrobble history from Last.fm and builds every chart on this page from it. Nothing is shown until an account is connected and imported."
       >
+        {authError && <p className={stateStyles.technical} role="alert" style={{ color: 'var(--err)' }}>{authError}</p>}
         <div className={stateStyles.actions}>
-          <Link to={withPeriod('/connect')} className={stateStyles.primary}>Connect Last.fm</Link>
+          {signIn ? (
+            // A full page navigation: the server redirects to Last.fm.
+            <a href={signIn} className={stateStyles.primary}>Connect Last.fm</a>
+          ) : (
+            <Link to={withPeriod('/connect')} className={stateStyles.primary}>Connect Last.fm</Link>
+          )}
         </div>
       </MessageState>
+    );
+  }
+  if (connection.data.status === 'connected') {
+    return (
+      <MessageState
+        icon="link"
+        message={`Signed in as ${connection.data.username}.`}
+        detail="Importing your Last.fm history is not available in this version of Runout yet. Charts appear here once it is."
+      />
     );
   }
 
@@ -196,9 +217,32 @@ function EmptyPeriod({ data, view, importing }: { data: OverviewData; view: Over
   );
 }
 
+const AUTH_ERRORS: Record<string, string> = {
+  state: 'That sign-in link expired or was opened in another browser. Try again.',
+  denied: 'Last.fm did not confirm the sign-in. Try again.',
+  lastfm: 'Last.fm could not be reached to finish signing in. Try again in a moment.',
+  rate_limited: 'Too many sign-in attempts. Wait a minute and try again.',
+  unavailable: 'Signing in with Last.fm is not set up on this server.',
+};
+
+function authErrorMessage(code: string | null): string | null {
+  if (!code) return null;
+  return AUTH_ERRORS[code] ?? 'Signing in did not complete. Try again.';
+}
+
+/** Attribution required by the Last.fm API terms (§2.7). */
+function LastfmCredit() {
+  return (
+    <span>
+      Scrobbles from <a href="https://www.last.fm" target="_blank" rel="noreferrer">Last.fm</a>, powered by AudioScrobbler. Artist metadata from MusicBrainz.
+    </span>
+  );
+}
+
 function SyncNote({ connection }: { connection: ConnectionState | null }) {
   const { fmt, timeZone } = useAppData();
   if (!connection || connection.status === 'none') return <span>Not synced</span>;
+  if (connection.status === 'connected') return <span>Not synced yet</span>;
   if (connection.status === 'importing') return <span>Import in progress</span>;
   if (!connection.lastSyncedAt) return <span>Not synced yet</span>;
   return <span>Last synced {fmt.dateTime(connection.lastSyncedAt, timeZone)}</span>;

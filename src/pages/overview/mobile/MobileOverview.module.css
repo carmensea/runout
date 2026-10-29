@@ -226,3 +226,10 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
+
+.credit {
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}

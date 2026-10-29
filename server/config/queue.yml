@@ -1,0 +1,21 @@
+# Solid Queue runs inside Puma on one small Render instance (docs/backend-plan.md §10).
+# Conservative on purpose: every poll is a query, and a short interval adds load for no benefit
+# to a personal archive whose jobs are not latency-sensitive.
+default: &default
+  dispatchers:
+    - polling_interval: 5
+      batch_size: 100
+  workers:
+    - queues: "*"
+      threads: <%= ENV.fetch("JOB_THREADS", 2) %>
+      processes: 1
+      polling_interval: 5
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default

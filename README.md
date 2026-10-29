@@ -15,6 +15,11 @@ npm test
 
 Node 22 or later.
 
+## Backend
+
+The Rails API lives in `server/` (see `server/README.md`, including how to sign in locally with
+Last.fm). The plan for everything after authentication is in `docs/backend-plan.md`.
+
 ## Data
 
 The UI never fabricates listening data. It talks to a Runout API (`src/data/api.ts`):

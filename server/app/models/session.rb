@@ -1,0 +1,46 @@
+# A signed-in browser. The cookie carries a random token; only its SHA-256 digest is stored,
+# so a database leak does not expose usable session tokens.
+class Session < ApplicationRecord
+  LIFETIME = 30.days
+  # Sliding expiry never extends a session past this age; after it, sign in again.
+  ABSOLUTE_LIFETIME = 90.days
+  # Sliding expiry is refreshed at most this often, to avoid a write on every request.
+  REFRESH_AFTER = 1.hour
+
+  belongs_to :user
+
+  scope :unexpired, -> { where("expires_at > ? AND created_at > ?", Time.current, ABSOLUTE_LIFETIME.ago) }
+
+  def self.start!(user:, ip_address:, user_agent:)
+    token = SecureRandom.urlsafe_base64(32)
+    now = Time.current
+    session = create!(
+      user: user,
+      token_digest: digest(token),
+      expires_at: now + LIFETIME,
+      last_seen_at: now,
+      ip_address: ip_address,
+      user_agent: user_agent.to_s.first(255)
+    )
+    [ session, token ]
+  end
+
+  def self.find_by_token(token)
+    return nil if token.blank?
+
+    unexpired.find_by(token_digest: digest(token))
+  end
+
+  def self.digest(token)
+    OpenSSL::Digest::SHA256.hexdigest(token)
+  end
+
+  # Returns true when the expiry moved, so the caller can refresh the cookie.
+  def touch_activity!
+    return false if last_seen_at > REFRESH_AFTER.ago
+
+    now = Time.current
+    update_columns(last_seen_at: now, expires_at: [ now + LIFETIME, created_at + ABSOLUTE_LIFETIME ].min, updated_at: now)
+    true
+  end
+end
