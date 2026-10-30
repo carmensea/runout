@@ -68,4 +68,23 @@ class Lastfm::RecentTracksPageTest < ActiveSupport::TestCase
   test "a response without recenttracks is a bad response" do
     assert_raises(Lastfm::Error::BadResponse) { Lastfm::RecentTracksPage.parse({ "user" => {} }) }
   end
+
+  test "counts malformed entries instead of dropping them silently" do
+    page = Lastfm::RecentTracksPage.parse(body([ entry(uts: 5), "not a track", entry(uts: 6).except("name"), entry(uts: 7).except("artist"), nil ]))
+    assert_equal 1, page.scrobbles.size
+    assert_equal 4, page.malformed_count
+    assert_equal 0, page.undated_count
+  end
+
+  test "keeps identical plays in the same second as separate rows" do
+    page = Lastfm::RecentTracksPage.parse(body([ entry(uts: 9, track: "Same"), entry(uts: 9, track: "Same") ]))
+    assert_equal 2, page.scrobbles.size
+    assert_equal page.scrobbles.first, page.scrobbles.last, "equal values, two plays"
+  end
+
+  test "keeps strings exactly, including HTML-like text, emoji and trailing spaces" do
+    page = Lastfm::RecentTracksPage.parse(body([ entry(uts: 1, artist: "Sigur Rós & <Friends>", track: "Track 🎵 ", album: "  ") ]))
+    play = page.scrobbles.sole
+    assert_equal [ "Sigur Rós & <Friends>", "Track 🎵 ", "  " ], [ play.artist, play.track, play.album ]
+  end
 end

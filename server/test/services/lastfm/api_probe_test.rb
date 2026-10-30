@@ -2,7 +2,7 @@ require "test_helper"
 
 class Lastfm::ApiProbeTest < ActiveSupport::TestCase
   setup do
-    @client = Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret")
+    @client = stub_client(max_attempts: 1) # the probe never retries
     @fake = FakeRecentTracks.history(count: 450, same_second_every: nil).install(self)
     @sleeps = []
   end

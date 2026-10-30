@@ -1,7 +1,7 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 and 2.1 are implemented**: feature flag, read-only probe, findings, storage
-report (2.0); database schema and models, with no data stored (2.1).
+Status: **Stages 2.0 to 2.2 are implemented**: feature flag, read-only probe, findings, storage
+report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -48,6 +48,10 @@ Deviations from that plan are listed in §13.
   - Not: images, URLs, "now playing", or full API responses.
   - `loved` is **deferred**, not designed out (decision 3); see §6.1 for how it can be added later.
   - Staging rows are deleted as soon as a window merges.
+- **A measured size is not a licensing answer.** The synthetic benchmark (about 70 MB for a
+  209k-play history, §6.5) does not establish that the history fits within Last.fm's terms.
+  Whether, and how, the 100 MB "Reasonable Usage Cap" applies is still the open question.
+  Storage stays disabled until Last.fm answers.
 - **Measure, don't assume.** `bin/rails runout:storage_report` reports:
   - the on-disk size (`pg_total_relation_size`) of every table holding Last.fm-derived data;
   - a per-user estimate (row counts × average row width).
@@ -148,14 +152,25 @@ Transaction-level locks are safe on a direct connection (backend-plan §9).
 
 The merge follows the algorithm in backend-plan §4. For each second `t`:
 
-1. Pair the staged and stored rows whose variant is identical, matching the staged `occurrence`
-   numbers to stored rows one to one, so identical plays in one second stay separate.
+**`seq` is a storage slot, not an identity across snapshots.** Last.fm may return plays in the
+same second in a different order, or with changed metadata, between fetches. So the merge never
+treats a stored `seq` (or a staged `position`) as identifying the same logical play. Matching uses
+the multiset of plays in that second:
+
+1. Pair the staged and stored rows whose variant is identical. Identical plays in one second are
+   indistinguishable, so any one-to-one pairing between them loses nothing. The staged
+   `occurrence` numbers only make the counts explicit, so identical plays stay separate.
 2. Pair what's left on each side in order; each such pair is a **name correction**, recorded in
    `scrobble_corrections`. The scrobble's `id`, `played_at` and `seq` never change.
    - **Unambiguous** (exactly one leftover play on each side in that second): state `applied`,
-     and `scrobbles.name_variant_id` moves to the new variant.
-   - **Anything uncertain** (several leftover plays in the second, so the pairing is a guess):
-     state `pending_review`. The scrobble keeps its original variant until a decision.
+     and `scrobbles.name_variant_id` moves to the new variant. It is recorded, so it can be
+     reviewed and reversed.
+   - **Anything uncertain:** several leftover plays on either side, so the pairing would be a
+     guess, or leftover counts that differ, so it could equally be a deletion plus a new play.
+     State `pending_review`, and neither side is applied. The scrobble keeps its original variant
+     and no removal or insertion happens in that second until a decision.
+   - **Order is ignored throughout.** A change in the order Last.fm returns plays within a second
+     never produces a correction.
 3. Staged rows still unpaired are **new plays**: insert them with the next free `seq`.
 4. Stored rows still unpaired are **missing upstream**:
    - record a `scrobble_removals` row in state `observed`, with `first_missing_fetch_id`;
@@ -359,7 +374,16 @@ or recordings together because their names match. A test keeps two Nirvanas and 
   | **Total** | | **69.8 MB**, about 350 bytes per play |
 
   Measured on freshly truncated tables inside a rolled-back transaction; repeated runs agree to
-  within 0.1 MB. The variant and catalogue counts are assumptions: about one distinct name combination per five
+  within 0.1 MB.
+
+  This covers scrobbles, variants, the catalogue and **one** staging window. It does not yet
+  include:
+  - reconciliation records (`scrobble_corrections`, `scrobble_removals`);
+  - fetch history (`import_window_fetches` grows with every sync);
+  - staging during a full import, when several windows can be staged at once;
+  - Milestone 4 metadata (tags, mappings, artwork references).
+
+  Later measurements (Stage 2.9) must include all of these. The variant and catalogue counts are assumptions: about one distinct name combination per five
   plays. The real ratio is unknown until import. A ratio of one in three would add roughly 12 MB.
 
 ## 7. Jobs on Solid Queue
@@ -381,8 +405,16 @@ or recordings together because their names match. A test keeps two Nirvanas and 
   - This is still within the conservative settings from Milestone 1.
 - **One import per user:** `limits_concurrency to: 1, key: ->(user) { user.id }` on
   `StartImportJob` and the sync jobs.
-- **Pacing:** a minimum interval between Last.fm requests (`LASTFM_MIN_REQUEST_INTERVAL`, default
-  1 s, adjusted after A7), plus exponential backoff with jitter on error 29.
+- **Pacing (implemented in Stage 2.2):** `Lastfm::RequestPacer`, backed by the
+  `api_request_slots` table, gives one schedule shared by every process.
+  - Each request atomically reserves the next slot (`LASTFM_MIN_REQUEST_INTERVAL`, default 1 s)
+    using the database clock.
+  - HTTP 429 and error 29 push the next slot out for every process (a global cool-down).
+  - A wait longer than 120 s raises instead of blocking a worker.
+  - Reservations bypass ActiveRecord's query cache, which Rails enables for every request and
+    job; otherwise repeated reservations would read a cached "go now".
+  - Don't call Last.fm inside a long database transaction: the slot row stays locked until it
+    commits.
 
 ### 7.3 Idempotency and recovery
 
@@ -487,7 +519,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 |---|---|---|
 | **2.0 Verify and gate** (done 2026-10-29) | The feature flag (off), a read-only `bin/rails lastfm:probe` for A1 to A7, `docs/lastfm-api-findings.md`, and the storage report skeleton | Probe prints only field names and counts; findings documented; plan updated where an assumption failed |
 | **2.1 Schema** (done 2026-10-29) | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
-| **2.2 Recent-tracks client** | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
+| **2.2 Recent-tracks client** (done 2026-10-29) | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
 | **2.3 Window fetch and verify** | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
 | **2.4 Merge engine** | §4.4 including revisions and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
 | **2.5 Catalogue resolution** | Variants to artists, albums and tracks; re-resolution; clean-up | MBID and name rules; re-running changes nothing; account deletion leaves no orphans |
@@ -533,6 +565,15 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.2 client decisions:
+  - **Global pacing** uses a small non-history table (`api_request_slots`), so it holds across
+    processes.
+  - **Client retries:** the client retries transient failures itself (up to 4 attempts, full
+    jitter, Retry-After honoured up to 300 s) before a job's own retry policy applies.
+  - **The token exchange is never retried.** `auth.getSession` tokens are single-use.
+  - **Error classes:** `Unparseable`, a non-JSON or truncated body, is retryable; `BadResponse`,
+    valid JSON missing required data, is permanent.
+  - **Malformed entries:** the parser counts them (`malformed_count`) alongside `undated_count`.
 - Stage 2.1 schema decisions:
   - **Corrections** are recorded in `scrobble_corrections`, and uncertain ones wait for review
     rather than being applied automatically.

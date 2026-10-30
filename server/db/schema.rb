@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000008) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000009) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -27,6 +27,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000008) do
     t.index ["artist_id"], name: "index_albums_on_artist_id"
     t.index ["mbid"], name: "index_albums_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_albums_on_merged_into_id"
+  end
+
+  create_table "api_request_slots", primary_key: "key", id: :string, force: :cascade do |t|
+    t.timestamptz "next_slot_at", null: false
+    t.timestamptz "updated_at", null: false
   end
 
   create_table "artists", force: :cascade do |t|
@@ -155,7 +160,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000008) do
     t.datetime "updated_at", null: false
     t.index ["identity_id"], name: "index_lastfm_connections_on_identity_id", unique: true
     t.index ["user_id"], name: "index_lastfm_connections_on_user_id", unique: true
-    t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying::text, 'importing'::character varying::text, 'imported'::character varying::text, 'failed'::character varying::text])", name: "lastfm_connections_history_state_check"
+    t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying, 'importing'::character varying, 'imported'::character varying, 'failed'::character varying]::text[])", name: "lastfm_connections_history_state_check"
   end
 
   create_table "name_variants", force: :cascade do |t|

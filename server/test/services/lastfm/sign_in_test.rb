@@ -2,7 +2,7 @@ require "test_helper"
 
 class Lastfm::SignInTest < ActiveSupport::TestCase
   setup do
-    @service = Lastfm::SignIn.new(client: Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret"))
+    @service = Lastfm::SignIn.new(client: stub_client)
   end
 
   test "creates a user, an identity keyed by the normalised username, and a connection" do

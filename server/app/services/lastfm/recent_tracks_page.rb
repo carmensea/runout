@@ -6,7 +6,11 @@ module Lastfm
   # - `track` is an array; a single object is also accepted, a known Last.fm quirk.
   # - The "now playing" entry has `@attr.nowplaying = "true"` and no `date`; it is excluded.
   # - Strings are kept exactly as received (no trimming or case changes); empty MBIDs become nil.
-  RecentTracksPage = Data.define(:page, :per_page, :total_pages, :total, :scrobbles, :now_playing, :undated_count) do
+  # - Nothing is dropped silently. Entries without a usable date are counted in `undated_count`;
+  #   entries that aren't track objects, or have no track or artist name, in `malformed_count`.
+  # - Same-second and identical plays are separate entries, in the order Last.fm returned them.
+  RecentTracksPage = Data.define(:page, :per_page, :total_pages, :total, :scrobbles, :now_playing,
+                                 :undated_count, :malformed_count) do
     def self.parse(body)
       container = body["recenttracks"]
       raise Error::BadResponse, "user.getRecentTracks response has no recenttracks" unless container.is_a?(Hash)
@@ -18,7 +22,12 @@ module Lastfm
 
       now_playing = false
       undated = 0
+      malformed = 0
       scrobbles = entries.filter_map do |entry|
+        unless entry.is_a?(Hash) && entry.key?("name") && entry.key?("artist")
+          malformed += 1
+          next
+        end
         if entry.dig("@attr", "nowplaying") == "true"
           now_playing = true
           next
@@ -38,7 +47,8 @@ module Lastfm
         total: integer(attrs["total"]),
         scrobbles: scrobbles,
         now_playing: now_playing,
-        undated_count: undated
+        undated_count: undated,
+        malformed_count: malformed
       )
     end
 

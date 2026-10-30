@@ -1,12 +1,17 @@
 module Lastfm
-  # Base error. `code` is Last.fm's error code when the API returned one.
+  # Base error. `code` is Last.fm's error code when the API returned one; `retry_after` is the
+  # server's requested wait in seconds (from a Retry-After header), when it sent one.
+  #
+  # Messages never contain credentials: the client builds them from codes and statuses and
+  # redacts anything echoed back by Last.fm (Client#redact).
   class Error < StandardError
-    attr_reader :code, :http_status
+    attr_reader :code, :http_status, :retry_after
 
-    def initialize(message = nil, code: nil, http_status: nil)
+    def initialize(message = nil, code: nil, http_status: nil, retry_after: nil)
       super(message)
       @code = code
       @http_status = http_status
+      @retry_after = retry_after
     end
 
     # Whether retrying later may succeed (used by import jobs in Milestone 2).
@@ -17,8 +22,12 @@ module Lastfm
       def retryable? = true
     end
 
-    # Error 29: rate limit exceeded.
+    # Error 29 or HTTP 429: rate limit exceeded.
     class RateLimited < Temporary; end
+
+    # A successful-looking response whose body isn't valid JSON (truncated, an HTML error page).
+    # Usually transient, so retryable; BadResponse is for valid JSON missing required data.
+    class Unparseable < Temporary; end
 
     # Errors 4, 14, 15: the sign-in token is invalid, was not authorised, or expired.
     class TokenRejected < Error; end
@@ -32,7 +41,7 @@ module Lastfm
     # Any other API error (for example 6, invalid parameters).
     class RequestRejected < Error; end
 
-    # The response could not be understood.
+    # Valid JSON that lacks what the call requires (for example, no user). Permanent.
     class BadResponse < Error; end
 
     # Credentials are not configured on this server.

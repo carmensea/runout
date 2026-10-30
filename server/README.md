@@ -50,6 +50,12 @@ bin/rails test
 Always use `http://localhost:5173`, not port 3000 directly: the sign-in callback and the
 session cookie are tied to that origin (`APP_ORIGIN`).
 
+## Database safety
+
+Never roll back, reset, drop or recreate the development database. Migrate forward only, after
+checking `bin/rails db:migrate:status`. Test reversibility only against the test database, one
+named version at a time. The full rules are in `CLAUDE.md` at the repo root.
+
 ## Relinking after a username change
 
 Last.fm does not expose a stable account ID, so this deployment is locked to one configured
@@ -85,6 +91,7 @@ Findings: `docs/lastfm-api-findings.md`.
 | `DATABASE_URL`, `CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL` | Production (Neon, direct connections) |
 | `SECRET_KEY_BASE` | Production |
 | `JOB_THREADS` | Solid Queue worker threads (default 2) |
+| `LASTFM_MIN_REQUEST_INTERVAL` | Seconds between Last.fm requests across all processes (default 1.0) |
 | `LASTFM_HISTORY_STORAGE_ENABLED` | Off unless exactly `true` or `1`. Gates storing Last.fm listening history; keep off until Last.fm's storage terms are resolved |
 
 In production `APP_ORIGIN` is required at boot (it sets the allowed `Host`), including for build

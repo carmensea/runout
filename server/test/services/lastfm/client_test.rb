@@ -2,7 +2,7 @@ require "test_helper"
 
 class Lastfm::ClientTest < ActiveSupport::TestCase
   setup do
-    @client = Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret")
+    @client = stub_client
   end
 
   test "signs parameters as documented: sorted name+value pairs, then the secret, MD5" do
@@ -108,8 +108,8 @@ class Lastfm::ClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "a 200 response that is not JSON is a bad response" do
+  test "a 200 response that is not JSON is retryable, then reported as unparseable" do
     stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: hash_including({})).to_return(status: 200, body: "<html>")
-    assert_raises(Lastfm::Error::BadResponse) { @client.get_session("tok") }
+    assert_raises(Lastfm::Error::Unparseable) { @client.user_info(session_key: "sk") }
   end
 end

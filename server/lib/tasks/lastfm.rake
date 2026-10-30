@@ -45,7 +45,8 @@ namespace :lastfm do
     abort "Set LASTFM_ALLOWED_USERNAME first." unless username
 
     identity = Identity.find_by(provider: Identity::LASTFM, uid: username, revoked_at: nil)
-    findings = Lastfm::ApiProbe.new(client: Lastfm::Config.client, username: username,
+    # max_attempts: 1, so the probe stops at the first rate-limit error instead of retrying.
+    findings = Lastfm::ApiProbe.new(client: Lastfm::Config.client(max_attempts: 1), username: username,
                                     session_key: identity&.session_key).run
     puts JSON.pretty_generate(findings)
   end

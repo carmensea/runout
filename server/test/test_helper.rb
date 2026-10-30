@@ -3,6 +3,7 @@ ENV["RAILS_ENV"] ||= "test"
 ENV["LASTFM_API_KEY"] = "test-api-key"
 ENV["LASTFM_SHARED_SECRET"] = "test-shared-secret"
 ENV["APP_ORIGIN"] = "http://localhost:5173"
+ENV["LASTFM_MIN_REQUEST_INTERVAL"] = "0"
 
 require_relative "../config/environment"
 require "rails/test_help"
@@ -45,6 +46,14 @@ module ActiveSupport
 
     # Single-account mode with "listener" unless a test says otherwise (Lastfm::AccountPolicy).
     setup { allow_lastfm_accounts("listener") }
+
+    # Retries still happen in tests, but without real sleeps.
+    setup { Rails.configuration.x.lastfm_client_options = { sleeper: ->(_seconds) { } } }
+
+    # A client for unit tests: no pacer, no sleeping. Override anything per test.
+    def stub_client(**options)
+      Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret", sleeper: ->(_seconds) { }, **options)
+    end
 
     def allow_lastfm_accounts(*usernames)
       Rails.configuration.x.lastfm_allowed_usernames = usernames

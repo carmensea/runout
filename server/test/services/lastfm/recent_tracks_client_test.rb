@@ -2,7 +2,7 @@ require "test_helper"
 
 class Lastfm::RecentTracksClientTest < ActiveSupport::TestCase
   setup do
-    @client = Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret")
+    @client = stub_client
     @fake = FakeRecentTracks.history(count: 450).install(self)
   end
 
@@ -49,5 +49,18 @@ class Lastfm::RecentTracksClientTest < ActiveSupport::TestCase
     last = @client.recent_tracks(username: "listener", limit: 200).total_pages
     assert_equal 3, last
     assert_empty @client.recent_tracks(username: "listener", limit: 200, page: last + 1).scrobbles
+  end
+
+  test "reading a full history with the real pacer writes nothing except the pacing row" do
+    client = stub_client(pacer: Lastfm::RequestPacer.new(key: "reader-test", interval: 0, sleeper: ->(_s) { }))
+    writes = []
+    callback = ->(*, payload) { writes << payload[:sql] if payload[:sql].match?(/\A\s*(INSERT|UPDATE|DELETE)/i) }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      first = client.recent_tracks(username: "listener", limit: 200)
+      (2..first.total_pages).each { |n| client.recent_tracks(username: "listener", limit: 200, page: n) }
+    end
+    assert_not_empty writes
+    assert writes.all? { |sql| sql.include?("api_request_slots") }, writes.inspect
+    assert_equal 0, Scrobble.count + NameVariant.count + ImportWindowRow.count
   end
 end
