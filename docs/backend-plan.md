@@ -32,7 +32,7 @@ Quotes are from the Last.fm API Terms of Service (`last.fm/api/tos`).
 What this means for the build:
 
 - We do **not** assume that compact storage satisfies the 100 MB cap. Whether we may store history long term, and how much, is unresolved.
-- Milestone 1 stores only what sign-in needs: the numeric account ID, username, session key and registration date.
+- Milestone 1 stores only what sign-in needs: the username, session key and registration date.
 - History import (Milestone 2) runs behind `LASTFM_HISTORY_STORAGE_ENABLED`, which defaults to **off** in production until Last.fm gives written clarification.
 - Local development with your own account is your call. The flag is on by default in development.
 - A rake task will report the size of all stored data derived from Last.fm, so storage can be compared with whatever Last.fm allows.
@@ -40,10 +40,43 @@ What this means for the build:
 
 ## 2. Account identity
 
-- `user.getInfo` returns a numeric `id` (the documented sample shows `<id>1000002</id>`). Last.fm Pro users can change their username, so the **numeric ID is the external identity**: `identities.uid`.
-- The username is an attribute that gets updated. On each sign-in we call `auth.getSession`, then `user.getInfo` signed with the new session key and **without** a `user` parameter, so it describes the account that just authorised rather than whoever owns a name. If the stored username differs, we update it.
-- `identities` is unique on (`provider`, `uid`). Adding another sign-in method later means adding rows with a new `provider`, with no schema change.
-- The tests cover username continuity: the same numeric ID with a new username signs into the same user, the username is updated, and no second user is created.
+**Finding (2026-10-29, real API):** `user.getInfo` returns **no numeric account ID**, in JSON or
+XML. The documented sample (`<id>1000002</id>`) is out of date. The live response has `name`,
+`url`, `registered` (Unix seconds), `playcount` and some counters. A first real sign-in failed
+closed on this: no account was created.
+
+**Decision (single-account private deployment, with a multi-user-ready schema):**
+
+- **Locked to configured accounts.** `LASTFM_ALLOWED_USERNAME` names the one Last.fm account that
+  may sign in (`Lastfm::AccountPolicy`). Any other account is refused (`account_not_allowed`).
+- **Verified on every sign-in.**
+  - `auth.getSession` and `user.getInfo` (signed with the new session key, no `user` parameter)
+    must report the same username.
+  - `user.getInfo` must include a registration time, otherwise `identity_unverified`.
+- **Runout's own IDs.** `users.id` is a Runout UUID and never derives from Last.fm data.
+- **Lookup key.**
+  - `identities.uid` is the normalised (lowercased) username. It is a lookup key that only an
+    explicit relink changes, not a permanent identity.
+  - It stays unique on (`provider`, `uid`).
+- **Registration time is a consistency check only.**
+  - `identities.registered_at` is recorded at the first sign-in and must match on every later one,
+    otherwise `identity_changed`. A missing stored value counts as a mismatch.
+  - It is never a lookup key, never unique, and never grounds for merging accounts.
+- **No automatic merging or guessing.**
+  - In single-account mode, once an account is linked, a sign-in under any other username is
+    refused with `relink_required`, even if the registration time matches.
+  - No second user is created and no history moves.
+- **Recovery after a rename is explicit.** The operator:
+  1. updates `LASTFM_ALLOWED_USERNAME`;
+  2. runs `bin/rails "lastfm:relink[old,new]"`, which checks that the new name's public
+     registration time matches, re-points `uid`, clears the stored session key and marks the link
+     revoked;
+  3. signs in as the new username, which is the actual proof of control.
+
+  A future multi-user version would add a relink flow in the UI on top of the same rules.
+- **Multi-user readiness.** Configuring several usernames switches the policy to multi-account
+  mode: each configured username gets its own Runout user. The schema (`users`, `identities`,
+  `sessions`, `lastfm_connections`) needs no change. Tests cover both modes.
 
 ## 3. Database schema
 
@@ -52,7 +85,7 @@ What this means for the build:
 | Table | Columns | Constraints |
 |---|---|---|
 | `users` | `id` uuid, `display_name`, `reporting_timezone` (IANA), timestamps | |
-| `identities` | `user_id`, `provider`, `uid`, `username`, `credentials` (encrypted JSON), `profile_url`, `registered_at`, `revoked_at`, `last_authenticated_at` | Unique (`provider`, `uid`) |
+| `identities` | `user_id`, `provider`, `uid` (normalised username: lookup key, changed only by relink), `username`, `credentials` (encrypted JSON), `profile_url`, `registered_at` (consistency check, not unique), `revoked_at`, `last_authenticated_at` | Unique (`provider`, `uid`) |
 | `sessions` | `user_id`, `token_digest` (SHA-256), `expires_at`, `last_seen_at`, `ip_address`, `user_agent` | Unique `token_digest` |
 | `lastfm_connections` | `user_id`, `identity_id`, `history_state` (`not_started`, `importing`, `imported`, `failed`), `last_synced_at`, `last_error` | Unique `identity_id` |
 
@@ -262,11 +295,10 @@ For a period with `N` scrobbles, `share(g) = Σ_s p(s,g) / N`. The shares of all
 ## 13. Assumptions to verify
 
 - That `user.getInfo` signed with a session key and no `user` parameter returns the authorised account. The docs say `user` defaults to the authenticated user.
-- That the numeric `id` is stable across username changes. This is implied by its existence, but not stated.
+- ~~That the numeric `id` is stable across username changes.~~ **Resolved:** no numeric ID is returned at all (see §2).
 - Last.fm's actual rate limits.
 - The offline-scrobble backdating limit (assumed 14 days).
 - That `total` / `totalPages` can be used for counts.
 - Whether signed `getRecentTracks` calls return scrobbles from private profiles.
 - Solid Queue's compatibility with Neon's transaction pooler.
 - Render's pricing.
-- That `user.getInfo`'s live JSON response contains `id`. The documented sample is XML; sign-in fails closed (no account is created) if `id` is missing.

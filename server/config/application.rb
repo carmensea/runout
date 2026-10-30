@@ -50,6 +50,10 @@ module Runout
     config.x.app_origin = ENV.fetch("APP_ORIGIN", "http://localhost:5173")
     config.x.app_origins = [ config.x.app_origin ]
 
+    # The Last.fm account allowed to sign in (single-account private deployment). See
+    # Lastfm::AccountPolicy; without it, sign-in is refused.
+    config.x.lastfm_allowed_usernames = [ ENV["LASTFM_ALLOWED_USERNAME"] ].compact
+
     # Scrobble timestamps are stored and compared in UTC; reporting timezones are applied in queries.
     config.time_zone = "UTC"
     config.active_record.default_timezone = :utc

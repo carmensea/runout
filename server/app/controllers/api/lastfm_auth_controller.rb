@@ -35,11 +35,9 @@ module Api
       result = Lastfm::SignIn.new(client: Lastfm::Config.client).call(token: params[:token], timezone: stored["tz"])
       start_session_for(result.user)
       redirect_to "/overview"
-    rescue Lastfm::Error::TokenRejected
-      fail_with("denied")
     rescue Lastfm::Error => e
       Rails.logger.warn("Last.fm sign-in failed: #{e.class.name} #{e.message}")
-      fail_with("lastfm")
+      fail_with(error_code(e))
     end
 
     private
@@ -47,6 +45,20 @@ module Api
     def valid_state?(stored)
       stored.is_a?(Hash) && stored["nonce"].present? && params[:state].present? &&
         ActiveSupport::SecurityUtils.secure_compare(stored["nonce"], params[:state].to_s)
+    end
+
+    # Each code has its own message in the frontend (src/pages/overview/OverviewPage.tsx).
+    def error_code(error)
+      case error
+      when Lastfm::Error::TokenRejected then "denied"
+      when Lastfm::SignIn::AccountNotAllowed then "account_not_allowed"
+      when Lastfm::SignIn::RelinkRequired then "relink_required"
+      when Lastfm::SignIn::IdentityChanged then "identity_changed"
+      when Lastfm::SignIn::IdentityMismatch, Lastfm::SignIn::IdentityUnverifiable then "identity_unverified"
+      when Lastfm::Error::Temporary then "lastfm_unavailable"
+      when Lastfm::Error::ApiKeyRejected then "server_misconfigured"
+      else "lastfm_rejected"
+      end
     end
 
     def fail_with(code)

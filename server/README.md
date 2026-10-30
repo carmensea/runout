@@ -24,9 +24,18 @@ bin/rails test
    Set the callback URL to `http://localhost:5173/api/auth/lastfm/callback`.
 2. Start the API with your credentials. They stay on the server and are never sent to the browser.
 
+   Put them in `server/.env` (git-ignored), with the account allowed to sign in:
+
+   ```
+   LASTFM_API_KEY=...
+   LASTFM_SHARED_SECRET=...
+   LASTFM_ALLOWED_USERNAME=your-lastfm-username
+   ```
+
    ```sh
    cd server
-   LASTFM_API_KEY=... LASTFM_SHARED_SECRET=... bin/rails server -p 3000
+   set -a; . ./.env; set +a
+   bin/rails server -p 3000
    ```
 
 3. In another terminal, start the frontend so it talks to the API through the Vite proxy:
@@ -41,11 +50,24 @@ bin/rails test
 Always use `http://localhost:5173`, not port 3000 directly: the sign-in callback and the
 session cookie are tied to that origin (`APP_ORIGIN`).
 
+## Relinking after a username change
+
+Last.fm does not expose a stable account ID, so this deployment is locked to one configured
+username, and a rename is never detected or merged automatically. After you rename your Last.fm
+account, sign-in shows "relink required". To relink:
+
+1. Set `LASTFM_ALLOWED_USERNAME` to the new username and restart the server.
+2. Run `bin/rails "lastfm:relink[old_name,new_name]"`. It checks that the new username's
+   registration time matches the linked account, then re-points the link. If anything doesn't
+   match, it changes nothing.
+3. Sign in with Last.fm as the new username. Your Runout user and history are unchanged.
+
 ## Environment
 
 | Variable | Purpose |
 |---|---|
 | `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET` | Last.fm API account |
+| `LASTFM_ALLOWED_USERNAME` | The one Last.fm account allowed to sign in (case-insensitive). Required: without it, sign-in is refused |
 | `APP_ORIGIN` | Browser-facing origin (default `http://localhost:5173`) |
 | `ACTIVE_RECORD_ENCRYPTION_*` | Required in production; derived from the local secret in development |
 | `DATABASE_URL`, `CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL` | Production (Neon, direct connections) |

@@ -217,12 +217,21 @@ function EmptyPeriod({ data, view, importing }: { data: OverviewData; view: Over
   );
 }
 
+/** One message per server code (server/app/controllers/api/lastfm_auth_controller.rb). */
 const AUTH_ERRORS: Record<string, string> = {
   state: 'That sign-in link expired or was opened in another browser. Try again.',
-  denied: 'Last.fm did not confirm the sign-in. Try again.',
-  lastfm: 'Last.fm could not be reached to finish signing in. Try again in a moment.',
+  denied: 'Sign-in was cancelled or not confirmed on Last.fm. Nothing was changed.',
+  lastfm_unavailable: 'Last.fm could not be reached to finish signing in. Try again in a moment.',
+  lastfm_rejected: 'Last.fm rejected the sign-in request. Nothing was changed. Try again.',
+  server_misconfigured: "Last.fm rejected this server's API key. Check the Last.fm API settings on the server.",
   rate_limited: 'Too many sign-in attempts. Wait a minute and try again.',
   unavailable: 'Signing in with Last.fm is not set up on this server.',
+  account_not_allowed: 'This Runout is set up for a different Last.fm account. Sign in with the account it was set up for.',
+  relink_required:
+    'This Last.fm username does not match the account linked to this Runout. If you renamed your Last.fm account, relink it on the server (see "Relinking after a username change" in server/README.md). Nothing was changed.',
+  identity_changed:
+    'This Last.fm username now looks like a different account from the one linked to this Runout, so sign-in was stopped. Nothing was changed.',
+  identity_unverified: 'Last.fm did not return enough account details to confirm who signed in, so sign-in was stopped. Nothing was changed.',
 };
 
 function authErrorMessage(code: string | null): string | null {

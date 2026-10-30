@@ -9,7 +9,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   end
 
   test "a tampered cookie is treated as signed out and cleared" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     cookies[Authentication::COOKIE_NAME] = "#{session_cookie}x"
 
     get "/api/connection"
@@ -18,7 +18,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   end
 
   test "an expired session is treated as signed out" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     Session.update_all(expires_at: 1.minute.ago)
 
     get "/api/connection"
@@ -26,7 +26,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   end
 
   test "sign-out requires a same-origin request" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
 
     delete "/api/session"
     assert_response :forbidden
@@ -41,7 +41,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   end
 
   test "sign-out ends the session server-side" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     token = session_cookie
 
     delete "/api/session", headers: same_origin_headers
@@ -58,12 +58,13 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
-  test "each user sees only their own connection" do
-    sign_in_via_lastfm(id: 1001, username: "alice")
+  test "each user sees only their own connection (multi-account mode)" do
+    allow_lastfm_accounts("alice", "bob")
+    sign_in_via_lastfm(username: "alice")
     alice_token = session_cookie
     WebMock.reset!
     cookies.delete(Authentication::COOKIE_NAME)
-    sign_in_via_lastfm(id: 2002, username: "bob", tz: "America/New_York")
+    sign_in_via_lastfm(username: "bob", tz: "America/New_York")
     bob_token = session_cookie
 
     cookies[Authentication::COOKIE_NAME] = alice_token
@@ -76,7 +77,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   end
 
   test "a revoked Last.fm identity reads as not connected" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     Identity.update_all(revoked_at: Time.current)
 
     get "/api/connection"

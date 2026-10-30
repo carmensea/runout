@@ -2,7 +2,7 @@ require "test_helper"
 
 class AccountDeletionTest < ActionDispatch::IntegrationTest
   test "deleting the account erases the user, identity, session key, sessions and connection" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     token = session_cookie
     user = User.sole
 
@@ -22,7 +22,7 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
   end
 
   test "deletion requires typing the Last.fm username" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
 
     delete "/api/account", params: { confirm_username: "someone-else" }, headers: same_origin_headers, as: :json
     assert_response :unprocessable_content
@@ -30,21 +30,22 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
     assert_equal 1, User.count
   end
 
-  test "deletion only touches the signed-in user's data" do
-    sign_in_via_lastfm(id: 2002, username: "other")
+  test "deletion only touches the signed-in user's data (multi-account mode)" do
+    allow_lastfm_accounts("other", "listener")
+    sign_in_via_lastfm(username: "other")
     reset!
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
 
     delete "/api/account", params: { confirm_username: "listener" }, headers: same_origin_headers, as: :json
     assert_response :ok
-    assert_equal [ "2002" ], Identity.pluck(:uid)
+    assert_equal [ "other" ], Identity.pluck(:uid)
   end
 
   test "deletion needs a session and a same-origin request" do
     delete "/api/account", params: { confirm_username: "listener" }, headers: same_origin_headers, as: :json
     assert_response :unauthorized
 
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     delete "/api/account", params: { confirm_username: "listener" }, headers: { "Origin" => "https://evil.example", "X-Requested-With" => "XMLHttpRequest" }, as: :json
     assert_response :forbidden
     assert_equal 1, User.count

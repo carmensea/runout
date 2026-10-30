@@ -27,11 +27,12 @@ module ActiveSupport
         stub_lastfm("auth.getSession", body: { session: { name: username, key: key, subscriber: 0 } })
       end
 
-      def stub_user_info(id:, username:)
-        stub_lastfm("user.getInfo", body: {
-          user: { id: id.to_s, name: username, url: "https://www.last.fm/user/#{username}",
-                  registered: { unixtime: "1199145600", "#text" => 1199145600 }, playcount: "0" }
-        })
+      # Shaped like Last.fm's live response (checked 2026-10-29): no numeric id field.
+      # `registered: nil` simulates a response without a registration time.
+      def stub_user_info(username:, registered: 1199145600)
+        user = { name: username, url: "https://www.last.fm/user/#{username}", playcount: "0" }
+        user[:registered] = { unixtime: registered.to_s, "#text" => registered } if registered
+        stub_lastfm("user.getInfo", body: { user: user })
       end
 
       def stub_lastfm_error(method, code:, message: "error", status: 200)
@@ -40,14 +41,21 @@ module ActiveSupport
     end
 
     include LastfmStubs
+
+    # Single-account mode with "listener" unless a test says otherwise (Lastfm::AccountPolicy).
+    setup { allow_lastfm_accounts("listener") }
+
+    def allow_lastfm_accounts(*usernames)
+      Rails.configuration.x.lastfm_allowed_usernames = usernames
+    end
   end
 end
 
 module SignInHelpers
   # Runs the full browser flow against stubbed Last.fm: start, then callback with the issued state.
-  def sign_in_via_lastfm(id:, username:, tz: "Europe/London", token: "tok-#{SecureRandom.hex(4)}")
+  def sign_in_via_lastfm(username:, registered: 1199145600, tz: "Europe/London", token: "tok-#{SecureRandom.hex(4)}")
     stub_get_session(username: username)
-    stub_user_info(id: id, username: username)
+    stub_user_info(username: username, registered: registered)
     get "/api/auth/lastfm", params: { tz: tz }
     state = Rack::Utils.parse_query(URI(Rack::Utils.parse_query(URI(response.location).query)["cb"]).query)["state"]
     get "/api/auth/lastfm/callback", params: { state: state, token: token }

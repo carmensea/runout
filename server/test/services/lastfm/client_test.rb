@@ -35,9 +35,8 @@ class Lastfm::ClientTest < ActiveSupport::TestCase
   end
 
   test "user_info asks about the session's own account, without a user parameter" do
-    stub_user_info(id: 4242, username: "listener")
+    stub_user_info(username: "listener")
     info = @client.user_info(session_key: "sk-1")
-    assert_equal "4242", info[:id]
     assert_equal "listener", info[:username]
     assert_equal Time.at(1199145600).utc, info[:registered_at]
     assert_requested(:get, %r{\Ahttps://ws\.audioscrobbler\.com/2\.0/}) do |req|
@@ -46,9 +45,25 @@ class Lastfm::ClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "user_info rejects a response without a numeric id" do
-    stub_lastfm("user.getInfo", body: { user: { name: "listener" } })
+  test "user_info matches Last.fm's live shape: no id field, registration time optional" do
+    stub_lastfm("user.getInfo", body: { user: { name: "listener", url: "https://www.last.fm/user/listener" } })
+    info = @client.user_info(session_key: "sk")
+    assert_not info.key?(:id)
+    assert_nil info[:registered_at]
+  end
+
+  test "user_info rejects a response without a username" do
+    stub_lastfm("user.getInfo", body: { user: { registered: { unixtime: "1199145600" } } })
     assert_raises(Lastfm::Error::BadResponse) { @client.user_info(session_key: "sk") }
+  end
+
+  test "public_user_info looks up a username without signing" do
+    stub_user_info(username: "listener")
+    assert_equal "listener", @client.public_user_info("listener")[:username]
+    assert_requested(:get, %r{\Ahttps://ws\.audioscrobbler\.com/2\.0/}) do |req|
+      q = Rack::Utils.parse_query(req.uri.query)
+      q["user"] == "listener" && !q.key?("sk") && !q.key?("api_sig")
+    end
   end
 
   test "maps Last.fm error codes to typed errors" do

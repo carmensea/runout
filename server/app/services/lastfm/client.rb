@@ -38,19 +38,18 @@ module Lastfm
 
     # Profile of the user who authorised the session key. No `user` parameter is sent, so the
     # answer describes the session's own account rather than whoever currently owns a name.
+    #
+    # Last.fm's live responses (JSON and XML, checked 2026-10-29) carry no numeric account id,
+    # despite the documented sample. What they do carry is returned here; deciding whether that is
+    # enough to identify the account is Lastfm::SignIn's job.
     def user_info(session_key:)
-      body = call("user.getInfo", { sk: session_key }, signed: true)
-      user = body.fetch("user") { raise Error::BadResponse, "user.getInfo response has no user" }
-      id = user["id"].to_s
-      raise Error::BadResponse, "user.getInfo response has no numeric id" unless id.match?(/\A\d+\z/)
+      parse_user(call("user.getInfo", { sk: session_key }, signed: true))
+    end
 
-      registered = user.dig("registered", "unixtime") || user.dig("registered", "#text")
-      {
-        id: id,
-        username: user.fetch("name"),
-        profile_url: user["url"].presence,
-        registered_at: registered.to_s.match?(/\A\d+\z/) ? Time.at(registered.to_i).utc : nil
-      }
+    # Public profile for a username (unsigned). Used only by the operator's relink task as a
+    # consistency check; it proves nothing about who controls the account.
+    def public_user_info(username)
+      parse_user(call("user.getInfo", { user: username }))
     end
 
     def signature(params)
@@ -63,6 +62,19 @@ module Lastfm
     end
 
     private
+
+    def parse_user(body)
+      user = body.fetch("user") { raise Error::BadResponse, "user.getInfo response has no user" }
+      username = user["name"].to_s
+      raise Error::BadResponse, "user.getInfo response has no name" if username.empty?
+
+      registered = user.dig("registered", "unixtime") || user.dig("registered", "#text")
+      {
+        username: username,
+        profile_url: user["url"].presence,
+        registered_at: registered.to_s.match?(/\A\d+\z/) ? Time.at(registered.to_i).utc : nil
+      }
+    end
 
     def call(method, params, signed: false)
       query = { method: method, api_key: @api_key }.merge(params).transform_keys(&:to_s)

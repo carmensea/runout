@@ -12,12 +12,13 @@ module Lastfm
       ENV["LASTFM_SHARED_SECRET"].presence || Rails.application.credentials.dig(:lastfm, :shared_secret)
     end
 
+    # API credentials and at least one allowed account (Lastfm::AccountPolicy).
     def configured?
-      api_key.present? && shared_secret.present?
+      api_key.present? && shared_secret.present? && AccountPolicy.configured?
     end
 
     def client
-      raise Error::NotConfigured, "LASTFM_API_KEY and LASTFM_SHARED_SECRET are not set." unless configured?
+      raise Error::NotConfigured, "Set LASTFM_API_KEY, LASTFM_SHARED_SECRET and LASTFM_ALLOWED_USERNAME." unless configured?
 
       Client.new(api_key: api_key, shared_secret: shared_secret)
     end

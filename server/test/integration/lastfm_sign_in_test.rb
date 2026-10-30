@@ -16,7 +16,7 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
   end
 
   test "a successful callback creates the account, signs in and returns to the Overview" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
 
     assert_redirected_to "/overview"
     assert session_cookie.present?
@@ -30,7 +30,7 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
 
   test "a callback with the wrong state is rejected and signs nobody in" do
     stub_get_session(username: "listener")
-    stub_user_info(id: 1001, username: "listener")
+    stub_user_info(username: "listener")
     get "/api/auth/lastfm"
     get "/api/auth/lastfm/callback", params: { state: "forged", token: "tok" }
 
@@ -46,7 +46,7 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
 
   test "the state can be used only once" do
     stub_get_session(username: "listener")
-    stub_user_info(id: 1001, username: "listener")
+    stub_user_info(username: "listener")
     get "/api/auth/lastfm"
     state = Rack::Utils.parse_query(URI(Rack::Utils.parse_query(URI(response.location).query)["cb"]).query)["state"]
     get "/api/auth/lastfm/callback", params: { state: state, token: "tok" }
@@ -69,32 +69,54 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
   test "Last.fm being unavailable is reported separately" do
     stub_lastfm("auth.getSession", body: "Bad Gateway", status: 502)
     get "/api/auth/lastfm"
-    state = Rack::Utils.parse_query(URI(Rack::Utils.parse_query(URI(response.location).query)["cb"]).query)["state"]
-    get "/api/auth/lastfm/callback", params: { state: state, token: "tok" }
+    get "/api/auth/lastfm/callback", params: { state: issued_state, token: "tok" }
 
-    assert_redirected_to "/overview?auth_error=lastfm"
+    assert_redirected_to "/overview?auth_error=lastfm_unavailable"
   end
 
-  test "signing in after a username change reaches the same account" do
-    sign_in_via_lastfm(id: 5005, username: "before")
+  test "an account this deployment is not configured for is refused" do
+    sign_in_via_lastfm(username: "stranger")
+    assert_redirected_to "/overview?auth_error=account_not_allowed"
+    assert_equal 0, User.count
+    assert_nil session_cookie.presence
+  end
+
+  test "a missing registration time stops sign-in" do
+    sign_in_via_lastfm(username: "listener", registered: nil)
+    assert_redirected_to "/overview?auth_error=identity_unverified"
+    assert_equal 0, User.count
+  end
+
+  test "a username change needs an explicit relink: no new user, original kept" do
+    sign_in_via_lastfm(username: "listener")
     user_id = User.sole.id
     delete "/api/session", headers: same_origin_headers
 
+    allow_lastfm_accounts("renamed")
     WebMock.reset!
-    sign_in_via_lastfm(id: 5005, username: "after")
-    assert_equal 1, User.count
-    assert_equal user_id, User.sole.id
+    sign_in_via_lastfm(username: "renamed")
+    assert_redirected_to "/overview?auth_error=relink_required"
+    assert_equal [ user_id ], User.pluck(:id)
+    assert_equal [ "listener" ], Identity.pluck(:uid)
+    assert_nil session_cookie.presence
+  end
 
-    get "/api/connection"
-    assert_equal "after", response.parsed_body["username"]
+  test "a linked username with a different registration time is refused" do
+    sign_in_via_lastfm(username: "listener", registered: 1199145600)
+    delete "/api/session", headers: same_origin_headers
+
+    WebMock.reset!
+    sign_in_via_lastfm(username: "listener", registered: 1500000000)
+    assert_redirected_to "/overview?auth_error=identity_changed"
+    assert_nil session_cookie.presence
   end
 
   test "signing in replaces any existing session (no fixation)" do
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     first_token = session_cookie
 
     WebMock.reset!
-    sign_in_via_lastfm(id: 1001, username: "listener")
+    sign_in_via_lastfm(username: "listener")
     assert_not_equal first_token, session_cookie
     assert_nil Session.find_by_token(first_token)
     assert_equal 1, Session.count
@@ -107,7 +129,17 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "start reports when no Last.fm account is configured" do
+    allow_lastfm_accounts
+    get "/api/auth/lastfm"
+    assert_redirected_to "/overview?auth_error=unavailable"
+  end
+
   private
+
+  def issued_state
+    Rack::Utils.parse_query(URI(Rack::Utils.parse_query(URI(response.location).query)["cb"]).query)["state"]
+  end
 
   def with_env(values)
     old = values.keys.index_with { |k| ENV[k] }

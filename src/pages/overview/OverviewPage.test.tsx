@@ -105,9 +105,22 @@ describe('Overview, authentication states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Deletion did not complete.');
   });
 
-  it('explains every sign-in error the server can report', async () => {
-    renderApp(notConnectedApi, '/overview?period=all&auth_error=rate_limited');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Too many sign-in attempts.');
+  it.each([
+    ['rate_limited', 'Too many sign-in attempts.'],
+    ['denied', 'Sign-in was cancelled or not confirmed on Last.fm.'],
+    ['account_not_allowed', 'set up for a different Last.fm account'],
+    ['relink_required', 'relink it on the server'],
+    ['identity_changed', 'looks like a different account'],
+    ['identity_unverified', 'did not return enough account details'],
+    ['lastfm_unavailable', 'Last.fm could not be reached'],
+  ])('explains the %s sign-in error accurately', async (code, text) => {
+    renderApp(notConnectedApi, `/overview?period=all&auth_error=${code}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent(text);
+  });
+
+  it('does not blame Last.fm availability for identity problems', async () => {
+    renderApp(notConnectedApi, '/overview?period=all&auth_error=identity_unverified');
+    expect(await screen.findByRole('alert')).not.toHaveTextContent('could not be reached');
   });
 
   it('credits Last.fm wherever listening data is shown', async () => {
