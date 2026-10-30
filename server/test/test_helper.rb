@@ -7,6 +7,7 @@ ENV["APP_ORIGIN"] = "http://localhost:5173"
 require_relative "../config/environment"
 require "rails/test_help"
 require "webmock/minitest"
+Dir[File.expand_path("support/**/*.rb", __dir__)].each { |file| require file }
 
 WebMock.disable_net_connect!
 

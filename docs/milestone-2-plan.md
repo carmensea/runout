@@ -1,7 +1,8 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **plan for review. Nothing here is implemented.** No history is imported until this plan
-is approved **and** the Last.fm storage questions (`docs/lastfm-permission-email.md`) are resolved.
+Status: **Stage 2.0 is implemented** (feature flag, read-only probe, findings, storage report).
+Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
+storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
 This extends `docs/backend-plan.md` (revision 2): scrobble identity (§4), import consistency (§5)
 and security (§11) still apply. Where this document is more specific, it supersedes those sections.
@@ -29,14 +30,22 @@ Deviations from that plan are listed in §13.
 
 ## 2. Licensing gate and data minimisation
 
-- **Feature flag.** `LASTFM_HISTORY_STORAGE_ENABLED` defaults to **off in every environment**,
-  including development, until you decide otherwise. This tightens revision 2, which had it on in
-  development. While off:
+- **Feature flag.** `LASTFM_HISTORY_STORAGE_ENABLED` is **off in every environment**, including
+  development (implemented in Stage 2.0 as `HistoryImport.enabled?`). This tightens revision 2,
+  which had it on in development. While off:
   - import endpoints answer `409 { "error": "history_storage_disabled" }`;
   - jobs refuse to run and record why.
+- **Allowed before Last.fm replies (decision 4):**
+  - read-only API verification (`bin/rails lastfm:probe`), which holds results in memory and
+    stores nothing;
+  - synthetic-data tests and benchmarks.
+
+  **Not allowed:** a full historical ingestion of a real account. The flag stays off until the
+  storage question is resolved.
 - **Store only what charts need:**
   - Timestamp, artist, track and album strings, and MusicBrainz IDs (MBIDs) when present.
-  - Not: images, URLs, `loved` (no current chart uses it), "now playing", or full API responses.
+  - Not: images, URLs, "now playing", or full API responses.
+  - `loved` is **deferred**, not designed out (decision 3); see §6.1 for how it can be added later.
   - Staging rows are deleted as soon as a window merges.
 - **Measure, don't assume.** `bin/rails runout:storage_report` reports:
   - the on-disk size (`pg_total_relation_size`) of every table holding Last.fm-derived data;
@@ -46,7 +55,9 @@ Deviations from that plan are listed in §13.
 - **Estimate (to be measured in Stage 2.9, not promised).**
   - About 150 to 200 bytes per scrobble, including the primary key and unique index, plus name
     variants.
-  - 15 years at 20k scrobbles a year (300k) is roughly 50 to 70 MB.
+  - 15 years at 20k scrobbles a year (300k) is roughly 50 to 70 MB. Your account (about 209k
+    scrobbles, per Stage 2.0) would be roughly 31 to 42 MB of scrobble rows before name variants
+    and the catalogue.
   - 1M scrobbles is roughly 170 to 230 MB, which may exceed the cap. §12 covers what changes if
     Last.fm only allows less.
 - **Deletion.** Account deletion already cascades. Milestone 2 adds clean-up of catalogue rows
@@ -69,7 +80,12 @@ stores nothing.
 | A7 | How many requests per second does Last.fm tolerate before error 29? (Measured gently, stopping at the first 29) | Pacing |
 | A8 | How far back can a scrobble be back-dated (offline scrobbling)? Documentation only; not testable safely | Catch-up window length |
 
-Results go in `docs/lastfm-api-findings.md`, and the plan is adjusted before Stage 2.3.
+Results are in `docs/lastfm-api-findings.md` (verified 2026-10-29):
+
+- A1, A2 and A3 are confirmed: `total` is available, ranges are `[from, to)`, and results are
+  newest first and stable.
+- A5 is confirmed for public profiles only.
+- A4, A6, A7 and A8 remain assumptions, with the designs above unchanged.
 
 ## 4. How a full import works
 
@@ -90,8 +106,10 @@ Newest first, so recent years (the default chart range) are complete soonest.
 1. **Start.** Resolve the account (§5.1) and read `registered_at`; history cannot predate it.
 2. **Split.** Create one window per calendar month, in UTC, from the registration month to the
    current month. Windows are half-open, `[from, to)`.
-3. **Request with overlap.** Ask Last.fm for `from - 1` to `to + 1` seconds. Then keep only rows
-   with `from ≤ played_at < to`. Each play lands in exactly one window whatever A2 turns out to be.
+3. **Request the window as-is.** Stage 2.0 verified that `from` is inclusive and `to` exclusive
+   (A2), so Last.fm already returns `[from, to)`. Rows outside the window are still filtered out as
+   a defensive check, and counted if any appear, so a change in API behaviour can't put a play in
+   two windows.
 4. **Probe.** For each window, read page 1 with `limit=200`. If `totalPages > 20` (more than 4,000
    plays), split the window in half and repeat. 4,000 plays a month is about 130 a day, so splits
    are rare.
@@ -137,10 +155,16 @@ The merge follows the algorithm in backend-plan §4. For each second `t`:
 3. Staged rows still unpaired are **new plays**: insert them with the next free `seq`.
 4. Stored rows still unpaired are **missing upstream**:
    - record them in `scrobble_absences(scrobble_id, import_window_fetch_id)`;
-   - set `removed_at` only when the previous verified fetch of this window also missed them
-     (two consecutive reads agree);
-   - and only if removals stay within 2% of the window or 50 rows, whichever is larger.
-     Otherwise the window is marked `needs_review` and nothing is removed.
+   - when the previous verified fetch of this window also missed them (two consecutive reads
+     agree), mark them **pending removal** (`scrobble_absences.state = 'pending_review'`);
+   - **every removal requires review (decision 2).** The merge never sets `removed_at` itself.
+     Pending removals are listed for review (`bin/rails import:removals` from Stage 2.4; the
+     Settings panel from Stage 2.8):
+     - **Approving** sets `removed_at` (still a soft delete).
+     - **Dismissing** keeps the scrobble. A later fetch that sees the play again clears the absence
+       automatically.
+   - Pending removals don't block the rest of the merge: new plays and name corrections in the same
+     window are still applied.
 5. Delete the window's staging rows; mark the window `merged` and set `merged_at`.
 
 **Never destructive.** No code path hard-deletes scrobbles except account deletion. A failed,
@@ -200,7 +224,7 @@ All user-owned tables carry `user_id uuid` with `on_delete: :cascade`.
 | `played_at` | timestamptz, not null | UTC, second precision |
 | `seq` | smallint, not null, default 0 | Order among plays in the same second |
 | `variant_id` | bigint, not null | References `name_variants` |
-| `removed_at` | timestamptz | Soft delete (missing upstream) |
+| `removed_at` | timestamptz | Soft delete, set only by an approved review (§4.4) |
 | `first_seen_window_fetch_id` | bigint | |
 | `created_at`, `updated_at` | timestamptz | |
 
@@ -212,7 +236,17 @@ Indexes:
 **`scrobble_revisions`**: `scrobble_id`, `from_variant_id`, `to_variant_id`,
 `import_window_fetch_id`, `created_at`. Indexed on `scrobble_id`.
 
-**`scrobble_absences`**: `scrobble_id`, `import_window_fetch_id`. Unique on both.
+**`scrobble_absences`**: `scrobble_id`, `import_window_fetch_id`, `state` (`observed`,
+`pending_review`, `approved`, `dismissed`), `reviewed_at`. Unique on (`scrobble_id`,
+`import_window_fetch_id`).
+
+**`loved` (deferred, decision 3).** It's not requested (`extended=0`) or stored in Milestone 2.
+Forward compatibility:
+- The recent-tracks client already accepts `extended:`, so it can be requested later.
+- A later migration can add `scrobbles.loved boolean NULL`, where NULL means "not known yet",
+  without touching existing rows.
+- A reconciliation pass with `extended=1` can then fill it. Nothing in the identity, merge or
+  catalogue design depends on it.
 
 ### 6.2 Import state
 
@@ -399,7 +433,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 
 | Stage | Delivers | Acceptance |
 |---|---|---|
-| **2.0 Verify and gate** | The feature flag (off), a read-only `bin/rails lastfm:probe` for A1 to A7, `docs/lastfm-api-findings.md`, and the storage report skeleton | Probe prints only field names and counts; findings documented; plan updated where an assumption failed |
+| **2.0 Verify and gate** (done 2026-10-29) | The feature flag (off), a read-only `bin/rails lastfm:probe` for A1 to A7, `docs/lastfm-api-findings.md`, and the storage report skeleton | Probe prints only field names and counts; findings documented; plan updated where an assumption failed |
 | **2.1 Schema** | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
 | **2.2 Recent-tracks client** | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
 | **2.3 Window fetch and verify** | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
@@ -416,8 +450,9 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
    the source exactly. An interrupted import resumes to the same result.
 2. Re-running any job, or the whole import, changes nothing.
 3. A rename on Last.fm produces a revision, not a duplicate. Same-second plays stay distinct.
-4. Plays deleted on Last.fm are soft-removed only after two agreeing verified reads and within the
-   threshold. Nothing is ever hard-deleted outside account deletion.
+4. Plays deleted on Last.fm become pending removals after two agreeing verified reads, and are
+   soft-removed only after review approval. Nothing is ever removed automatically, and nothing is
+   hard-deleted outside account deletion.
 5. Incremental sync picks up new plays within one cycle. Catch-up picks up a back-dated play inside
    its window.
 6. Failures show the window, page, HTTP status and Last.fm code, and Resume completes them.
@@ -443,7 +478,8 @@ Depending on the answer, these fall-backs keep the architecture intact:
 
 ## 13. Changes from backend-plan revision 2
 
-- `loved` is dropped from `scrobbles` (data minimisation; nothing uses it).
+- `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
+- Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
 - A per-second `position` is staged, and `scrobble_absences` and `import_window_fetches` are added,
   to implement the two-reads removal rule concretely.
@@ -451,9 +487,10 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - Account verification (§5.1): runs never follow a username change automatically, because Last.fm
   has no stable account ID. A mismatch stops sync until an explicit relink.
 
-## 14. Decisions for you
+## 14. Decisions (resolved 2026-10-29)
 
-1. Window order: newest first (proposed) or oldest first?
-2. Is the 2% or 50-row removal threshold right, or should every removal need manual review?
-3. Should `loved` be kept despite no chart using it?
-4. Should the feature flag go on in development before Last.fm replies, for your own account only?
+1. **Window order:** newest first.
+2. **Deletions:** every removal requires review before it's applied (§4.4). No automatic threshold.
+3. **`loved`:** deferred, with forward compatibility preserved (§6.1).
+4. **Before Last.fm replies:** read-only API verification and synthetic-data testing are allowed.
+   No full historical ingestion of a real account (§2).

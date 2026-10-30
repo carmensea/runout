@@ -8,6 +8,9 @@ default: &default
   port: <%= ENV.fetch("DATABASE_PORT") { 5432 } %>
   username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
   password: <%= ENV["DATABASE_PASSWORD"] %>
+  # The local server doesn't use GSSAPI. Skipping the negotiation also avoids a libpq crash in
+  # forked processes on macOS (parallel tests).
+  gssencmode: disable
 
 development:
   <<: *default

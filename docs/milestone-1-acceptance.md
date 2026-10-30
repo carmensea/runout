@@ -17,6 +17,12 @@ No credentials, session keys or tokens were printed or logged; Rails filters `ap
 | 6 | Sign-out, then sign-in again, no duplicates | **Pass** | Sign-out returned 204 and the next request was anonymous. Two further sign-ins succeeded. Afterwards: 1 user, 1 identity, 1 connection; only the current session remains |
 | 7 | Failed or cancelled authorization | **Partly verified** | Failure: the first attempts (missing ID) showed an error and created nothing. Cancellation: one attempt left for Last.fm and never returned, consistent with Last.fm not redirecting when access is declined; the user stayed signed out and nothing was created. Once Runout is approved, Last.fm returns immediately without an approval screen, so a decline can't be repeated without revoking access, which was out of scope. Callbacks that do return without a token show the `denied` message (covered by automated tests) |
 
+**Check 7 accepted as a known limitation (2026-10-29).** Real cancellation can't be repeated
+without revoking access, so it is not a blocker. The automated tests for callbacks that return
+without a token (`denied`) and for expired or invalid tokens remain the coverage. The observed
+behaviour (no callback from Last.fm, nothing created, still signed out) is safe; the only gap is
+that Runout shows no message in that case, because it is never told.
+
 ## Identity change made during acceptance
 
 Last.fm exposes no stable account ID, so Milestone 1 now:

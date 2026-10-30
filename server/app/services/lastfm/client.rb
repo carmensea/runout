@@ -52,6 +52,20 @@ module Lastfm
       parse_user(call("user.getInfo", { user: username }))
     end
 
+    # One page of a user's scrobbles, newest first. Read-only: returns a RecentTracksPage and stores
+    # nothing. `from` and `to` are Times (sent as Unix seconds); see docs/lastfm-api-findings.md for
+    # the verified boundary behaviour. Pass `session_key:` to sign the request (private profiles).
+    def recent_tracks(username:, page: 1, limit: 200, from: nil, to: nil, extended: false, session_key: nil)
+      raise ArgumentError, "limit must be 1..200" unless (1..200).cover?(limit)
+
+      params = { user: username, page: page, limit: limit }
+      params[:from] = from.to_i if from
+      params[:to] = to.to_i if to
+      params[:extended] = 1 if extended
+      params[:sk] = session_key if session_key
+      RecentTracksPage.parse(call("user.getRecentTracks", params, signed: session_key.present?))
+    end
+
     def signature(params)
       payload = params
         .reject { |k, _| UNSIGNED_PARAMS.include?(k.to_s) }

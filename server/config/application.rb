@@ -54,6 +54,9 @@ module Runout
     # Lastfm::AccountPolicy; without it, sign-in is refused.
     config.x.lastfm_allowed_usernames = [ ENV["LASTFM_ALLOWED_USERNAME"] ].compact
 
+    # Storing Last.fm listening history: off unless explicitly "true" or "1" (HistoryImport).
+    config.x.history_import_enabled = ENV.fetch("LASTFM_HISTORY_STORAGE_ENABLED", "false")
+
     # Scrobble timestamps are stored and compared in UTC; reporting timezones are applied in queries.
     config.time_zone = "UTC"
     config.active_record.default_timezone = :utc

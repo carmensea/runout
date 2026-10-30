@@ -62,6 +62,18 @@ account, sign-in shows "relink required". To relink:
    match, it changes nothing.
 3. Sign in with Last.fm as the new username. Your Runout user and history are unchanged.
 
+## Last.fm history (Milestone 2)
+
+Storing listening history is off everywhere until Last.fm's storage terms are resolved
+(`LASTFM_HISTORY_STORAGE_ENABLED`, see below). Until then, two read-only tools are available:
+
+```sh
+bin/rails lastfm:probe          # verifies recent-tracks behaviour against the live API; stores nothing
+bin/rails runout:storage_report # on-disk size of all data derived from Last.fm
+```
+
+Findings: `docs/lastfm-api-findings.md`.
+
 ## Environment
 
 | Variable | Purpose |
@@ -73,6 +85,7 @@ account, sign-in shows "relink required". To relink:
 | `DATABASE_URL`, `CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL` | Production (Neon, direct connections) |
 | `SECRET_KEY_BASE` | Production |
 | `JOB_THREADS` | Solid Queue worker threads (default 2) |
+| `LASTFM_HISTORY_STORAGE_ENABLED` | Off unless exactly `true` or `1`. Gates storing Last.fm listening history; keep off until Last.fm's storage terms are resolved |
 
 In production `APP_ORIGIN` is required at boot (it sets the allowed `Host`), including for build
 steps that load the app, such as `bin/rails db:prepare`.
