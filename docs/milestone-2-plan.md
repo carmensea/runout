@@ -6,7 +6,9 @@ window fetching, staging and validation on synthetic data (2.3); atomic commit o
 windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
 canonical artist, album and track matching, on synthetic data (2.5).
 Orchestration and recovery (2.6), reconciliation of committed months (2.4b) and ongoing
-synchronisation (2.7) too, on synthetic data. Next: 2.8, after review.
+synchronisation (2.7) too, on synthetic data. Next: 2.8 (plan in §15), after review. The
+long-term direction (Runout as an independent scrobbling service that can replace Last.fm) is in
+`docs/long-term-architecture.md`.
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -20,7 +22,7 @@ Deviations from that plan are listed in §13.
 
 **In scope**
 
-- One-off import of a user's full history (designed for 15+ years, up to about 1M scrobbles).
+- One-off import of a user's full history (designed for 20+ years, up to about 1M scrobbles).
 - Resumable, idempotent Solid Queue jobs; progress, failures, retries and recovery.
 - Incremental sync, back-dated scrobble catch-up and periodic reconciliation.
 - Deduplication, corrected scrobbles (renames on Last.fm) and preservation of original strings.
@@ -625,7 +627,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **Later: matching coverage** | Analytics expose matching coverage: identified, name-only, unmatched, ambiguous | No UI needed at first |
 | **2.4b Reconciliation** (done 2026-10-29, after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
 | **2.7 Sync, catch-up, reconcile** (done 2026-10-30) | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
-| **2.8 API and frontend** | `ConnectionState` mapping, `/api/import` endpoints, 501 handling, Settings import panel | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
+| **2.8 API and frontend** (planned, §15) | `ConnectionState` mapping, import and sync controls, review workflows, 501 handling, Settings panels; sync never blocked by a stuck period (§15.6); status in constant queries (§15.7) | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
 | **2.9 Measure and accept** | Synthetic 300k and 1M benchmarks (time, memory, database size), then a real import of your account **once licensing allows** | Measured numbers recorded; real import matches Last.fm's playcount within the documented tolerance (§11) and reconciliation finds no mismatches |
 
 ## 11. Milestone 2 acceptance criteria
@@ -913,3 +915,209 @@ Depending on the answer, these fall-backs keep the architecture intact:
 3. **`loved`:** deferred, with forward compatibility preserved (§6.1).
 4. **Before Last.fm replies:** read-only API verification and synthetic-data testing are allowed.
    No full historical ingestion of a real account (§2).
+
+## 15. Stage 2.8 plan (for review; not started)
+
+Stage 2.8 makes the finished import and sync usable and observable from the app, and fixes two
+sync issues found in Stage 2.7. It adds no new ingestion source and changes no Last.fm behaviour
+other than §15.6. The long-term direction (`docs/long-term-architecture.md`) applies: API shapes
+describe imports and sources generically where that costs nothing now.
+
+Out of scope: new sources, independent authentication, export, analytics (Milestone 3).
+
+### 15.1 Import and sync controls (API)
+
+Every endpoint needs a signed-in user and acts only on that user's data. Every `POST` goes through
+Milestone 1's same-origin checks, is safe to repeat (`already: true` when nothing changed), and
+answers `409 { error: "storage_disabled" }` while history storage is off.
+
+| Endpoint | Does | Errors |
+|---|---|---|
+| `GET /api/import` | `ImportStatus` (§15.3) | — |
+| `POST /api/import` | Start (or return) the full import | `409 busy` while a sync or recheck runs |
+| `POST /api/import/pause`, `/resume` | `Orchestrator#pause!`, `#resume!` | `409 not_active` |
+| `POST /api/import/cancel` | `Orchestrator#cancel!`; body `{ confirm: true }` | `422 confirmation_required` |
+| `POST /api/import/windows/:id/retry` | `Recovery#retry_window!` for a stopped period | `404` for another user's window; `409 not_stopped` |
+| `GET /api/sync` | `SyncHealth`, rebuilt for constant cost (§15.7) | — |
+| `POST /api/sync/refresh` | "Refresh now": `Sync.start!(kind: "sync")` | `409 busy` / `not_eligible`; `429` within 5 minutes of the last manual refresh |
+| `POST /api/sync/resume` | `Sync.resume!` after an account problem was fixed (relinked) | `409 nothing_to_resume` |
+| `GET /api/overview`, `/api/search` | `501 { error: "not_available" }` (§8.3) | — |
+
+### 15.2 Review workflows (API and UI)
+
+The CLI's decisions (`HistoryImport::Review`) become available in the app, with the same rules:
+nothing is removed without an approval, decisions are retry-safe and audited (`review_decisions`,
+`source: "web"`, decided by the signed-in user).
+
+- `GET /api/reviews?state=open&cursor=`: one queue of pending removals, reappeared plays and open
+  disputes, oldest first, paged. Each item carries its evidence: the second, the stored plays
+  (id, slot, names), Last.fm's plays for that second (index, names), when it was first and last
+  seen, and its decision history.
+- Decisions:
+  - `POST /api/reviews/removals/:id/approve` and `/dismiss`;
+  - `POST /api/reviews/reappeared/:id/restore` and `/keep`;
+  - `POST /api/reviews/disputes/:id/resolve` with `{ pairs: [[scrobbleId, index], ...] }`, and
+    `/dismiss`.
+  Each takes an optional `note`. Invalid pairs answer `422` with the reason, as `Review::Invalid`
+  does now.
+- UI, under Settings → History:
+  - a review list with counts by kind;
+  - a detail view that shows stored and fetched plays side by side;
+  - for a dispute, pairing controls (each stored play to at most one fetched play); unpaired
+    plays are labelled with what will happen to them ("added", "suspected removal");
+  - plain wording: "Removing hides this play from your history; it can be restored."
+- Catalogue match reviews (Stage 2.5) stay CLI-only in 2.8 unless the review asks for them.
+
+### 15.3 Progress and status contracts
+
+- `ImportStatus` (§8.2), extended:
+  - `run`: the active or latest run of any kind, with `kind`, `state`, progress in scrobbles
+    (monotonic, at most 0.99 until complete) and `error`;
+  - `windows`: counts by state;
+  - `failures`: period, page, HTTP status, Last.fm code, message and attempts (§7);
+  - `coverage`: covered ranges and `coverageGaps` (§15.6);
+  - `attention`: open reviews plus stopped periods.
+- `ConnectionState` keeps its variants. `synced` gains an optional `attention: number`, so the
+  banner can say "3 items need your review" without another request. The type change is
+  additive.
+- Mapping:
+  - `importing` while the full import is active;
+  - `synced` once it completed;
+  - `failed` only for account problems (mismatch, revoked) or a stopped full import.
+  A temporary sync failure stays `synced`, with its details in `/api/sync`.
+
+### 15.4 Settings UI and polling
+
+- **Import panel:**
+  - Start (shown only when `enabled`);
+  - progress in scrobbles;
+  - Pause, Resume, and Cancel (with confirmation);
+  - stopped periods, each with Retry.
+- **Sync panel:**
+  - last successful and last attempted sync, synced-through time, and next due checks;
+  - coverage gaps and periods that need attention;
+  - Refresh now.
+- **Review panel:** §15.2.
+- **Overview:** handles `501` as "History imported; charts arrive in the next version".
+- **Polling:**
+  - only while Settings is visible, or while an import runs;
+  - every 15 s during a run, otherwise every 60 s;
+  - paused while the tab is hidden;
+  - `If-None-Match`, so unchanged status costs a `304` (§15.7).
+
+### 15.5 Behaviour that stays
+
+The Last.fm import, sync, reconciliation, review rules, storage flag (off by default), leases,
+tokens, retries and query-cache rules all stay as built. The full existing suites, including the
+real Solid Queue smoke suite, must pass unchanged, apart from tests that asserted the blocking
+behaviour replaced in §15.6.
+
+### 15.6 Issue A: an unresolved review must not block new listening
+
+**Today.** `SyncPlanner` plans nothing past the *last* window when that window is stopped
+(`needs_review`, or gave up and not yet due for another try). Older months under review never
+block sync. The last window does, so a single stuck period near "now" holds every later play
+back until a person acts. The planner also reserves the stuck window's pending extension
+`[window_to, check_to)` and starts later windows after it.
+
+**Proposal: detach the stuck period and continue.** In the planning transaction, under the
+per-user lock:
+
+1. **The stuck period was imported before** (a committed month whose recheck stopped): its
+   committed plays and coverage stay. Its pending extension is cut back:
+   - `check_to` returns to `window_to`;
+   - if nothing of the check range remains, the check range is cleared, and a later retry
+     rechecks the whole committed month;
+   - the stopped check's fetch records stay for audit, and a retry fetches again from scratch.
+
+   The range it would have added becomes an ordinary new window from `window_to`, and sync
+   continues past it.
+2. **The stuck period was never imported** (a new period's first import stopped): its range is a
+   **coverage gap**. Sync continues with new windows after it. The gap stays until the period is
+   retried or resolved.
+3. **Stop reasons are classified.**
+   - Reasons that are probably transient are re-armed automatically, at most once per
+     `rearm_after`, like windows that gave up: snapshots that kept changing (active listening),
+     an exhausted request budget.
+   - Integrity reasons stay for a person: malformed, undated or out-of-range rows; a failed
+     reconciliation check; an answer that lacks most stored plays.
+4. **Optional (decide in review): isolate the cause.** A never-imported period stopped by
+   row-level problems is split (the existing `WindowSplitter`, down to its minimum size), so the
+   gap shrinks to the smallest window that holds the problem.
+
+**What is claimed:**
+- **Coverage:** `ImportCoverage` already reports ranges, not a single span, so a gap makes any
+  period that touches it `:partial`. Analytics (Milestone 3) must label such periods incomplete,
+  as already planned.
+- **Health fields:**
+  - `coverageGaps`: `[{ from, to, reason, since }]`;
+  - `coveredThrough`: the end of contiguous coverage from the first month;
+  - `syncedThrough`: the frontier.
+- **Last successful sync:** a sync that reached its target counts as successful. Gaps and
+  stopped periods are reported separately and never hidden.
+
+**Safety:**
+- **Atomic and conflict-free:** the extension is cut back in the same locked transaction that
+  creates the next window, and no new window starts before an existing window's `window_to` or
+  `check_to`.
+- **Bounded growth:** a stuck period that is retried later grows at most to its own `check_to`.
+- **Backstop:** the exclusion constraint rejects any overlap; the commit then rolls back and the
+  period goes to review, so nothing is written.
+
+**Tests:**
+- a stuck recheck of the current month: later plays are stored, its committed range keeps its
+  coverage, and its status is `check_stopped`;
+- a stuck first import of a new month: a gap is reported, later plays are stored, and coverage is
+  `:partial` across the gap and complete elsewhere;
+- a retry after either case commits without overlap;
+- automatic re-arming is bounded; integrity stops are never re-armed;
+- a smoke scenario under the real scheduler;
+- a randomized stress test of stop, retry and sync sequences, asserting that windows never
+  overlap, every stored play lies in a committed window, and the reported gaps equal the
+  uncovered ranges.
+
+### 15.7 Issue B: status in constant queries
+
+**Today.** `SyncStatus` runs about three queries per month: present plays, removals and
+disputes. That is about 750 queries for 20+ years.
+
+**Proposal: a fixed number of queries, whatever the length of the history.**
+
+| Query | How |
+|---|---|
+| Windows | One query for the user's live windows: about 250 rows for 20 years, nothing else |
+| Open disputes per window | One grouped query, joining dispute seconds to window ranges |
+| Unresolved removals per window and state | One grouped query, the same join through `scrobbles.played_at` |
+| Runs, connection | Two small queries (latest run per kind, active run) |
+| Change detection | One query of the newest `updated_at` across windows, runs, reviews and the connection, which gives the `ETag`; unchanged answers `304` before the rest runs |
+
+- **Counts:** the request uses each window's maintained `committed_count` (the committer and
+  review decisions already keep it), not a live count of scrobbles.
+- **Discrepancy detection:** checking the stored count against a live count moves to background
+  work. The weekly comparison already counts present plays per month; it stores that count with
+  `count_checked_at` (a new `present_count` column, additive). A nightly watchdog pass counts every
+  window in one grouped query. `:inconsistent` then comes from those stored results, with the time
+  they were measured.
+- **Tests:**
+  - a query-count test: identical query counts for 12 and 250 windows, at most 8;
+  - a `304` test;
+  - a timing benchmark of the nightly count on the synthetic 1M-scrobble dataset (Stage 2.9
+    tooling).
+
+### 15.8 Acceptance criteria
+
+1. Request tests for every endpoint, state and error above; cross-account access is impossible.
+2. Frontend tests for every connection state, panel, action, confirmation and error, with shared
+   contract examples that pass on both sides.
+3. Review decisions made in the UI have the same effect and audit trail as the CLI's.
+4. §15.6 and §15.7 tests pass, and the full existing backend, frontend and smoke suites pass.
+5. Storage stays off by default; with it off, every control answers `storage_disabled` and the UI
+   says why.
+
+### 15.9 Questions for review
+
+1. §15.6, item 4: split stuck never-imported periods automatically to shrink gaps?
+2. §15.6, item 3: is the split between automatic re-arming and stops that wait for a person right?
+3. Should Cancel be offered for sync runs in the UI, or only for the full import?
+4. Is `attention` in `ConnectionState` wanted, or should the banner stay as it is?
+5. Should catalogue match reviews join the review panel in 2.8, or later?

@@ -1,7 +1,9 @@
 # Runout
 
-Personal Last.fm listening archive. This repository currently implements the **Overview** screen
-from the Claude Design handoff, plus the shared shell (sidebar, period bar, search).
+Personal listening archive. It starts by importing and syncing Last.fm history; the long-term
+goal is an independent scrobbling service that owns the complete archive and can replace Last.fm
+entirely (`docs/long-term-architecture.md`). This repository currently implements the **Overview**
+screen from the Claude Design handoff, plus the shared shell (sidebar, period bar, search).
 
 ## Run
 

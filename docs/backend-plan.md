@@ -1,7 +1,12 @@
 # Runout backend plan (revision 2)
 
-Status: Milestone 1 (Rails foundation and authentication) is implemented in `server/`.
-Everything after Milestone 1 is a plan and has not been built.
+Status: Milestone 1 (Rails foundation and authentication) is implemented in `server/`, and
+Milestone 2 through Stage 2.7 (`docs/milestone-2-plan.md`). The rest is a plan.
+
+**Long-term direction:** Runout is to become an independent scrobbling service whose database is
+the authoritative listening archive, with Last.fm as one optional import source among others
+(Spotify, players, an ingestion API). See `docs/long-term-architecture.md`, including the parts of
+this plan that change because of it (§9 there).
 
 Decisions recorded from review:
 
@@ -103,6 +108,10 @@ closed on this: no account was created.
 - `import_runs` and `import_windows`, used for checkpoints (see §5).
 
 **Taxonomy:** see §6.
+
+**Later (direction, not scheduled):** each play gains observations, the reports from the sources
+that attest it (source, the source's event ID, the timestamp convention, the original strings), so
+several sources can feed one archive without duplicates. See `docs/long-term-architecture.md` §5.
 
 ## 4. Scrobble identity
 
@@ -290,7 +299,13 @@ For a period with `N` scrobbles, `share(g) = Σ_s p(s,g) / N`. The shares of all
 2. **History import and sync:** windows, checkpoints, the merge algorithm, reconciliation. Gated by `LASTFM_HISTORY_STORAGE_ENABLED`.
 3. **Benchmarks, then Overview analytics:** benchmark datasets first, then `/api/overview` and `/api/search`, then contract tests against the frontend types.
 4. **Taxonomy and metadata enrichment:** tags, mappings, the percentage rules above, MusicBrainz lookups.
+   Genres must not depend on Last.fm: MusicBrainz genres and tags first, Runout's own taxonomy,
+   Last.fm tags optional and licence-gated (long-term architecture §9, #8).
 5. **Deployment:** Render and Neon, after Last.fm replies.
+
+After these (order proposed in `docs/long-term-architecture.md` §10): data export, backup and
+restore; independent authentication; source-independent listening events; Spotify; a scrobble
+ingestion API; Last.fm as an optional source.
 
 ## 13. Assumptions to verify
 

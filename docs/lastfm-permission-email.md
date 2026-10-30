@@ -53,6 +53,11 @@ My questions:
 6. **Rate limits (§4.4).** Is there a published request rate I should stay under for a one-off
    history import and the ongoing sync?
 
+7. **Keeping my own history after I stop using the API (§9.3).** If I later stop using the API,
+   or stop using Last.fm, may I keep my own listening history (my scrobbles: times and names) in
+   my private archive? If §9.3 requires deleting it, is a personal data export of my account the
+   right way to keep a copy of my own history?
+
 If any of this needs a different kind of agreement, I'm happy to adjust the design: for example,
 storing less, refreshing more often, or deleting data on a schedule. Nothing has been imported yet;
 I'm waiting for your answer before I do.
@@ -71,3 +76,6 @@ Thank you,
   per scrobble including indexes is a reasonable working figure; Milestone 2 adds a rake task that
   reports the real stored size.
 - Don't include your API secret or session key.
+- Question 7 was added on 2026-10-30 for the long-term direction (`docs/long-term-architecture.md`
+  §3): keeping the full history after leaving Last.fm depends on the answer. Remove it if you'd
+  rather ask separately.
