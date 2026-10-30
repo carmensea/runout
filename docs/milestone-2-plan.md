@@ -1,8 +1,9 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.3 are implemented**: feature flag, read-only probe, findings, storage
+Status: **Stages 2.0 to 2.4 are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
-window fetching, staging and validation on synthetic data (2.3).
+window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
+windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -181,7 +182,7 @@ the multiset of plays in that second:
    - when the next verified fetch of this window also misses them (two consecutive reads agree),
      set `confirming_fetch_id` and state `pending_review`;
    - **every removal requires review (decision 2).** The merge never sets `removed_at` itself.
-     Pending removals are listed for review (`bin/rails import:removals` from Stage 2.4; the
+     Pending removals are listed for review (`bin/rails import:removals` from Stage 2.4b; the
      Settings panel from Stage 2.8):
      - **Approving** sets `removed_at` (still a soft delete).
      - **Dismissing** keeps the scrobble. If a later fetch sees the play again, an open proposal
@@ -439,6 +440,7 @@ or recordings together because their names match. A test keeps two Nirvanas and 
   | Client, background (imports) | Up to 2 attempts per call; never waits more than 10 s. A longer Retry-After raises at once |
   | Job (`ApplicationJob`) | Up to 5 executions per Last.fm failure. Each retry is **scheduled** (the server's Retry-After, or polynomial backoff), so no worker sleeps through a long delay |
   | Window validation | A hard request budget per validation: 4 snapshots × (pages + 1), × 2 for retries, at most 200. Exceeding it fails the window and records why |
+  | Window lifetime (Stage 2.4) | Every HTTP attempt is added to `import_windows.http_requests_used`, including requests from failed runs, job retries and workers that lost their lease. Over its life a window may use twice its per-validation budget (at most 400); beyond that it goes to `needs_review` |
   | Global | The shared pacer (§7.2) and the global cool-down on HTTP 429 or error 29 |
 
   The worst case for one page call is 2 × 5 = 10 HTTP attempts, and every request a window
@@ -538,7 +540,8 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **2.1 Schema** (done 2026-10-29) | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
 | **2.2 Recent-tracks client** (done 2026-10-29) | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
 | **2.3 Window fetch and verify** (done 2026-10-29) | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
-| **2.4 Merge engine** | §4.4 including revisions and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
+| **2.4 Atomic commit** (done 2026-10-29) | Commit of validated windows into ranges with no stored plays; staging clean-up; coverage status; lifetime request accounting | Commit, rollback, crash, lease, concurrency, flag, coverage and budget tests; nothing real stored |
+| **2.4b Merge** | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
 | **2.5 Catalogue resolution** | Variants to artists, albums and tracks; re-resolution; clean-up | MBID and name rules; re-running changes nothing; account deletion leaves no orphans |
 | **2.6 Orchestration** | Jobs, queues, concurrency limits, progress, watchdog, resume | Crash and duplicate-enqueue tests; progress is monotonic; flag off means jobs refuse |
 | **2.7 Sync, catch-up, reconcile** | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
@@ -582,6 +585,38 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.4 commit decisions (`HistoryImport::WindowCommitter`, `HistoryImport::StagingCleaner`):
+  - **Split from the merge.** Stage 2.4 commits only into ranges with no stored plays. A window
+    whose range already holds plays goes to `needs_review` with nothing written; the merge of
+    §4.4 (corrections, removals) is a later stage (2.4b). No corrections are applied and nothing
+    is deleted.
+  - **One transaction.** Claim (`validated`, or `committing` with an expired lease, to
+    `committing`), then one transaction under the lease and a per-user advisory lock: re-check
+    the state, check the staged snapshot, insert name variants (`ON CONFLICT DO NOTHING`, each
+    reused variant compared with the staged strings) and scrobbles (`insert_all!`, which fails
+    rather than skipping a conflict), check the stored count, and mark the window `committed`
+    with `committed_count`. No Last.fm requests.
+  - **Staging checks.** The latest validated fetch must exist. Its staged rows, `row_count`,
+    `fetched_count` and `expected_total` must agree. Every row must lie inside the window, with
+    contiguous positions and occurrences per second, and a hash that matches its strings. Any
+    failure sends the window to `needs_review`, staging kept.
+  - **`seq` = position within the second** in the validated snapshot: a storage slot, not an
+    identity across fetches.
+  - **Failure.** Any other error rolls everything back. The window returns to `validated` with
+    the error's class and first line (database messages can quote row contents later on) and
+    its staging intact. A crash leaves it `committing`; it is taken over once the lease expires.
+  - **Constraints.** `committed_count` is required on committed windows. Play identity
+    `(user, played_at, seq)` is unique. Live windows can't overlap. Together these keep a
+    recommit or a concurrent worker from adding plays.
+  - **Bulk inserts** (`insert_all`, `upsert_all` and the like) on history models also refuse
+    while history storage is off.
+  - **Staging lifecycle.** Committed windows' staging is deleted right after the commit, and
+    again by `StagingCleaner` if that step was lost. The cleaner also discards unfinished fetches
+    of windows with no live lease, and resets windows validated more than 7 days ago without a
+    commit to `pending`. It never touches leased, `committing` or `needs_review` windows. Fetch
+    records are kept for audit.
+  - **Coverage.** `ImportCoverage.status_for` returns `:complete`, `:partial` or `:missing`.
+    Only committed windows count.
 - Stage 2.3 validation decisions (`HistoryImport::WindowValidator`):
   - **Consecutive snapshots.** Validation compares consecutive complete snapshots (up to 4 reads,
     so 3 comparisons) instead of re-reading page 1. A window is validated only when two

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000009) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -138,13 +138,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000009) do
     t.integer "lock_version", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "committed_count"
+    t.integer "http_requests_used", default: 0, null: false
     t.index ["import_run_id"], name: "index_import_windows_on_import_run_id"
     t.index ["parent_window_id"], name: "index_import_windows_on_parent_window_id"
     t.index ["user_id", "state"], name: "index_import_windows_on_user_id_and_state"
     t.index ["user_id", "window_from", "window_to"], name: "index_import_windows_on_user_id_and_window_from_and_window_to", unique: true
     t.index ["user_id"], name: "index_import_windows_on_user_id"
     t.check_constraint "(state::text <> ALL (ARRAY['validated'::character varying, 'committing'::character varying, 'committed'::character varying]::text[])) OR validated_at IS NOT NULL", name: "import_windows_validated_at"
+    t.check_constraint "committed_count IS NULL OR committed_count >= 0", name: "import_windows_committed_count_non_negative"
     t.check_constraint "state::text <> 'committed'::text OR committed_at IS NOT NULL", name: "import_windows_committed_at"
+    t.check_constraint "state::text <> 'committed'::text OR committed_count IS NOT NULL", name: "import_windows_committed_count"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'fetching'::character varying, 'validating'::character varying, 'validated'::character varying, 'committing'::character varying, 'committed'::character varying, 'failed'::character varying, 'needs_review'::character varying, 'split'::character varying]::text[])", name: "import_windows_state"
     t.check_constraint "window_from < window_to", name: "import_windows_range"
     t.exclusion_constraint "user_id WITH =, tsrange(window_from, window_to, '[)'::text) WITH &&", where: "(state)::text <> 'split'::text", using: :gist, name: "import_windows_no_overlap"

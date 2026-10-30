@@ -18,6 +18,19 @@ module ImportCoverage
 
   # Whether every moment in [from, to) lies inside committed windows.
   def complete?(user, from, to)
-    ranges(user).any? { |range| range.begin <= from && range.end >= to }
+    status_for(user, from, to) == :complete
+  end
+
+  # :complete when all of [from, to) is committed, :partial when only some of it is, :missing
+  # when none of it is. Validated windows that aren't committed yet count as missing.
+  def status_for(user, from, to)
+    covered = ranges(user).sum do |range|
+      overlap = [ range.end, to ].min - [ range.begin, from ].max
+      overlap.positive? ? overlap : 0
+    end
+    if covered >= to - from then :complete
+    elsif covered.positive? then :partial
+    else :missing
+    end
   end
 end

@@ -37,4 +37,37 @@ class HistoryImport::WindowConcurrencyTest < ActiveSupport::TestCase
     assert_equal winners.sole.first, @window.reload.claim_token
     assert_equal 1, @window.attempts
   end
+
+  test "of several workers committing one window at once, exactly one commits" do
+    fetch = @window.fetches.create!(attempt: 1, started_at: Time.current, outcome: "validated", expected_total: 50, row_count: 50)
+    entries = Array.new(50) do |i|
+      HistoryImport::Snapshot::Entry.new(played_at: Time.utc(2014, 3, 2) + (i / 2), artist: "Artist", artist_mbid: "",
+                                         track: "Track #{i % 3}", track_mbid: "", album: "", album_mbid: "")
+    end
+    rows = HistoryImport::Snapshot.new(entries: entries, reported_total: 50, total_pages: 1).staging_rows
+    ImportWindowRow.insert_all!(rows.map { |r| r.merge(import_window_fetch_id: fetch.id) })
+    @window.update!(state: "validated", validated_at: Time.current, expected_total: 50, fetched_count: 50)
+
+    start = Queue.new
+    results = Queue.new
+    threads = Array.new(6) do
+      Thread.new do
+        start.pop
+        ActiveRecord::Base.connection_pool.with_connection do
+          results << HistoryImport::WindowCommitter.new(window: ImportWindow.find(@window.id)).call.status
+        end
+      end
+    end
+    6.times { start << :go }
+    threads.each(&:join)
+    statuses = Array.new(6) { results.pop }
+    assert_equal [ :committed ], statuses.uniq - [ :not_claimed ]
+    assert_equal 1, statuses.count(:committed)
+    assert_equal 50, Scrobble.where(user: @user).count
+    assert_equal [ "committed", 50 ], [ @window.reload.state, @window.committed_count ]
+  ensure
+    variant_ids = Scrobble.where(user: @user).distinct.pluck(:name_variant_id)
+    Scrobble.where(user: @user).delete_all
+    NameVariant.where(id: variant_ids).delete_all
+  end
 end

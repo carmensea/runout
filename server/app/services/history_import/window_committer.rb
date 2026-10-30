@@ -1,0 +1,168 @@
+module HistoryImport
+  # Commits one validated window into permanent storage (docs/milestone-2-plan.md §4.4, first
+  # import only). Makes no Last.fm requests.
+  #
+  # Everything happens in one transaction under the worker's lease and a per-user advisory lock:
+  # re-check the window and its staged snapshot, insert name variants and scrobbles, mark the
+  # window committed with its count. Any failure rolls the whole transaction back, so a window is
+  # never partly committed and never marked committed before its plays are stored. The window
+  # then returns to `validated` with its staging intact, ready for another attempt.
+  #
+  # Scope (Stage 2.4): windows whose range holds no stored plays yet. A range that already holds
+  # plays needs the merge (corrections and removals), which isn't built; such a window goes to
+  # `needs_review` and nothing is written.
+  #
+  # `seq` is each play's position within its second in the validated snapshot. It is a storage
+  # slot only, not an identity that later fetches can be matched on.
+  class WindowCommitter
+    Outcome = Data.define(:status, :detail)
+
+    # The staged snapshot can't be trusted; the window is left for review with its staging kept.
+    class Inconsistent < StandardError; end
+
+    BATCH = 1_000
+
+    def initialize(window:, token: SecureRandom.uuid, clock: -> { Time.current })
+      @window = window
+      @token = token
+      @clock = clock
+    end
+
+    def call
+      HistoryImport.ensure_enabled!
+      return outcome(:not_claimed, "window is not available to commit") unless claim
+
+      count = commit
+      StagingCleaner.new(clock: @clock).clean_window(@window)
+      outcome(:committed, "#{count} plays")
+    rescue Inconsistent => e
+      review(e.message)
+    rescue ImportWindow::StaleLease => e
+      outcome(:stale, e.message)
+    rescue HistoryImport::DisabledError
+      raise
+    rescue StandardError => e
+      retry_later(e)
+    end
+
+    private
+
+    def now = @clock.call
+
+    def outcome(status, detail = nil) = Outcome.new(status: status, detail: detail)
+
+    # Takes a validated window, or one whose committing worker died (its lease expired). One
+    # conditional UPDATE, so only one worker wins.
+    def claim
+      claimed = ImportWindow.where(id: @window.id, state: %w[validated committing])
+                            .where("claim_token IS NULL OR lease_expires_at < ?", now)
+                            .update_all([ "state = 'committing', claim_token = ?, lease_expires_at = ?, updated_at = ?",
+                                          @token, now + ImportWindow::LEASE, now ])
+      @window.reload if claimed == 1
+      claimed == 1
+    end
+
+    def commit
+      @window.with_lease(@token, now: now) do |window|
+        HistoryImport.ensure_enabled!
+        raise ImportWindow::StaleLease, "window #{window.id} is #{window.state}, not committing" unless window.state == "committing"
+
+        ImportWindow.connection.execute(ImportWindow.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{window.user_id}" ]))
+        rows = staged_rows(window)
+        check_range_is_empty(window)
+        variant_ids = store_variants(rows)
+        inserted = store_scrobbles(window, rows, variant_ids)
+        stored = Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
+        raise "stored #{stored} plays, expected #{rows.size}" unless inserted == rows.size && stored == rows.size
+
+        window.assign_attributes(state: "committed", committed_at: now, committed_count: rows.size, claim_token: nil,
+                                 lease_expires_at: nil, last_error_message: nil)
+        ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", rows.size, now ])
+        rows.size
+      end
+    end
+
+    # The staged rows of the validated snapshot, checked against everything recorded about it.
+    def staged_rows(window)
+      fetch = window.fetches.where(outcome: "validated").order(:attempt).last
+      raise Inconsistent, "no validated fetch to commit" unless fetch
+
+      rows = fetch.rows.order(:played_at, :position).to_a
+      counts = [ rows.size, fetch.row_count, window.fetched_count, window.expected_total ]
+      raise Inconsistent, "staged snapshot is incomplete (staged, fetched, recorded, reported: #{counts.join(', ')})" unless counts.uniq.size == 1
+
+      range = window.window_from...window.window_to
+      raise Inconsistent, "staged plays lie outside the window" unless rows.all? { |row| range.cover?(row.played_at) }
+
+      rows.group_by(&:played_at).each_value do |second|
+        raise Inconsistent, "staged positions within a second are not contiguous" unless second.map(&:position) == (0...second.size).to_a
+
+        second.group_by(&:variant_hash).each_value do |same|
+          raise Inconsistent, "staged occurrences within a second are not contiguous" unless same.map(&:occurrence).sort == (0...same.size).to_a
+        end
+      end
+      raise Inconsistent, "staged strings don't match their variant hash" unless rows.all? { |row| NameVariant.hash_for(fields(row)) == row.variant_hash }
+
+      @fetch = fetch
+      rows
+    end
+
+    def check_range_is_empty(window)
+      return unless Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).exists?
+
+      raise Inconsistent, "plays are already stored in this range; merging with stored plays isn't supported yet"
+    end
+
+    # Name variants are shared and immutable: existing ones are reused, never changed. Each one
+    # found is checked against the staged strings before plays link to it.
+    def store_variants(rows)
+      unique = rows.uniq(&:variant_hash).map { |row| fields(row).merge(variant_hash: row.variant_hash) }.index_by { |v| v[:variant_hash] }
+      unique.values.each_slice(BATCH) { |batch| NameVariant.insert_all(batch, unique_by: :variant_hash) }
+      ids = {}
+      NameVariant.where(variant_hash: unique.keys).find_each do |variant|
+        expected = unique.fetch(variant.variant_hash)
+        mismatch = NameVariant::IDENTITY_FIELDS.any? { |field| variant[field] != expected[field] }
+        raise Inconsistent, "a stored name variant doesn't match its hash" if mismatch
+
+        ids[variant.variant_hash] = variant.id
+      end
+      raise "missing name variants after insert" unless ids.size == unique.size
+
+      ids
+    end
+
+    def store_scrobbles(window, rows, variant_ids)
+      records = rows.map do |row|
+        { user_id: window.user_id, played_at: row.played_at, seq: row.position,
+          name_variant_id: variant_ids.fetch(row.variant_hash), first_seen_fetch_id: @fetch.id }
+      end
+      records.each_slice(BATCH).sum { |batch| Scrobble.insert_all!(batch).length }
+    end
+
+    def fields(row)
+      NameVariant::IDENTITY_FIELDS.index_with { |field| row[field] }
+    end
+
+    def review(message)
+      @window.with_lease(@token, now: now) do |window|
+        window.assign_attributes(state: "needs_review", last_error_message: message, claim_token: nil, lease_expires_at: nil)
+      end
+      outcome(:needs_review, message)
+    rescue ImportWindow::StaleLease => e
+      outcome(:stale, e.message)
+    end
+
+    # The commit rolled back. The window goes back to `validated`, staging untouched, so a later
+    # attempt can commit it. Only the error's class and first line are kept: database messages can
+    # quote row contents on later lines.
+    def retry_later(error)
+      message = "commit failed: #{error.class.name}: #{error.message.to_s.lines.first.to_s.strip.truncate(200)}"
+      @window.with_lease(@token, now: now) do |window|
+        window.assign_attributes(state: "validated", last_error_message: message, claim_token: nil, lease_expires_at: nil)
+      end
+      outcome(:failed, message)
+    rescue ImportWindow::StaleLease => e
+      outcome(:stale, e.message)
+    end
+  end
+end

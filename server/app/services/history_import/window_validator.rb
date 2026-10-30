@@ -38,7 +38,7 @@ module HistoryImport
         return review("validation was attempted #{@window.attempts - 1} times without success")
       end
 
-      budget = RequestBudget.new(@client)
+      @budget = budget = RequestBudget.new(@client, previously_used: @window.http_requests_used)
       fetcher = SnapshotFetcher.new(client: @client, username: @username, session_key: @session_key, budget: budget,
                                     max_pages: MAX_PAGES)
       range = @window.window_from...@window.window_to
@@ -58,7 +58,11 @@ module HistoryImport
           return split_or_review
         rescue SnapshotFetcher::BudgetExceeded => e
           finish_fetch(fetch, outcome: "failed", message: e.message)
-          return fail_window(message: "#{e.message} (#{budget.used} of #{budget.limit} requests)")
+          if budget.total_exhausted?
+            return review("request budget for this window is used up across attempts (#{budget.total_used} of #{budget.total_limit} requests)")
+          end
+
+          return fail_window(message: "#{e.message} (#{budget.used} of #{budget.limit} requests this run)")
         rescue Lastfm::Error => e
           finish_fetch(fetch, outcome: "failed", message: e.message, http_status: e.http_status, lastfm_error: e.code)
           return fail_window(message: e.message, http_status: e.http_status, lastfm_error: e.code)
@@ -85,6 +89,7 @@ module HistoryImport
       mark_mismatch(previous, message: "no later snapshot to compare with")
       review("snapshots kept changing after #{MAX_SNAPSHOTS} complete reads")
     rescue ImportWindow::StaleLease => e
+      record_orphaned_requests
       outcome(:stale, e.message)
     end
 
@@ -94,7 +99,29 @@ module HistoryImport
 
     def outcome(status, detail = nil) = Outcome.new(status: status, detail: detail)
 
-    def lease(&block) = @window.with_lease(@token, now: now, &block)
+    # Every write also adds the requests made since the last write to the window's persisted
+    # count, so the budget survives validation restarts and job retries.
+    def lease
+      pending = unrecorded_requests
+      result = @window.with_lease(@token, now: now) do |window|
+        window.http_requests_used += pending
+        yield window
+      end
+      @recorded_requests = @recorded_requests.to_i + pending
+      result
+    end
+
+    def unrecorded_requests = @budget ? @budget.used - @recorded_requests.to_i : 0
+
+    # A worker that lost its lease still spent those requests; they count against the window too.
+    # One atomic increment, no other writes.
+    def record_orphaned_requests
+      count = unrecorded_requests
+      return unless count.positive?
+
+      ImportWindow.where(id: @window.id).update_all([ "http_requests_used = http_requests_used + ?", count ])
+      @recorded_requests = @budget.used
+    end
 
     # A previous worker died mid-fetch: its fetches are closed and their staged rows discarded.
     def abandon_interrupted_fetches

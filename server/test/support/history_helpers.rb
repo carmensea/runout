@@ -36,4 +36,22 @@ module HistoryHelpers
   def fetch(window, attempt: 1, **attrs)
     window.fetches.create!(attempt: attempt, started_at: Time.current, **attrs)
   end
+
+  # A play as the snapshot fetcher would produce it. Exact strings; MBIDs default to blank.
+  def entry(at, track = "Track", artist: "Artist", album: "Album", artist_mbid: "", track_mbid: "", album_mbid: "")
+    HistoryImport::Snapshot::Entry.new(played_at: at, artist: artist, artist_mbid: artist_mbid, track: track,
+                                       track_mbid: track_mbid, album: album, album_mbid: album_mbid)
+  end
+
+  # Puts a window in the state WindowValidator leaves it in: a validated fetch with the snapshot
+  # staged, and the window `validated` with matching counts. No Last.fm requests.
+  def stage!(window, entries, at: Time.current)
+    snapshot = HistoryImport::Snapshot.new(entries: entries, reported_total: entries.size, total_pages: 1)
+    attempt = (window.fetches.maximum(:attempt) || 0) + 1
+    f = fetch(window, attempt: attempt, outcome: "validated", expected_total: entries.size, row_count: entries.size, finished_at: at)
+    rows = snapshot.staging_rows.map { |row| row.merge(import_window_fetch_id: f.id) }
+    ImportWindowRow.insert_all!(rows) if rows.any?
+    window.update!(state: "validated", validated_at: at, expected_total: entries.size, fetched_count: entries.size)
+    f
+  end
 end

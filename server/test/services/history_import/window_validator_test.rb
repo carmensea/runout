@@ -164,7 +164,7 @@ class HistoryImport::WindowValidatorTest < ActiveSupport::TestCase
   test "validated, committed, split and review windows are never re-validated" do
     serve(count: 3)
     %w[validated committed split needs_review].each do |state|
-      @window.update_columns(state: state, validated_at: Time.current, committed_at: Time.current, claim_token: nil)
+      @window.update_columns(state: state, validated_at: Time.current, committed_at: Time.current, committed_count: 0, claim_token: nil)
       assert_equal :not_claimed, validate.status, state
     end
     assert_equal 0, @fake.requests

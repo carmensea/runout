@@ -45,7 +45,7 @@ class ImportIntegrityTest < ActiveSupport::TestCase
     assert_db_rejects { w.update_columns(state: "committed") }
     assert_db_rejects { w.update_columns(state: "validated") }
     w.update!(state: "validated", validated_at: Time.current)
-    w.update!(state: "committed", committed_at: Time.current)
+    w.update!(state: "committed", committed_at: Time.current, committed_count: 0)
     assert_equal "committed", w.reload.state
   end
 
@@ -106,7 +106,7 @@ class ImportIntegrityTest < ActiveSupport::TestCase
   end
 
   test "coverage reports only committed periods, merging adjacent windows" do
-    committed = ->(range) { window(@user, from: range[0], to: range[1], state: "committed", validated_at: Time.current, committed_at: Time.current) }
+    committed = ->(range) { window(@user, from: range[0], to: range[1], state: "committed", validated_at: Time.current, committed_at: Time.current, committed_count: 0) }
     committed.(@march)
     committed.(@april)
     window(@user, from: Time.utc(2014, 5, 1), to: Time.utc(2014, 6, 1), state: "failed")
