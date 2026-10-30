@@ -65,18 +65,21 @@ class Lastfm::RequestPacerConcurrencyTest < ActiveSupport::TestCase
   setup { @key = "concurrency-#{SecureRandom.hex(4)}" }
   teardown { ActiveRecord::Base.connection.exec_delete("DELETE FROM api_request_slots WHERE key = $1", "cleanup", [ @key ]) }
 
+  # Compares the slot times the database assigned, not the waits: a wait depends on when each
+  # thread's reservation happened to run, which varies with scheduling (it made this test flaky on CI).
   test "concurrent callers each get a distinct slot, spaced by the interval" do
     interval = 0.2
-    waits = Queue.new
+    slots = Queue.new
     threads = Array.new(5) do
       Thread.new do
         pacer = Lastfm::RequestPacer.new(key: @key, interval: interval, sleeper: ->(_s) { })
-        waits << pacer.reserve!
+        pacer.reserve!
+        slots << pacer.last_slot_at
       end
     end
     threads.each(&:join)
-    sorted = Array.new(5) { waits.pop }.sort
+    sorted = Array.new(5) { slots.pop }.sort
     gaps = sorted.each_cons(2).map { |a, b| b - a }
-    assert gaps.all? { |gap| gap.between?(interval - 0.05, interval + 0.05) }, "gaps: #{gaps.inspect}"
+    assert gaps.all? { |gap| (gap - interval).abs < 0.001 }, "slot gaps: #{gaps.inspect}"
   end
 end

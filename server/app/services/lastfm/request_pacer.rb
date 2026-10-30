@@ -17,7 +17,8 @@ module Lastfm
       ON CONFLICT (key) DO UPDATE
         SET next_slot_at = GREATEST(api_request_slots.next_slot_at, clock_timestamp()) + make_interval(secs => :interval),
             updated_at = clock_timestamp()
-      RETURNING EXTRACT(EPOCH FROM (next_slot_at - make_interval(secs => :interval) - clock_timestamp()))::float8 AS wait
+      RETURNING EXTRACT(EPOCH FROM (next_slot_at - make_interval(secs => :interval) - clock_timestamp()))::float8 AS wait,
+                EXTRACT(EPOCH FROM (next_slot_at - make_interval(secs => :interval)))::float8 AS slot
     SQL
 
     COOL_DOWN_SQL = <<~SQL.freeze
@@ -28,7 +29,8 @@ module Lastfm
             updated_at = clock_timestamp()
     SQL
 
-    attr_reader :interval
+    # Database time (Unix seconds) of the slot taken by the last reserve!. For tests and diagnostics.
+    attr_reader :interval, :last_slot_at
 
     def initialize(key: "lastfm", interval: DEFAULT_INTERVAL, max_wait: MAX_WAIT, sleeper: ->(seconds) { sleep(seconds) })
       @key = key
@@ -39,7 +41,8 @@ module Lastfm
 
     # Blocks until this caller's slot. Returns the seconds waited.
     def reserve!
-      wait = [ execute(RESERVE_SQL, interval: @interval).to_f, 0.0 ].max
+      wait, @last_slot_at = execute(RESERVE_SQL, interval: @interval)
+      wait = [ wait.to_f, 0.0 ].max
       if wait > @max_wait
         raise Error::RateLimited.new("Last.fm requests are paused for another #{wait.ceil} s", retry_after: wait)
       end
@@ -60,7 +63,8 @@ module Lastfm
     # "go now" answer and pacing would silently stop working.
     def execute(sql, **binds)
       ActiveRecord::Base.connection_pool.with_connection do |conn|
-        conn.exec_query(ActiveRecord::Base.sanitize_sql_array([ sql, { key: @key, **binds } ]), "Lastfm::RequestPacer").rows.first&.first
+        row = conn.exec_query(ActiveRecord::Base.sanitize_sql_array([ sql, { key: @key, **binds } ]), "Lastfm::RequestPacer").rows.first
+        row && row.size > 1 ? row : row&.first
       end
     end
   end
