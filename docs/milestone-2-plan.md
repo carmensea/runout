@@ -676,7 +676,25 @@ Depending on the answer, these fall-backs keep the architecture intact:
     - coverage (`ImportCoverage`);
     - synchronisation (`last_checked_at`, set by every successful commit or reconciliation);
     - review (open disputes, suspected, pending and reappeared removals).
-    A month is `:synchronized` only with no open items and a check within 30 days.
+    A month is `:synchronized` only with no open items and a check within 30 days. A month whose
+    latest check stopped (`needs_review`, or failed for good) is `:check_stopped`, and one whose
+    stored plays don't add up to its recorded count is `:inconsistent`; neither is ever reported
+    as synchronized.
+  - **Every reconciliation verifies its own result** before the month is marked committed. It
+    reads the month back (uncached) and checks the following; any disagreement rolls back the
+    whole transaction and sends the month to review:
+    - every play stored before is unchanged;
+    - the only new rows are the ones it inserted;
+    - in each undisputed second, every distinct play is stored max(stored, fetched) times;
+    - disputed seconds are untouched;
+    - every missing play has a removal record.
+  - **Commits and review decisions read uncached.** Jobs run with Rails' query cache on, and a
+    write clears only the writing thread's cache, so a repeated read could return an earlier
+    result. (This is what made the competing-reconciler test report a missing play, 2026-10-30.
+    The play was stored; the test's own thread read a cached count. Threaded tests now run
+    without the query cache.)
+  - **Dispute evidence is immutable** (`attr_readonly`). The `opened` audit decision also records
+    the stored plays' variants at that moment, since a later correction can re-point a play.
   - **Per-second multiset matching** in the commit transaction:
     - Identical plays pair first, present before removed, in slot order; Last.fm's order is
       ignored.

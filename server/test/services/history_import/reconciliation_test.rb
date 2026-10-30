@@ -315,6 +315,61 @@ class HistoryImport::ReconciliationTest < ActiveSupport::TestCase
     assert HistoryImport::Progress.for(@user).windows[:committed] == 1
   end
 
+  test "a superseded dispute keeps its evidence and decision history" do
+    check!(base)
+    stored_c = stored.where(played_at: T).last
+    check!([ entry(T, "A"), entry(T, "B"), entry(T, "C2"), entry(U, "U") ])
+    first = ReconciliationDispute.sole
+    evidence = first.attributes.slice(*%w[played_at stored_scrobble_ids proposed_variant_ids evidence_key first_seen_fetch_id])
+    check!([ entry(T, "A"), entry(T, "B"), entry(T, "C3"), entry(U, "U") ])
+
+    first.reload
+    assert_equal "superseded", first.state
+    assert_equal evidence, first.attributes.slice(*evidence.keys), "the evidence is unchanged"
+    assert_equal %w[C2], first.proposed_variants.map(&:track_name)
+    history = ReviewDecision.where(subject_type: "ReconciliationDispute", subject_id: first.id).order(:id)
+    assert_equal %w[opened superseded], history.map(&:action)
+    assert_equal [ stored_c.name_variant_id ], history.first.details["stored_variant_ids"], "what was stored, even if corrected later"
+    assert_equal [ "the evidence changed" ], history.last.details.values_at("reason")
+    assert_equal "open", ReconciliationDispute.order(:id).last.state
+    assert_raises(ActiveRecord::ReadonlyAttributeError) { first.evidence_key = "x" }
+    assert_raises(ActiveRecord::ReadonlyAttributeError) { first.proposed_variant_ids = [] }
+  end
+
+  test "a reconciliation whose result doesn't match its snapshot is rolled back and goes to review" do
+    check!(base)
+    added = [ entry(T, "A"), entry(T, "B"), entry(T, "C"), entry(T, "D"), entry(Time.utc(2014, 3, 3), "New"), entry(U, "U") ]
+    faults = {
+      "an insert silently skipped" => ->(original, batch, **opts) { original.call(batch.first(batch.size - 1), **opts) },
+      "an insert reported but not made" => ->(original, batch, **opts) { original.call(batch.first(batch.size - 1), **opts).tap { |r| r.rows << [ 0 ] } },
+      "a play added twice" => ->(original, batch, **opts) { original.call(batch + [ batch.last.merge(seq: batch.last[:seq] + 1) ], **opts) }
+    }
+    faults.each do |fault, insert|
+      before = [ snapshot_of(stored), ReconciliationDispute.count, ScrobbleRemoval.count, ReviewDecision.count ]
+      stage!(@window.reload.tap { |w| w.update!(state: "committed") }, added)
+      original = Scrobble.method(:insert_all!)
+      Scrobble.define_singleton_method(:insert_all!) { |batch, **opts| insert.call(original, batch, **opts) }
+      begin
+        result = commit
+      ensure
+        Scrobble.singleton_class.remove_method(:insert_all!)
+      end
+      assert_equal :needs_review, result.status, fault
+      assert_match(/reconciliation check failed/, result.detail, fault)
+      assert_equal before, [ snapshot_of(stored), ReconciliationDispute.count, ScrobbleRemoval.count, ReviewDecision.count ], "#{fault}: nothing applied"
+      assert_equal :check_stopped, status.status, "#{fault}: never reported as synchronized"
+      assert_equal :complete, ImportCoverage.status_for(@user, *MARCH), "#{fault}: coverage kept"
+    end
+  end
+
+  test "a month whose stored plays don't add up to its recorded count is never synchronized" do
+    check!(base)
+    assert_equal :synchronized, status.status
+    @window.update_columns(committed_count: @window.committed_count + 1)
+    assert_equal :inconsistent, status.status
+    assert_equal [ 4, 5 ], [ status.present_count, status.committed_count ]
+  end
+
   test "the database rejects a second open dispute for the same second" do
     check!(base)
     check!([ entry(T, "A"), entry(T, "B"), entry(T, "C2"), entry(U, "U") ])

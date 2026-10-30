@@ -50,6 +50,13 @@ module ActiveSupport
     # Retries still happen in tests, but without real sleeps.
     setup { Rails.configuration.x.lastfm_client_options = { sleeper: ->(_seconds) { } } }
 
+    # Tests without the transactional wrapper run real threads. Rails wraps each test in the
+    # executor, which turns the query cache on for the test's own thread, and a write clears only
+    # the writing thread's cache. So once worker threads had written, repeating a query here
+    # returned the result cached before they ran (a "missing" play that was in fact stored).
+    # These tests read the database directly.
+    setup { ActiveRecord::Base.connection_pool.disable_query_cache! unless use_transactional_tests }
+
     # A client for unit tests: no pacer, no sleeping. Override anything per test.
     def stub_client(**options)
       Lastfm::Client.new(api_key: "test-api-key", shared_secret: "test-shared-secret", sleeper: ->(_seconds) { }, **options)

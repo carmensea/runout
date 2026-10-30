@@ -106,9 +106,9 @@ namespace :import do
   desc "Show coverage, synchronisation and review status per imported month"
   task sync_status: :environment do
     HistoryImport::SyncStatus.for(import_user).each do |m|
-      puts format("%s  %-13s checked %s  disputes %d, suspected %d, pending removals %d, reappeared %d",
+      puts format("%s  %-13s checked %s  disputes %d, suspected %d, pending removals %d, reappeared %d, plays %d (recorded %d)",
                   m.from.to_date, m.status, m.last_checked_at&.utc&.iso8601 || "never", m.open_disputes,
-                  m.suspected_removals, m.pending_removals, m.reappeared)
+                  m.suspected_removals, m.pending_removals, m.reappeared, m.present_count, m.committed_count.to_i)
     end
   end
 end

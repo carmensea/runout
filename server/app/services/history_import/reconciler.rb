@@ -20,8 +20,16 @@ module HistoryImport
   # Unchanged evidence never reopens a decision. A dismissed removal stays dismissed while its play
   # stays missing; only once the play has been seen again (closing that chain) can a later miss
   # start a new one. A dismissed dispute is reopened only if the evidence for that second changes.
+  #
+  # Before returning, the result is read back from the database and checked against the snapshot
+  # (#verify!). Any disagreement raises WindowCommitter::Inconsistent: the whole transaction rolls
+  # back and the month goes to review instead of being reported as reconciled.
+  #
+  # Publishes `reconcile.history_import` with the plays it meant to insert and the ids actually
+  # inserted, for tests and diagnostics. (Synthetic data only should ever be logged from it.)
   class Reconciler
     SOURCE = "reconciliation".freeze
+    EVENT = "reconcile.history_import".freeze
 
     def initialize(window:, fetch:, rows:, variant_ids:, now:)
       @window = window
@@ -31,12 +39,13 @@ module HistoryImport
       @now = now
       @summary = Hash.new(0)
       @inserts = []
+      @disputed = Set.new
+      @missing = []
     end
 
     # Returns counts of what happened, for the window's last_check_summary.
     def call
-      stored = Scrobble.where(user_id: @window.user_id).played_between(@window.window_from, @window.window_to)
-                       .joins(:name_variant).select("scrobbles.*, name_variants.variant_hash AS stored_hash").to_a
+      stored = stored_plays
       @removals = ScrobbleRemoval.where(scrobble_id: stored.map(&:id)).order(:id).group_by(&:scrobble_id)
       @disputes = ReconciliationDispute.where(user_id: @window.user_id, played_at: @window.window_from...@window.window_to,
                                               state: %w[open dismissed]).order(:id).group_by { |d| d.played_at.to_i }
@@ -44,15 +53,67 @@ module HistoryImport
       stored_by_second = stored.group_by { |s| s.played_at.to_i }
       (staged.keys | stored_by_second.keys).sort.each { |t| reconcile_second(t, staged.fetch(t, []), stored_by_second.fetch(t, [])) }
 
-      @inserts.each_slice(WindowCommitter::BATCH) { |batch| Scrobble.insert_all!(batch) }
-      after = Scrobble.where(user_id: @window.user_id).played_between(@window.window_from, @window.window_to).count
-      raise "reconciliation left #{after} plays, expected #{stored.size + @inserts.size}" unless after == stored.size + @inserts.size
+      inserted = @inserts.each_slice(WindowCommitter::BATCH).flat_map { |batch| Scrobble.insert_all!(batch, returning: %w[id]).rows.flatten }
+      ActiveSupport::Notifications.instrument(EVENT, window_id: @window.id, fetch_id: @fetch.id, intended: @inserts, inserted_ids: inserted)
+      verify!(stored, staged, inserted)
 
       @summary[:added] = @inserts.size
       @summary.to_h
     end
 
     private
+
+    # Every play in the month, removed ones included, with its variant's hash. Read from the
+    # database, never from the query cache: writes by other processes don't clear it.
+    def stored_plays
+      Scrobble.uncached do
+        Scrobble.where(user_id: @window.user_id).played_between(@window.window_from, @window.window_to)
+                .joins(:name_variant).select("scrobbles.*, name_variants.variant_hash AS stored_hash").to_a
+      end
+    end
+
+    # The month as stored now must be exactly what the rules above produce from the snapshot:
+    # - every play stored before is still there, unchanged (same slot, variant and removal state);
+    # - the only new plays are the ones this check inserted;
+    # - in a second without a dispute, each distinct play is stored as many times as the larger of
+    #   the stored and fetched counts: every fetched play is represented, same-second duplicates
+    #   are kept, and nothing is added twice;
+    # - a disputed second is exactly as it was;
+    # - every stored play the snapshot lacks has an open or dismissed removal record.
+    def verify!(before, staged, inserted_ids)
+      fail!("inserted #{inserted_ids.size} plays, meant to insert #{@inserts.size}") unless inserted_ids.size == @inserts.size
+
+      after = stored_plays
+      now_by_id = after.index_by(&:id)
+      unchanged = before.all? do |s|
+        (a = now_by_id[s.id]) && [ a.played_at, a.seq, a.name_variant_id, a.removed_at ] == [ s.played_at, s.seq, s.name_variant_id, s.removed_at ]
+      end
+      fail!("a stored play changed or disappeared") unless unchanged
+      fail!("plays appeared that this check didn't insert") unless (now_by_id.keys - before.map(&:id)).sort == inserted_ids.sort
+
+      had = before.group_by { |s| s.played_at.to_i }
+      has = after.group_by { |s| s.played_at.to_i }
+      (staged.keys | has.keys).each do |t|
+        was = had.fetch(t, []).map(&:stored_hash).tally
+        now = has.fetch(t, []).map(&:stored_hash).tally
+        if @disputed.include?(t)
+          fail!("a disputed second changed") unless now == was
+          next
+        end
+
+        fetched = staged.fetch(t, []).map(&:variant_hash).tally
+        (fetched.keys | now.keys).each do |h|
+          fail!("a second's plays don't match the snapshot") unless now.fetch(h, 0) == [ was.fetch(h, 0), fetched.fetch(h, 0) ].max
+        end
+      end
+
+      flagged = ScrobbleRemoval.uncached do
+        ScrobbleRemoval.where(scrobble_id: @missing).order(:id).group_by(&:scrobble_id).transform_values { |r| r.last.state }
+      end
+      fail!("a missing play has no removal record") unless @missing.all? { |id| %w[observed pending_review dismissed].include?(flagged[id]) }
+    end
+
+    def fail!(message) = raise(WindowCommitter::Inconsistent, "reconciliation check failed: #{message}")
 
     def reconcile_second(t, staged, stored)
       pools = Hash.new { |h, k| h[k] = [] }
@@ -65,6 +126,7 @@ module HistoryImport
       open = @disputes.fetch(t, []).find { |d| d.state == "open" }
 
       if unmatched_staged.any? && unmatched_present.any?
+        @disputed << t
         dispute!(t, unmatched_present, unmatched_staged, open)
         return
       end
@@ -99,7 +161,10 @@ module HistoryImport
       dispute = ReconciliationDispute.create!(user_id: @window.user_id, import_window: @window, played_at: Time.at(t).utc,
                                               stored_scrobble_ids: stored_ids, proposed_variant_ids: proposed, evidence_key: key,
                                               first_seen_fetch: @fetch, last_seen_fetch: @fetch)
-      ReviewDecision.record!(dispute, :opened, source: SOURCE, fetch_id: @fetch.id)
+      # The stored plays' variants as they were, kept with the audit record: a later correction
+      # re-points a play to another variant, and the dispute row holds only the play ids.
+      ReviewDecision.record!(dispute, :opened, source: SOURCE, fetch_id: @fetch.id,
+                             stored_variant_ids: present.sort_by(&:id).map(&:name_variant_id))
       @summary[:disputes_opened] += 1
     end
 
@@ -130,6 +195,7 @@ module HistoryImport
     end
 
     def missing!(scrobble)
+      @missing << scrobble.id
       removal = latest_removal(scrobble)
       case removal&.state
       when nil, "restored"

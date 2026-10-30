@@ -77,7 +77,13 @@ module HistoryImport
       claimed == 1
     end
 
+    # Uncached throughout: jobs run with Rails' query cache on, and writes by other processes don't
+    # clear it, so a repeated read could return an earlier result.
     def commit
+      ImportWindow.uncached { commit_under_lease }
+    end
+
+    def commit_under_lease
       @window.with_lease(@token, now: now) do |window|
         HistoryImport.ensure_enabled!
         raise ImportWindow::StaleLease, "window #{window.id} is #{window.state}, not committing" unless window.state == "committing"

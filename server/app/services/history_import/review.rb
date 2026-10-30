@@ -139,11 +139,14 @@ module HistoryImport
       end
     end
 
+    # Uncached, like WindowCommitter#commit: decisions must read what is stored now.
     def decide(item, model)
       HistoryImport.ensure_enabled!
-      model.transaction do
-        model.connection.execute(model.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{item.user_id}" ]))
-        yield model.lock.find(item.id)
+      model.uncached do
+        model.transaction do
+          model.connection.execute(model.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{item.user_id}" ]))
+          yield model.lock.find(item.id)
+        end
       end
     end
 

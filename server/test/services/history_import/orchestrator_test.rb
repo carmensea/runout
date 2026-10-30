@@ -506,12 +506,18 @@ class HistoryImport::OrchestratorConcurrencyTest < ActiveSupport::TestCase
     before = Scrobble.where(user: user).count
     outcomes = in_threads(4) { HistoryImport::WindowCommitter.new(window: ImportWindow.find(window.id)).call.status }
     assert_equal 1, outcomes.count(:committed), outcomes.inspect
-    w = window.reload
-    diagnostics = { summary: w.last_check_summary, state: w.state, fetches: w.fetches.order(:attempt).pluck(:attempt, :outcome, :row_count),
-                    staged_back_dated: @fake.plays.any? { |p| p.track == "Back-dated" }, outcomes: outcomes,
-                    runs: ImportRun.where(user: user).pluck(:kind, :state) }
-    assert_equal before + 1, Scrobble.where(user: user).count, diagnostics.inspect
+    # The same query as `before`: it once returned the cached result (see test_helper.rb).
+    assert_equal before + 1, Scrobble.where(user: user).count
+    assert_equal 1, Scrobble.joins(:name_variant).where(user: user, name_variants: { track_name: "Back-dated" }).count
     assert_equal ScrobbleRemoval.where(user: user).count, ScrobbleRemoval.where(user: user).distinct.count(:scrobble_id)
+  end
+
+  test "the query cache is off in threaded tests, so the main thread sees what workers wrote" do
+    user = @users.first
+    count = -> { Scrobble.where(user: user).count }
+    assert_equal 0, count.call
+    in_threads(1) { Scrobble.create!(user: user, played_at: Time.utc(2014, 3, 1), seq: 0, name_variant: NameVariant.for!(artist_name: "A", track_name: "T", album_name: "")) }
+    assert_equal 1, count.call
   end
 
   test "two accounts import at the same time, each completely and only its own history" do

@@ -16,6 +16,11 @@ class ReconciliationDispute < ApplicationRecord
 
   validates :state, inclusion: { in: STATES }
 
+  # The evidence never changes once recorded: a dispute that is superseded, resolved or dismissed
+  # still shows what was seen. (New evidence makes a new dispute.)
+  attr_readonly :user_id, :import_window_id, :played_at, :stored_scrobble_ids, :proposed_variant_ids, :evidence_key,
+                :first_seen_fetch_id
+
   scope :open, -> { where(state: "open") }
 
   def self.evidence_key(stored_ids, proposed_variant_ids)
