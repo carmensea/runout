@@ -21,11 +21,13 @@ module HistoryImport
 
     Result = Data.define(:snapshot, :first_page)
 
-    def initialize(client:, username:, session_key: nil, budget: nil, max_pages: nil)
+    # `on_page` runs after every page (outside any transaction); the validator renews its lease there.
+    def initialize(client:, username:, session_key: nil, budget: nil, max_pages: nil, on_page: nil)
       @client = client
       @username = username
       @session_key = session_key
       @budget = budget
+      @on_page = on_page
       @max_pages = max_pages
     end
 
@@ -57,7 +59,7 @@ module HistoryImport
       raise BudgetExceeded, "request budget for this window is used up" if @budget && @budget.exhausted?(@client.http_requests)
 
       @client.recent_tracks(username: @username, page: number, limit: PAGE_SIZE, from: range.begin, to: range.end,
-                            session_key: @session_key)
+                            session_key: @session_key).tap { @on_page&.call }
     end
 
     # Every page must report the same total and page count, every full page must be full, and

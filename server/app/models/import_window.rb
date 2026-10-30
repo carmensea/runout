@@ -6,8 +6,10 @@ class ImportWindow < ApplicationRecord
 
   STATES = %w[pending fetching validating validated committing committed failed needs_review split].freeze
   # A worker holds a window only while its lease is valid; after a crash the lease expires and
-  # another worker may take the window over.
-  LEASE = 30.minutes
+  # another worker may take the window over. Validation renews it after every page, so it only
+  # needs to outlast the longest gap between pages (a paced request plus its retry), not a whole
+  # fetch; a dead worker is noticed within this time.
+  LEASE = 5.minutes
   # States a worker may pick up. `validated` waits for commit (Stage 2.4); `needs_review`, `split`
   # and `committed` are never picked up automatically. `fetching` and `validating` are only taken
   # over once their lease has expired (an interrupted worker).

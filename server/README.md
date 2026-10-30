@@ -94,6 +94,24 @@ bin/rails import:retry    # retries stopped or reviewed months (WINDOW=id for on
 bin/rails catalogue:match # matches stored names to artists, albums and tracks
 ```
 
+### Solid Queue smoke test
+
+`bin/rails test` uses Rails' test queue adapter. `test/smoke/solid_queue/run.rb` runs synthetic
+imports through real Solid Queue instead: separate supervisor, dispatcher, worker and scheduler
+processes, a fake Last.fm installed before they fork, and a disposable database. It covers
+crashes, restarts, duplicate delivery, retries, pause and cancel, and the storage flag. It never
+touches the development database.
+
+```sh
+export RAILS_ENV=test DATABASE_URL="postgres://postgres@localhost/runout_smoke?gssencmode=disable"
+bin/rails db:create   # once, then load the schemas into runout_smoke:
+bin/rails runner 'load "db/schema.rb"; load "db/queue_schema.rb"'
+SMOKE_DIR=$(mktemp -d) LASTFM_HISTORY_STORAGE_ENABLED=true bin/rails runner test/smoke/solid_queue/run.rb
+```
+
+It refuses to run against any database other than `runout_smoke`, and while other Solid Queue
+processes are running. It truncates that database's tables before every scenario.
+
 ## Environment
 
 | Variable | Purpose |

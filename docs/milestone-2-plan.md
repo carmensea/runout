@@ -463,7 +463,8 @@ unique index).
   seconds at the default pacing), and no transaction or lock is held during its HTTP requests.
 - **Deploys.** `SOLID_QUEUE_SHUTDOWN_TIMEOUT` (25 s) lets a running step finish its current
   request. A job that doesn't finish is redelivered after the restart; its token is stale by
-  then, so it stops, and the watchdog resumes the run.
+  then, so it would stop. Instead it takes the interrupted step over once that step's lease has
+  run out (verified with real Solid Queue).
 - **Pacing (implemented in Stage 2.2):** `Lastfm::RequestPacer`, backed by the
   `api_request_slots` table, gives one schedule shared by every process.
   - Each request atomically reserves the next slot (`LASTFM_MIN_REQUEST_INTERVAL`, default 1 s)
@@ -482,6 +483,7 @@ unique index).
 - **State changes** use `lock_version`, so concurrent duplicates cannot both proceed.
 - **Process crashes** (deploy or OOM), handled by the watchdog (`HistoryImport::Recovery`,
   Stage 2.6):
+  - Window leases last 5 minutes and are renewed after every page fetched.
   - A window whose lease has expired goes back to where a new worker starts. `fetching` or
     `validating` goes to `pending`, and `StagingCleaner` discards the partial fetch. `committing`
     goes to `validated`: the transaction rolled back, and staging is intact.
@@ -663,12 +665,28 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Solid Queue smoke test decisions (`test/smoke/solid_queue/run.rb`, after Stage 2.6). Real
+  Solid Queue found three defects that the test adapter couldn't show:
+  - **Lost steps on deploy.** A graceful shutdown releases an unfinished step, and Solid Queue
+    redelivers it with its original token, which the step had already swapped. It stopped, and
+    the run waited 20+ minutes for the watchdog. Now `import_runs.step_from_token` records which
+    token started the step, and a redelivered job takes the step over once it is provably dead
+    (no live window lease, no activity for a lease period). Until then it re-enqueues itself for
+    when the lease runs out. Late duplicates of a finished step still stop.
+  - **Shorter lease.** `ImportWindow::LEASE` is 5 minutes, renewed after every page fetched, so
+    a dead worker is noticed within 5 minutes and a slow fetch never loses its lease.
+  - **Discarded matching.** `CatalogueMatchJob` discarded requests made while one was running
+    (Solid Queue holds the concurrency slot for the whole job), so later commits went unmatched.
+    It now blocks instead, and the watchdog schedules matching whenever unmatched variants remain.
+  - **Cutoff gap.** A run started after a cancelled one used a later cutoff, leaving a gap the
+    monthly planner can't fill. It now keeps the cutoff its windows were planned with.
+  - `HistoryImport::Progress#stalled` reports a working run that has gone quiet.
 - Stage 2.6 orchestration decisions (`HistoryImport::Orchestrator`, `Recovery`, `Progress`):
   - **One chain of short steps per run**, guarded by a job token swapped at the start of every
     step, instead of separate fetch and merge jobs. Same-token window reclaims were dropped: two
-    deliveries of one job could otherwise both act. Recovery after a crash therefore waits for
-    the watchdog (stall 20 min, lease 30 min) rather than being instant. That is slower, but
-    never doubles work.
+    deliveries of one job could otherwise both act. A redelivered step takes over once the old
+    step is dead (see the smoke test decisions). A crash without redelivery waits for the watchdog
+    (stall 20 min).
   - **Progress** (`HistoryImport::Progress.for(user)`) counts only committed windows. "Complete"
     is judged by coverage from the first month to the run's cutoff, never by comparing counts:
     Last.fm's playcount includes later plays and can change. `percent` stays at most 99 until

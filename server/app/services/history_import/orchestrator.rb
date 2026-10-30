@@ -15,8 +15,12 @@ module HistoryImport
   #   one as it starts (one conditional UPDATE), so of two deliveries of the same job only one
   #   proceeds. Pause, cancel and watchdog restarts replace the token too, so stale jobs stop at
   #   once. The step's token is also its lease token on the window it works on.
-  # - A step that dies leaves the run with a token no job holds. The watchdog (Recovery) notices
-  #   the quiet run and restarts it; the window it held is taken over once its lease expires.
+  # - A step that dies leaves the run with a token no job holds. If Solid Queue redelivers the job
+  #   (it releases unfinished jobs on a graceful shutdown), the redelivered job may take over: its
+  #   token is recorded as the one that started the step (`step_from_token`). It does so only once
+  #   the step is provably dead, with no live window lease and no activity for a lease period;
+  #   until then it re-enqueues itself for when the lease runs out. A crash without redelivery is
+  #   left to the watchdog (Recovery), which restarts quiet runs.
   # - Last.fm requests happen outside transactions (the validator's rule). State changes here are
   #   single conditional UPDATEs.
   # - History storage must be enabled to enqueue and to run each step; turning it off stops the
@@ -75,8 +79,11 @@ module HistoryImport
 
       step_token = SecureRandom.uuid
       taken = ImportRun.where(id: run.id, job_token: token, state: ImportRun::WORKING_STATES)
-                       .update_all(job_token: step_token, next_step_at: nil, updated_at: now)
-      return :superseded unless taken == 1
+                       .update_all(job_token: step_token, step_from_token: token, next_step_at: nil, last_activity_at: now, updated_at: now)
+      if taken.zero?
+        outcome = take_over_interrupted_step(run, token, step_token)
+        return outcome unless outcome == :taken_over
+      end
 
       run.reload
       identity = active_identity(run.user)
@@ -96,7 +103,7 @@ module HistoryImport
       at = wait && now + wait
       scope = ImportRun.where(id: run.id, state: ImportRun::WORKING_STATES)
       scope = rotate_from ? scope.where(job_token: rotate_from) : scope
-      return false unless scope.update_all(job_token: new_token, last_scheduled_at: now, next_step_at: at, updated_at: now) == 1
+      return false unless scope.update_all(job_token: new_token, step_from_token: nil, last_scheduled_at: now, next_step_at: at, updated_at: now) == 1
 
       job = ImportRunJob.set(wait: wait || 0)
       job.perform_later(run.id, new_token)
@@ -107,6 +114,23 @@ module HistoryImport
 
     def now = @clock.call
 
+    # This job started the run's current step, and is running again: Solid Queue redelivered it
+    # after its process stopped, or it is a duplicate. Take the step over only if it is dead.
+    def take_over_interrupted_step(run, token, step_token)
+      return :superseded unless run.step_from_token == token && run.working?
+
+      live_until = [ ImportWindow.where(claim_token: run.job_token).maximum(:lease_expires_at),
+                     run.last_activity_at && run.last_activity_at + ImportWindow::LEASE ].compact.max
+      if live_until && live_until > now
+        ImportRunJob.set(wait: (live_until - now) + 1.second).perform_later(run.id, token)
+        return :deferred
+      end
+
+      taken = ImportRun.where(id: run.id, job_token: run.job_token, step_from_token: token, state: ImportRun::WORKING_STATES)
+                       .update_all(job_token: step_token, next_step_at: nil, last_activity_at: now, updated_at: now)
+      taken == 1 ? :taken_over : :superseded
+    end
+
     def client = @client ||= Lastfm::Config.client(**Lastfm::Client::BACKGROUND_OPTIONS)
 
     def create_run(user)
@@ -116,7 +140,7 @@ module HistoryImport
     end
 
     def transition!(run, from:, to:, **changes)
-      ImportRun.where(id: run.id, state: from).update_all(state: to, job_token: nil, updated_at: now, **changes) == 1
+      ImportRun.where(id: run.id, state: from).update_all(state: to, job_token: nil, step_from_token: nil, updated_at: now, **changes) == 1
     end
 
     # The account may still be imported: linked, not revoked, holding a session, and allowed.
@@ -144,7 +168,10 @@ module HistoryImport
       raise Stop, "The Last.fm account's registration time doesn't match (identity_changed)." unless info[:registered_at] && info[:registered_at] == identity.registered_at
 
       history_from = run.history_from || Time.utc(info[:registered_at].year, info[:registered_at].month, 1)
-      cutoff = run.cutoff_at || now.utc.beginning_of_minute
+      # A run that follows a cancelled one keeps the cutoff its windows were planned with: a later
+      # cutoff would leave a gap the monthly planner can't fill (it skips the overlapping current
+      # month). Plays after the cutoff are for sync (Stage 2.7).
+      cutoff = run.cutoff_at || ImportWindow.live.where(user_id: run.user_id).maximum(:window_to) || now.utc.beginning_of_minute
       WindowPlanner.plan!(user: run.user, from: history_from, cutoff: cutoff, run: run)
       # Windows left by an earlier, cancelled run join this one.
       ImportWindow.live.where(user_id: run.user_id).where.not(state: "committed").where.not(import_run_id: run.id).update_all(import_run_id: run.id)

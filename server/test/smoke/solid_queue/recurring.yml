@@ -1,0 +1,6 @@
+# The production watchdog entry (config/recurring.yml), run every 2 seconds instead of 10 minutes.
+test:
+  import_watchdog:
+    class: ImportWatchdogJob
+    queue: default
+    schedule: every 2 seconds

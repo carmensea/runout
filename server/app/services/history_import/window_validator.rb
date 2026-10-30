@@ -39,8 +39,9 @@ module HistoryImport
       end
 
       @budget = budget = RequestBudget.new(@client, previously_used: @window.budget_requests_used)
+      # Renew the lease after every page: a short transaction between requests, never during one.
       fetcher = SnapshotFetcher.new(client: @client, username: @username, session_key: @session_key, budget: budget,
-                                    max_pages: MAX_PAGES)
+                                    max_pages: MAX_PAGES, on_page: -> { lease { nil } })
       range = @window.window_from...@window.window_to
       previous = nil
 

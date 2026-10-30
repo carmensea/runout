@@ -65,7 +65,9 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_equal 1, months.count { |w| w.state == "committed" }
 
     assert_equal 0, HistoryImport::Recovery.new.run![:restarted], "not stalled yet"
+    assert_not HistoryImport::Progress.for(@user).stalled
     travel HistoryImport::Recovery::STALL_AFTER + 1.minute
+    assert HistoryImport::Progress.for(@user).stalled, "a quiet run is reported as stalled"
     assert_equal 1, HistoryImport::Recovery.new.run![:restarted]
     drain
     assert_equal "completed", run_for(@user).state
@@ -160,7 +162,7 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_equal "committing", stuck.state
     assert_equal 0, committed_plays(@user)
 
-    travel ImportWindow::LEASE + 1.minute
+    travel [ ImportWindow::LEASE, HistoryImport::Recovery::STALL_AFTER ].max + 1.minute
     result = HistoryImport::Recovery.new.run!
     assert_equal 1, result[:leases]
     assert_equal 1, result[:restarted]
@@ -168,6 +170,48 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_equal @fake.plays.size, committed_plays(@user)
   ensure
     Scrobble.singleton_class.remove_method(:insert_all!) if Scrobble.singleton_class.instance_methods(false).include?(:insert_all!)
+  end
+
+  test "a job redelivered after its step was interrupted takes the step over once it is dead, without the watchdog" do
+    crash = Class.new(Exception) # rubocop:disable Lint/InheritException -- stands in for the process stopping
+    orchestrator.start!(@user)
+    perform_enqueued_jobs(at: Time.current) # plan
+    job = enqueued_jobs.sole
+    @fake.before_request = ->(n, _fake) { raise crash if n == 1 }
+    assert_raises(crash) { perform_enqueued_jobs(at: Time.current) } # interrupted mid-fetch
+    @fake.before_request = nil
+    clear_enqueued_jobs
+    run = run_for(@user)
+    assert_equal job[:args].second, run.step_from_token
+
+    # Solid Queue redelivers the released job, with its original token, straight away.
+    assert_equal :deferred, orchestrator.step!(run.id, run.step_from_token), "the step might still be alive"
+    assert_enqueued_jobs 1, only: ImportRunJob
+    retry_at = Time.zone.at(enqueued_jobs.sole[:at])
+    assert_in_delta ImportWindow::LEASE.from_now, retry_at, 5
+
+    travel_to(retry_at + 1.second)
+    drain
+    assert_equal "completed", run.reload.state, "completed without the watchdog"
+    assert_equal @fake.plays.size, committed_plays(@user)
+  end
+
+  test "a late duplicate of a step that finished stops at once" do
+    orchestrator.start!(@user)
+    perform_enqueued_jobs(at: Time.current) # plan
+    token = enqueued_jobs.sole[:args].second
+    perform_enqueued_jobs(at: Time.current) # the step runs and schedules the next one
+    assert_equal :superseded, orchestrator.step!(run_for(@user).id, token)
+  end
+
+  test "validation renews its lease after every page, so a long fetch keeps it" do
+    serve_history(Array.new(1_500) { |i| play(oldest_month + 7.days + (i * 60), "Long #{i}") })
+    window = window(@user, from: oldest_month, to: oldest_month + 1.month)
+    clock_at = Time.current
+    @fake.before_request = ->(_n, _fake) { clock_at += 1.minute } # 8 pages per read: 8 minutes > LEASE
+    result = HistoryImport::WindowValidator.new(window: window, client: stub_client(**Lastfm::Client::BACKGROUND_OPTIONS),
+                                                username: "listener", clock: -> { clock_at }).call
+    assert_equal :validated, result.status, result.detail
   end
 
   test "an expired snapshot is fetched and validated again before it is committed" do
@@ -221,10 +265,13 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_equal "cancelled", run.reload.state
     assert_equal first.committed_count, committed_plays(@user), "committed history is kept"
 
+    travel 10.minutes # the new run starts later than the first one's cutoff
     second = orchestrator.start!(@user)
     assert_not_equal run, second
     drain
     assert_equal "completed", second.reload.state
+    assert_equal run.cutoff_at, second.cutoff_at, "the planned windows' cutoff is kept"
+    assert HistoryImport::Progress.for(@user).complete, "no gap after the first run's cutoff"
     assert_equal @fake.plays.size, committed_plays(@user)
     assert_equal committed_at, first.reload.committed_at, "the committed month wasn't touched again"
   end
@@ -294,7 +341,7 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
 
     @fake.before_request = nil
     Rails.configuration.x.history_import_enabled = "true"
-    travel ImportWindow::LEASE + 1.minute
+    travel [ ImportWindow::LEASE, HistoryImport::Recovery::STALL_AFTER ].max + 1.minute
     HistoryImport::Recovery.new.run!
     drain
     assert_equal @fake.plays.size, committed_plays(@user)
@@ -330,9 +377,20 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_match "stalled", run.last_error
   end
 
+  test "the watchdog schedules matching for variants left unmatched, and only then" do
+    variant(track: "Unmatched")
+    assert HistoryImport::Recovery.new.run![:matching]
+    assert_enqueued_jobs 1, only: CatalogueMatchJob
+    perform_enqueued_jobs(only: CatalogueMatchJob)
+    clear_enqueued_jobs
+    assert_not HistoryImport::Recovery.new.run![:matching]
+    assert_no_enqueued_jobs only: CatalogueMatchJob
+  end
+
   test "jobs declare their concurrency limits" do
     assert_equal [ 1, :block ], [ ImportRunJob.concurrency_limit, ImportRunJob.concurrency_on_conflict ]
-    assert_equal :discard, CatalogueMatchJob.concurrency_on_conflict
+    # Discarding would drop matches requested while one runs (see CatalogueMatchJob).
+    assert_equal :block, CatalogueMatchJob.concurrency_on_conflict
     assert_equal :discard, ImportWatchdogJob.concurrency_on_conflict
     assert_equal "lastfm", ImportRunJob.queue_name
   end
@@ -376,12 +434,13 @@ class HistoryImport::OrchestratorConcurrencyTest < ActiveSupport::TestCase
     Array.new(count) { results.pop }
   end
 
-  test "of several simultaneous deliveries of one step, exactly one proceeds" do
+  test "of several simultaneous deliveries of one step, exactly one proceeds; the others wait" do
     run = orchestrator.start!(@users.first)
     orchestrator.step!(run.id, run.reload.job_token) # plan
     token = run.reload.job_token
     outcomes = in_threads(4) { orchestrator.step!(run.id, token) }
-    assert_equal 3, outcomes.count(:superseded), outcomes.inspect
+    assert_equal 3, outcomes.count(:deferred), outcomes.inspect
+    assert_equal 1, (outcomes - [ :deferred ]).size, "only one did any work"
     assert_equal 1, ImportWindow.where(user: @users.first, state: "committed").count
   end
 

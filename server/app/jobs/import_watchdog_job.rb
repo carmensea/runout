@@ -6,6 +6,7 @@ class ImportWatchdogJob < ApplicationJob
 
   def perform
     result = HistoryImport::Recovery.new.run!
-    Rails.logger.info("ImportWatchdogJob: #{result.to_json}") if result.values.any? { |v| v.is_a?(Hash) ? v.any? : v.positive? }
+    acted = result.values.any? { |v| v.is_a?(Hash) ? v.any? : v.is_a?(Integer) ? v.positive? : v }
+    Rails.logger.info("ImportWatchdogJob: #{result.to_json}") if acted
   end
 end

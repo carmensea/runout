@@ -19,6 +19,7 @@ module HistoryImport
     def run!
       result = { leases: recover_expired_leases!, staging: StagingCleaner.new(clock: @clock).call.to_h }
       result[:restarted] = HistoryImport.enabled? ? restart_stalled_runs! : 0 # never schedules while storage is off
+      result[:matching] = HistoryImport.enabled? ? schedule_matching! : false
       result
     end
 
@@ -37,13 +38,18 @@ module HistoryImport
 
     # Restarts working runs whose chain went quiet. A run restarted MAX_STALL_KICKS times without
     # progress stops as `failed` instead of being restarted forever.
-    def restart_stalled_runs!
+    def self.stalled_scope(now = Time.current)
       quiet = now - STALL_AFTER
-      stalled = ImportRun.working
-                         .where("COALESCE(last_scheduled_at, created_at) < ?", quiet)
-                         .where("last_activity_at IS NULL OR last_activity_at < ?", quiet)
-                         .where("next_step_at IS NULL OR next_step_at < ?", quiet)
-      stalled.find_each.count do |run|
+      ImportRun.working
+               .where("COALESCE(last_scheduled_at, created_at) < ?", quiet)
+               .where("last_activity_at IS NULL OR last_activity_at < ?", quiet)
+               .where("next_step_at IS NULL OR next_step_at < ?", quiet)
+    end
+
+    def self.stalled?(run, now = Time.current) = stalled_scope(now).exists?(id: run.id)
+
+    def restart_stalled_runs!
+      self.class.stalled_scope(now).find_each.count do |run|
         if run.stall_kicks >= MAX_STALL_KICKS
           ImportRun.where(id: run.id, job_token: run.job_token)
                    .update_all(state: "failed", job_token: nil, finished_at: now, updated_at: now,
@@ -54,6 +60,14 @@ module HistoryImport
         ImportRun.where(id: run.id, job_token: run.job_token).update_all("stall_kicks = stall_kicks + 1")
         Orchestrator.new(clock: @clock).schedule!(run, rotate_from: run.job_token)
       end
+    end
+
+    # Safety net for catalogue matching: committed variants still unmatched get a match job.
+    def schedule_matching!
+      return false unless NameVariant.where("match_version IS NULL OR match_version < ?", Catalogue::Matcher::VERSION).exists?
+
+      CatalogueMatchJob.perform_later
+      true
     end
 
     # A person retries a window that stopped (`failed` with no retry left) or went to review. It is

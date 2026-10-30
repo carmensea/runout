@@ -1,0 +1,11 @@
+# config/queue.yml with short polling intervals so the smoke test runs in seconds.
+test:
+  dispatchers:
+    - polling_interval: 0.2
+      batch_size: 100
+      concurrency_maintenance_interval: 2
+  workers:
+    - queues: "*"
+      threads: <%= ENV.fetch("JOB_THREADS", 2) %>
+      processes: <%= ENV.fetch("SMOKE_WORKER_PROCESSES", 1) %>
+      polling_interval: 0.2
