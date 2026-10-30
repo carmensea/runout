@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -34,6 +34,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
     t.timestamptz "updated_at", null: false
   end
 
+  create_table "artist_aliases", force: :cascade do |t|
+    t.bigint "artist_id", null: false
+    t.text "name", null: false
+    t.text "normalized_name", null: false
+    t.string "source", null: false
+    t.datetime "created_at", null: false
+    t.index ["artist_id", "normalized_name"], name: "index_artist_aliases_on_artist_id_and_normalized_name", unique: true
+    t.index ["artist_id"], name: "index_artist_aliases_on_artist_id"
+    t.index ["normalized_name"], name: "index_artist_aliases_on_normalized_name"
+    t.check_constraint "source::text = ANY (ARRAY['manual'::character varying, 'musicbrainz'::character varying]::text[])", name: "artist_aliases_source"
+  end
+
   create_table "artists", force: :cascade do |t|
     t.text "name", null: false
     t.text "normalized_name", null: false
@@ -44,6 +56,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
     t.index ["mbid"], name: "index_artists_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_artists_on_merged_into_id"
     t.index ["normalized_name"], name: "index_artists_on_normalized_name"
+  end
+
+  create_table "catalogue_reviews", force: :cascade do |t|
+    t.bigint "name_variant_id", null: false
+    t.string "level", null: false
+    t.string "kind", null: false
+    t.bigint "candidate_ids", default: [], null: false, array: true
+    t.string "state", default: "open", null: false
+    t.bigint "chosen_id"
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["decided_by_id"], name: "index_catalogue_reviews_on_decided_by_id"
+    t.index ["name_variant_id", "level", "kind"], name: "index_catalogue_reviews_one_open", unique: true, where: "((state)::text = 'open'::text)"
+    t.index ["name_variant_id"], name: "index_catalogue_reviews_on_name_variant_id"
+    t.index ["state"], name: "index_catalogue_reviews_on_state"
+    t.check_constraint "kind::text = ANY (ARRAY['ambiguous'::character varying, 'possible_match'::character varying]::text[])", name: "catalogue_reviews_kind"
+    t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "catalogue_reviews_level"
+    t.check_constraint "state::text = ANY (ARRAY['open'::character varying, 'resolved'::character varying, 'dismissed'::character varying, 'superseded'::character varying]::text[])", name: "catalogue_reviews_state"
   end
 
   create_table "identities", force: :cascade do |t|
@@ -181,12 +213,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
     t.string "match_method"
     t.datetime "matched_at"
     t.datetime "created_at", null: false
+    t.string "artist_match"
+    t.string "album_match"
+    t.string "track_match"
+    t.integer "match_version"
     t.index ["album_id"], name: "index_name_variants_on_album_id"
     t.index ["artist_id"], name: "index_name_variants_on_artist_id"
+    t.index ["match_version"], name: "index_name_variants_on_match_version"
     t.index ["track_id"], name: "index_name_variants_on_track_id"
     t.index ["variant_hash"], name: "index_name_variants_on_variant_hash", unique: true
+    t.check_constraint "album_match IS NULL OR (album_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND album_id IS NOT NULL OR (album_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying, 'none'::character varying]::text[])) AND album_id IS NULL", name: "name_variants_album_match"
+    t.check_constraint "artist_match IS NULL OR (artist_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND artist_id IS NOT NULL OR (artist_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND artist_id IS NULL", name: "name_variants_artist_match"
     t.check_constraint "match_method IS NULL OR (match_method::text = ANY (ARRAY['mbid'::character varying, 'normalized_name'::character varying, 'manual'::character varying]::text[]))", name: "name_variants_match_method"
     t.check_constraint "octet_length(variant_hash) = 32", name: "name_variants_hash_length"
+    t.check_constraint "track_match IS NULL OR (track_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND track_id IS NOT NULL OR (track_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND track_id IS NULL", name: "name_variants_track_match"
   end
 
   create_table "scrobble_corrections", force: :cascade do |t|
@@ -286,7 +326,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000010) do
 
   add_foreign_key "albums", "albums", column: "merged_into_id"
   add_foreign_key "albums", "artists"
+  add_foreign_key "artist_aliases", "artists", on_delete: :cascade
   add_foreign_key "artists", "artists", column: "merged_into_id"
+  add_foreign_key "catalogue_reviews", "name_variants", on_delete: :cascade
+  add_foreign_key "catalogue_reviews", "users", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "identities", "users", on_delete: :cascade
   add_foreign_key "import_runs", "users", on_delete: :cascade
   add_foreign_key "import_window_fetches", "import_windows", on_delete: :cascade

@@ -5,16 +5,23 @@ require "digest"
 class NameVariant < ApplicationRecord
   include HistoryStorage
 
-  MATCH_METHODS = %w[mbid normalized_name manual].freeze
+  MATCH_METHODS = %w[mbid normalized_name manual].freeze # legacy summary column; see the per-level *_match columns
+  # How each link (artist, album, track) was made. Linked: `mbid`, `alias`, `name` (a name-only
+  # entity), `manual`. Not linked: `ambiguous`, `unmatched`, and for albums `none` (no album sent).
+  LINKED_MATCHES = %w[mbid alias name manual].freeze
+  MATCHES = { artist: LINKED_MATCHES + %w[ambiguous unmatched], album: LINKED_MATCHES + %w[ambiguous unmatched none],
+              track: LINKED_MATCHES + %w[ambiguous unmatched] }.freeze
   IDENTITY_FIELDS = %i[artist_name artist_mbid track_name track_mbid album_name album_mbid].freeze
 
   belongs_to :artist, optional: true
   belongs_to :album, optional: true
   belongs_to :track, optional: true
   has_many :scrobbles, dependent: :restrict_with_exception
+  has_many :catalogue_reviews, dependent: :delete_all
 
   validates :variant_hash, presence: true
   validates :match_method, inclusion: { in: MATCH_METHODS }, allow_nil: true
+  MATCHES.each { |level, values| validates :"#{level}_match", inclusion: { in: values }, allow_nil: true }
   validate :identity_unchanged, on: :update
 
   # SHA-256 over the exact strings. JSON encoding keeps field boundaries unambiguous, and nil (no

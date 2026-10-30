@@ -3,7 +3,10 @@
 Status: **Stages 2.0 to 2.4 are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
 window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
-windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4).
+windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
+canonical artist, album and track matching, on synthetic data (2.5).
+Order from here: 2.6 orchestration, then 2.4b reconciliation, which must land before 2.7
+(ongoing sync).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -343,19 +346,46 @@ Normalised names are indexed but **never unique**, so the schema never forces tw
 or recordings together because their names match. A test keeps two Nirvanas and an unlabelled
 "nirvana" apart.
 
-### 6.4 Canonical resolution rules
+### 6.4 Canonical resolution rules (implemented in Stage 2.5)
 
-1. **MBID first.** A variant with an artist, album or track MBID links to the row with that MBID,
-   creating it if needed.
-2. **Otherwise the normalised name.** Normalisation is Unicode NFKC, case-folded, trimmed, with
-   runs of whitespace collapsed. Albums and tracks are scoped to their resolved artist.
-3. **Known limitation.** Two different artists with the same name and no MBIDs collapse into
-   one. Separating them needs MusicBrainz data (Milestone 4). The original strings are always kept,
-   so resolution can be re-run without re-importing.
-4. **Re-resolution** (`bin/rails catalogue:resolve`) is idempotent and changes only the links on
-   `name_variants`, never `scrobbles`.
-5. **Clean-up** removes variants and catalogue rows that no scrobble references. It runs after
-   account deletion, and daily.
+`Catalogue::Matcher` works offline from the stored strings. It sends no MusicBrainz or Last.fm
+requests and is separate from importing. It changes only the links and match state on
+`name_variants`, never the strings and never `scrobbles`. Each level records how it was linked
+(`artist_match`, `album_match`, `track_match`), and `match_version` records the rules version
+used, so improved rules re-link without re-importing.
+
+Artists come first. Albums (MusicBrainz releases) and tracks (MusicBrainz recordings) are scoped
+to the resolved artist and to any artists merged into it.
+
+1. **MBID first** (`mbid`). A valid MusicBrainz ID (UUID format, compared in lower case) links to
+   the entity with that ID, created if needed. Invalid or blank IDs count as missing. Distinct
+   recording and release IDs keep remasters, live versions and remixes apart.
+2. **Curated aliases, artists only** (`alias`). `artist_aliases` come from a person (`manual`) or,
+   later, from MusicBrainz. An alias that names exactly one artist links to it. One that names
+   several is `ambiguous`.
+3. **Name-only entities** (`name`). With no MBID, a variant joins the entity *without* an MBID
+   that has the same normalised name (NFKC, case-folded, trimmed, whitespace collapsed), created
+   if needed. This groups the spellings Last.fm itself treats as one name.
+   - It never joins an identified entity on name alone. If one with the same name exists, a
+     `possible_match` review is opened instead.
+   - Version words in titles ("Live", "Remaster") are kept, so differently titled versions stay
+     apart.
+4. **Ambiguous** (`ambiguous`). Several name-only entities with the name (after a person split
+   one) means the variant is linked to none of them, and a review lists the candidates.
+5. **Unmatched** (`unmatched`): no usable name, or no resolved artist for an album or track
+   (unless its MBID is already known). **No album** (`none`): Last.fm sent none.
+6. **Decisions** (`Catalogue::Decisions`), all traceable through `catalogue_reviews` and
+   `merged_into`:
+   - `assign!` links a level by hand (`manual`); re-matching never overrides it.
+   - `dismiss!` closes a review; it isn't reopened for the same candidates.
+   - `merge!` points one entity at another and re-matches its variants; nothing is deleted.
+   - `add_alias!` adds an alias and queues re-matching.
+7. **Re-matching** (`bin/rails catalogue:match`) is idempotent and safe to repeat. Candidates are
+   found before anything is created, under an advisory lock per name, so repeats and concurrent
+   runs create no duplicates. Links are final after one pass. A second pass may add a
+   `possible_match` review for a variant matched before an identified entity of that name existed.
+8. **Clean-up** of variants and catalogue rows that no scrobble references is deferred to Stage
+   2.6 (watchdog), and must keep rows that manual decisions or open reviews refer to.
 
 ### 6.5 Performance notes
 
@@ -541,9 +571,9 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **2.2 Recent-tracks client** (done 2026-10-29) | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
 | **2.3 Window fetch and verify** (done 2026-10-29) | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
 | **2.4 Atomic commit** (done 2026-10-29) | Commit of validated windows into ranges with no stored plays; staging clean-up; coverage status; lifetime request accounting | Commit, rollback, crash, lease, concurrency, flag, coverage and budget tests; nothing real stored |
-| **2.4b Merge** | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
-| **2.5 Catalogue resolution** | Variants to artists, albums and tracks; re-resolution; clean-up | MBID and name rules; re-running changes nothing; account deletion leaves no orphans |
-| **2.6 Orchestration** | Jobs, queues, concurrency limits, progress, watchdog, resume | Crash and duplicate-enqueue tests; progress is monotonic; flag off means jobs refuse |
+| **2.5 Catalogue matching** (done 2026-10-29) | §6.4: variants to artists, releases and recordings; aliases; reviews and decisions; re-matching | Duplicate names, missing and invalid IDs, aliases, distinct recordings, ambiguity, repeat and concurrent matching, account isolation; nothing touches scrobbles |
+| **2.6 Orchestration** | Jobs, queues, concurrency limits, progress, watchdog, resume, catalogue clean-up | Crash and duplicate-enqueue tests; progress is monotonic; flag off means jobs refuse. **Bounded commit retries:** repeated commit failures move a window to a recoverable `failed` or `needs_review` state instead of retrying forever. **Expired snapshots:** a window whose staged snapshot expired (`StagingCleaner`) is re-fetched and re-validated before any later commit |
+| **2.4b Reconciliation** (after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
 | **2.7 Sync, catch-up, reconcile** | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
 | **2.8 API and frontend** | `ConnectionState` mapping, `/api/import` endpoints, 501 handling, Settings import panel | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
 | **2.9 Measure and accept** | Synthetic 300k and 1M benchmarks (time, memory, database size), then a real import of your account **once licensing allows** | Measured numbers recorded; real import matches Last.fm's playcount within the documented tolerance (§11) and reconciliation finds no mismatches |
@@ -585,11 +615,32 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.5 matching decisions (`Catalogue::Matcher`, `Catalogue::Decisions`):
+  - **No name-only merging into identified entities.** This replaces the earlier rule that
+    same-named artists without MBIDs collapse into an identified one. Name-only entities stand
+    apart, and a `possible_match` review records the candidates. Last.fm generally attaches the
+    same MBID to the same name string, so this rarely splits one artist's plays. When it does, a
+    `merge!` fixes it without re-importing.
+  - **Model kept small.** Tracks are recordings and albums are releases. There is no separate
+    work, release-group or version table: distinct MBIDs and distinct titles keep versions
+    apart. Only artists have aliases.
+  - **Per-level match state** (`artist_match`, `album_match`, `track_match`), with check
+    constraints tying linked states to a present link and unlinked ones to none. The legacy
+    `match_method` column is left unused (dropping it needs approval).
+  - **Reviews** (`catalogue_reviews`): `ambiguous` and `possible_match`, with candidate IDs, the
+    chosen entity, the person and the time. Re-matching supersedes reviews that no longer apply.
+  - **Albums are scoped to the track's artist**, since Last.fm sends no album artist. A
+    compilation without a release MBID therefore becomes one name-only album per artist.
+  - **Merging two name-only artists that both have a same-titled name-only track** makes that
+    title `ambiguous` under the merged artist, for review, rather than joining recordings by title.
+  - **Shared catalogue, user-owned history.** Catalogue tables have no user columns. Matching
+    and decisions never write to `scrobbles`. `match_user!` processes only the variants in one
+    user's history.
 - Stage 2.4 commit decisions (`HistoryImport::WindowCommitter`, `HistoryImport::StagingCleaner`):
   - **Split from the merge.** Stage 2.4 commits only into ranges with no stored plays. A window
-    whose range already holds plays goes to `needs_review` with nothing written; the merge of
-    §4.4 (corrections, removals) is a later stage (2.4b). No corrections are applied and nothing
-    is deleted.
+    whose range already holds plays goes to `needs_review` with nothing written. The rest of
+    §4.4 (corrections, removals) is Stage 2.4b, scheduled after 2.6 and before 2.7. No
+    corrections are applied and nothing is deleted.
   - **One transaction.** Claim (`validated`, or `committing` with an expired lease, to
     `committing`), then one transaction under the lease and a per-user advisory lock: re-check
     the state, check the staged snapshot, insert name variants (`ON CONFLICT DO NOTHING`, each
