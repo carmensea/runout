@@ -94,8 +94,10 @@ stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.h
       control = Smoke.control
       Smoke.log(method: "user.getRecentTracks", from: query["from"].to_i, page: query["page"].to_i)
       sleep(control["delay"].to_f) if control["delay"]
-      if Array(control["fail_from"]).include?(query["from"].to_i)
+      if Array(control["fail_from"]).include?(query["from"].to_i) || control["fail_all"]
         { status: 502, body: "" }
+      elsif control["rate_limited"]
+        { status: 429, body: { error: 29, message: "Rate Limit Exceeded" }.to_json }
       else
         FakeRecentTracks.new(Smoke.served_plays(control), username: Smoke::USERNAME).respond(query)
       end

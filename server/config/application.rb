@@ -57,6 +57,19 @@ module Runout
     # Storing Last.fm listening history: off unless explicitly "true" or "1" (HistoryImport).
     config.x.history_import_enabled = ENV.fetch("LASTFM_HISTORY_STORAGE_ENABLED", "false")
 
+    # Ongoing synchronisation (HistoryImport::Sync, docs/milestone-2-plan.md §5.2). The recurring
+    # tick (config/recurring.yml) starts whichever kind is due; these say how often each is due.
+    config.x.history_sync = {
+      sync_every: ENV.fetch("SYNC_EVERY_MINUTES", 30).to_i.minutes,            # recent plays
+      catch_up_every: ENV.fetch("SYNC_CATCH_UP_EVERY_HOURS", 24).to_i.hours,   # back-dated plays
+      catch_up_span: ENV.fetch("SYNC_CATCH_UP_DAYS", 14).to_i.days,
+      reconcile_every: ENV.fetch("SYNC_RECONCILE_EVERY_DAYS", 7).to_i.days,    # monthly count comparison
+      lookback: ENV.fetch("SYNC_LOOKBACK_HOURS", 24).to_i.hours,               # rechecked by every sync
+      settle: ENV.fetch("SYNC_SETTLE_MINUTES", 15).to_i.minutes,               # not fetched yet: still arriving
+      rearm_after: ENV.fetch("SYNC_REARM_AFTER_HOURS", 24).to_i.hours,         # a period that gave up is tried again
+      fresh_within: ENV.fetch("SYNC_FRESH_DAYS", 30).to_i.days                 # a verified month counts as current
+    }
+
     # Scrobble timestamps are stored and compared in UTC; reporting timezones are applied in queries.
     config.time_zone = "UTC"
     config.active_record.default_timezone = :utc

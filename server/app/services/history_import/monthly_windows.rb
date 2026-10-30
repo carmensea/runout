@@ -21,6 +21,22 @@ module HistoryImport
       result
     end
 
+    # [from, to) cut at every month boundary in between; unlike `ranges`, the first part starts at
+    # `from` itself rather than at the start of its month.
+    def split(from:, to:)
+      from = from.utc
+      to = to.utc
+      result = []
+      while from < to
+        finish = [ next_month(from), to ].min
+        result << (from...finish)
+        from = finish
+      end
+      result
+    end
+
+    def month_end(time) = next_month(time.utc)
+
     def next_month(time)
       time.month == 12 ? Time.utc(time.year + 1, 1, 1) : Time.utc(time.year, time.month + 1, 1)
     end

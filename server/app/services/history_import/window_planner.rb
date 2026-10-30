@@ -1,7 +1,7 @@
 module HistoryImport
   # Creates the monthly windows for a user's history, from the Last.fm registration month up to
   # `cutoff`. Idempotent: ranges that overlap an existing live window are skipped, so re-planning
-  # never duplicates or conflicts. Extending the partial current month is left to sync (Stage 2.7).
+  # never duplicates or conflicts. Sync extends the partial current month (SyncPlanner).
   module WindowPlanner
     module_function
 

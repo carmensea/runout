@@ -26,6 +26,9 @@ module HistoryImport
   # - History storage must be enabled to enqueue and to run each step; turning it off stops the
   #   chain before anything else is written.
   class Orchestrator
+    # Committed months compared per step by a weekly reconcile run's count scan.
+    SCAN_BATCH = 12
+
     # Last.fm errors that stop the whole run: retrying any window would fail the same way.
     STOP_ERRORS = {
       9 => "Last.fm rejected the stored session. Sign in with Last.fm again to resume the import.",
@@ -169,6 +172,7 @@ module HistoryImport
       raise Stop, "The Last.fm account's registration time doesn't match (identity_changed)." unless info[:registered_at] && info[:registered_at] == identity.registered_at
 
       return start_reconciling(run) if run.kind == "reconcile"
+      return start_syncing(run) if %w[sync catch_up].include?(run.kind)
 
       history_from = run.history_from || Time.utc(info[:registered_at].year, info[:registered_at].month, 1)
       # A run that follows a cancelled one keeps the cutoff its windows were planned with: a later
@@ -186,7 +190,22 @@ module HistoryImport
       :planned
     end
 
-    # A recheck run (HistoryImport::Recheck): its windows exist already; nothing to plan.
+    # A sync or catch-up run (HistoryImport::Sync): arm the periods it checks, from the frontier as
+    # it is now. An empty plan (nothing to check yet) completes at the first work step.
+    def start_syncing(run)
+      since, target = Sync.range_for(run.kind, run.user_id, now)
+      plan = SyncPlanner.plan!(run, since: since, target: target, now: now)
+      note = ("stopped at a period that needs attention (window #{plan.blocked_by}); later periods wait for it" if plan.blocked_by)
+      return give_up!(run, note) if note && plan.armed.empty? && plan.created.empty?
+
+      ImportRun.where(id: run.id, job_token: run.job_token, state: "planning")
+               .update_all(state: "running", history_from: since, cutoff_at: target, last_error: note, last_activity_at: now, updated_at: now)
+      schedule!(run, rotate_from: run.job_token)
+      :planned
+    end
+
+    # A recheck run (HistoryImport::Recheck): its windows exist already; nothing to plan. A weekly
+    # reconcile run first compares month counts (scan_counts) and arms the months that differ.
     def start_reconciling(run)
       ImportRun.where(id: run.id, job_token: run.job_token, state: "planning")
                .update_all(state: "running", last_activity_at: now, updated_at: now)
@@ -196,7 +215,12 @@ module HistoryImport
 
     # A transient failure while checking the account: try again later, a bounded number of times.
     def retry_planning(run, error)
-      raise Stop, "Account check kept failing: #{error.message}" if run.stall_kicks + 1 >= Recovery::MAX_STALL_KICKS
+      if run.stall_kicks + 1 >= Recovery::MAX_STALL_KICKS
+        message = "Account check kept failing: #{error.message}"
+        raise Stop, message if run.kind == "full"
+
+        return give_up!(run, message) # a sync tries again when it is next due; the connection is fine
+      end
 
       ImportRun.where(id: run.id, job_token: run.job_token).update_all("stall_kicks = stall_kicks + 1")
       schedule!(run, rotate_from: run.job_token, wait: ImportWindow.retry_delay(run.stall_kicks + 1, retry_after: error.retry_after))
@@ -204,6 +228,8 @@ module HistoryImport
     end
 
     def work(run, identity, token)
+      return scan_counts(run, identity, token) if run.count_scan && months_to_compare(run).exists?
+
       window = next_window(run, token)
       return finish_or_wait(run, token) unless window
 
@@ -257,10 +283,65 @@ module HistoryImport
         return :waiting
       end
 
-      # Only stopped (`failed` with no retry) or `needs_review` windows remain.
+      # Only stopped (`failed` with no retry) or `needs_review` windows remain. An import waits for a
+      # person. A sync ends, so it never blocks the next one; its stopped periods stay visible
+      # (SyncStatus) and are tried again by a later sync (SyncPlanner).
+      message = "#{remaining.count} periods need attention"
+      return give_up!(run, message, token: token) unless run.kind == "full"
+
       ImportRun.where(id: run.id, job_token: token).update_all(state: "needs_review", job_token: nil, current_window_id: nil,
-                                                               last_error: "#{remaining.count} periods need attention", updated_at: now)
+                                                               last_error: message, updated_at: now)
       :needs_review
+    end
+
+    # Ends a sync, catch-up or recheck run as failed. Committed history and the connection's state
+    # are untouched.
+    def give_up!(run, message, token: run.job_token)
+      ImportRun.where(id: run.id, job_token: token).update_all(state: "failed", job_token: nil, current_window_id: nil,
+                                                               last_error: message, finished_at: now, updated_at: now)
+      :failed
+    end
+
+    # The weekly comparison (HistoryImport::Sync): for up to SCAN_BATCH committed months per step,
+    # Last.fm's count for the month (one request, `limit=1`) against the plays present. A month
+    # whose counts differ is armed for a full recheck in this run. Equal counts only record
+    # count_checked_at: they don't prove equal contents. Progress lives in count_checked_at, so an
+    # interrupted scan resumes where it stopped, and the scan is over when no month is left to
+    # compare (`count_scan` stays set: it marks the run as a weekly reconcile). Requests happen
+    # outside transactions.
+    def scan_counts(run, identity, token)
+      months_to_compare(run).order(window_from: :desc).limit(SCAN_BATCH).each do |month|
+        remote = client.recent_tracks(username: identity.username, session_key: identity.session_key, limit: 1,
+                                      from: month.window_from, to: month.window_to).total.to_i
+        ImportWindow.uncached do
+          present = Scrobble.present.where(user_id: run.user_id).played_between(month.window_from, month.window_to).count
+          scope = ImportWindow.where(id: month.id, state: "committed", window_to: month.window_to)
+          scope.update_all(count_checked_at: now, remote_count: remote, updated_at: now)
+          Recheck.arm!(scope, run, now: now) unless remote == present
+        end
+        ImportRun.where(id: run.id, job_token: token).update_all(last_activity_at: now, updated_at: now)
+      end
+      ImportRun.where(id: run.id, job_token: token).update_all(stall_kicks: 0)
+      schedule!(run, rotate_from: token)
+      :scanning
+    rescue Lastfm::Error => e
+      raise Stop, STOP_ERRORS[e.code] if STOP_ERRORS.key?(e.code)
+      return give_up!(run, "Count comparison failed: #{e.message}", token: token) unless e.retryable?
+
+      retry_scan(run, token, e)
+    end
+
+    def months_to_compare(run)
+      ImportWindow.live.committed.where(user_id: run.user_id).where("count_checked_at IS NULL OR count_checked_at < ?", run.started_at)
+    end
+
+    # A transient failure during the scan: try the step again later, a bounded number of times.
+    def retry_scan(run, token, error)
+      return give_up!(run, "Count comparison kept failing: #{error.message}", token: token) if run.stall_kicks + 1 >= Recovery::MAX_STALL_KICKS
+
+      ImportRun.where(id: run.id, job_token: token).update_all("stall_kicks = stall_kicks + 1")
+      schedule!(run, rotate_from: token, wait: ImportWindow.retry_delay(run.stall_kicks + 1, retry_after: error.retry_after))
+      :retrying
     end
 
     # A run works only on its own windows: an import on the months it planned or adopted, a
@@ -268,11 +349,19 @@ module HistoryImport
     def run_windows(run) = ImportWindow.live.where(user_id: run.user_id, import_run_id: run.id)
 
     def complete!(run, token)
+      # A sync that couldn't reach its target (a period before it needs attention) checked what it
+      # could, but isn't a successful synchronisation.
+      blocked = run.kind != "full" && ImportRun.where(id: run.id).pick(:last_error).present?
+      return give_up!(run, ImportRun.where(id: run.id).pick(:last_error), token: token) if blocked
+
       done = ImportRun.where(id: run.id, job_token: token)
                       .update_all(state: "completed", job_token: nil, current_window_id: nil, finished_at: now, updated_at: now)
-      return unless done == 1 && run.kind == "full"
+      return unless done == 1
 
-      LastfmConnection.where(user_id: run.user_id).update_all(history_state: "imported", last_error: nil, updated_at: now)
+      case run.kind
+      when "full" then LastfmConnection.where(user_id: run.user_id).update_all(history_state: "imported", last_error: nil, updated_at: now)
+      when "sync", "catch_up" then LastfmConnection.where(user_id: run.user_id).update_all(last_synced_at: now, updated_at: now)
+      end
     end
 
     def stop!(run, message)

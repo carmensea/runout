@@ -15,6 +15,11 @@ module HistoryImport
   # Either way the window ends `committed` with committed_count = the plays present, and
   # last_checked_at records this successful check against Last.fm.
   #
+  # A check may cover only part of the window (ImportWindow#check_range, set by SyncPlanner): only
+  # that part is reconciled. If it ends past window_to, the window grows to its end here, in the
+  # same transaction, so coverage never includes a range before its plays are committed.
+  # last_verified_at is set only when the whole window was checked.
+  #
   # `seq` is each play's position within its second in the validated snapshot. It is a storage
   # slot only, not an identity that later fetches can be matched on.
   class WindowCommitter
@@ -91,11 +96,14 @@ module HistoryImport
 
         ImportWindow.connection.execute(ImportWindow.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{window.user_id}" ]))
         rows = staged_rows(window)
+        range = window.check_range
         if window.committed_at
           variant_ids = store_variants(rows)
-          summary = Reconciler.new(window: window, fetch: @fetch, rows: rows, variant_ids: variant_ids, now: now).call
+          summary = Reconciler.new(window: window, fetch: @fetch, rows: rows, variant_ids: variant_ids, now: now, range: range).call
           added = summary[:added]
         else
+          raise Inconsistent, "a window never committed must be checked whole" unless range == (window.window_from...window.window_to)
+
           check_range_is_empty(window)
           variant_ids = store_variants(rows)
           added = store_scrobbles(window, rows, variant_ids)
@@ -105,10 +113,13 @@ module HistoryImport
           summary = { added: added }
         end
 
+        verified = window.whole_window_checked?
+        window.window_to = range.end if range.end > window.window_to
         present = Scrobble.present.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
         window.assign_attributes(state: "committed", committed_at: window.committed_at || now, committed_count: present,
                                  last_checked_at: now, last_check_fetch_id: @fetch.id, last_check_summary: summary,
-                                 claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil)
+                                 check_from: nil, check_to: nil, claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil)
+        window.last_verified_at = now if verified
         ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", added, now ])
         added
       end
@@ -123,8 +134,8 @@ module HistoryImport
       counts = [ rows.size, fetch.row_count, window.fetched_count, window.expected_total ]
       raise Inconsistent, "staged snapshot is incomplete (staged, fetched, recorded, reported: #{counts.join(', ')})" unless counts.uniq.size == 1
 
-      range = window.window_from...window.window_to
-      raise Inconsistent, "staged plays lie outside the window" unless rows.all? { |row| range.cover?(row.played_at) }
+      range = window.check_range
+      raise Inconsistent, "staged plays lie outside the range checked" unless rows.all? { |row| range.cover?(row.played_at) }
 
       rows.group_by(&:played_at).each_value do |second|
         raise Inconsistent, "staged positions within a second are not contiguous" unless second.map(&:position) == (0...second.size).to_a

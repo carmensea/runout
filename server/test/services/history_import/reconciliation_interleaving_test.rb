@@ -315,9 +315,13 @@ class HistoryImport::ReconciliationInterleavingTest < ActiveSupport::TestCase
     tracks = %w[P Q R]
     commit_base!
     Integer(ENV.fetch("STRESS_ROUNDS", "12")).times do |round|
-      snapshot = seconds.flat_map { |at| Array.new(random.rand(0..3)) { entry(at, tracks.sample(random: random)) } }
-      snapshot += [ entry(T, "A"), entry(T, "A"), entry(T, "B"), entry(U, "U") ].sample(random.rand(2..4), random: random)
-      before = Scrobble.where(user: @user).joins(:name_variant).pluck(:played_at, "name_variants.track_name").map { |at, t| [ at.to_i, t ] }
+      # Ordered, so a seed always reproduces the same rounds.
+      before = Scrobble.where(user: @user).joins(:name_variant).order(:played_at, :seq).pluck(:played_at, "name_variants.track_name").map { |at, t| [ at.to_i, t ] }
+      # Last.fm now: most stored plays (some missing), plus a few new ones, duplicates included.
+      # Every 10th round lacks most of them, as an incomplete answer would.
+      keep = (round % 10 == 9) ? 0.3 : 0.9
+      snapshot = before.select { random.rand < keep }.map { |at, track| entry(Time.at(at).utc, track) }
+      snapshot += Array.new(random.rand(0..4)) { entry(seconds.sample(random: random), tracks.sample(random: random)) }
       stage!(@window.reload, snapshot, at: @t0)
       @points = Checkpoints.new
       names = Array.new(4) { |i| "r#{round}w#{i}" }
@@ -326,6 +330,17 @@ class HistoryImport::ReconciliationInterleavingTest < ActiveSupport::TestCase
       names.each { |n| @points.wait_for("#{n}:before_claim") }
       names.shuffle(random: random).each { |n| @points.release("#{n}:before_claim") }
       outcomes = threads.map { |t| finish(t) }
+      assert_equal 3, outcomes.count(:not_claimed), "round #{round}: #{outcomes.inspect}\n#{@trace}"
+
+      # The guard: a snapshot lacking more than half of 20 or more stored plays goes to review, and
+      # nothing changes. (Nothing is removed here, so every stored play is present.)
+      lacking = before.tally.sum { |play, n| [ n - snapshot.map { |e| [ e.played_at.to_i, e.track ] }.count(play), 0 ].max }
+      if before.size >= HistoryImport::Reconciler::MASS_DISAPPEARANCE_MIN && lacking * 2 > before.size
+        assert_equal [ :needs_review ], outcomes - [ :not_claimed ], "round #{round}: guarded"
+        assert_equal before.sort, Scrobble.where(user: @user).joins(:name_variant).pluck(:played_at, "name_variants.track_name").map { |at, t| [ at.to_i, t ] }.sort
+        @window.reload.update!(state: "committed", last_error_message: nil) # a person looked and let it be checked again
+        next
+      end
       assert_equal 1, outcomes.count(:committed), "round #{round}: #{outcomes.inspect}\n#{@trace}"
 
       # The model: per second, identical plays pair up; leftovers on both sides leave it unchanged.

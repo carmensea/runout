@@ -45,7 +45,9 @@ module Smoke
     def start_workers(processes: 1, storage: true, recurring: false, shutdown_timeout: 25)
       env = { "SMOKE_DIR" => DIR, "SMOKE_WORKER_PROCESSES" => processes.to_s, "SMOKE_RECURRING" => recurring ? "1" : "0",
               "LASTFM_HISTORY_STORAGE_ENABLED" => storage ? "true" : "false", "LASTFM_MIN_REQUEST_INTERVAL" => "0.02",
-              "SOLID_QUEUE_SHUTDOWN_TIMEOUT" => shutdown_timeout.to_s }
+              "SOLID_QUEUE_SHUTDOWN_TIMEOUT" => shutdown_timeout.to_s,
+              # Sync fetches up to the current minute: the smoke history can't wait 15 minutes.
+              "SYNC_SETTLE_MINUTES" => "0" }
       log = File.join(DIR, "worker-#{@workers.size}.log")
       pid = Process.spawn(env, "bin/rails", "runner", "test/smoke/solid_queue/worker.rb", out: log, err: log, pgroup: true)
       @workers << pid
@@ -84,9 +86,10 @@ module Smoke
       interval = "interval '#{Integer(seconds)} seconds'"
       conn = ActiveRecord::Base.connection
       conn.execute("UPDATE import_windows SET lease_expires_at = lease_expires_at - #{interval}, retry_at = retry_at - #{interval}, " \
-                   "validated_at = validated_at - #{interval}")
+                   "validated_at = validated_at - #{interval}, updated_at = updated_at - #{interval}")
       conn.execute("UPDATE import_runs SET last_activity_at = last_activity_at - #{interval}, last_scheduled_at = last_scheduled_at - #{interval}, " \
-                   "next_step_at = next_step_at - #{interval}, created_at = created_at - #{interval}")
+                   "next_step_at = next_step_at - #{interval}, created_at = created_at - #{interval}, " \
+                   "started_at = started_at - #{interval}, finished_at = finished_at - #{interval}")
       conn.execute("UPDATE solid_queue_scheduled_executions SET scheduled_at = scheduled_at - #{interval}")
       conn.execute("UPDATE solid_queue_jobs SET scheduled_at = scheduled_at - #{interval} WHERE finished_at IS NULL")
     end
@@ -480,8 +483,200 @@ module Smoke
       end
     end
 
+    # --- Stage 2.7: ongoing synchronisation through the recurring scheduler -------------------
+
+    def sync_runs(kind = nil)
+      scope = ImportRun.where(user: @user).where.not(kind: "full")
+      (kind ? scope.where(kind: kind) : scope).order(:started_at, :id)
+    end
+
+    def stored_count(track) = Scrobble.where(user: @user).joins(:name_variant).where(name_variants: { track_name: track }).count
+    def served_multiset = Smoke.served_plays.map { |p| [ p.played_at.to_i, p.artist, p.track ] }.tally
+
+    # No run active for a few seconds in a row: the scheduler has nothing more that is due.
+    def wait_until_quiet(what, timeout = 120)
+      quiet_since = nil
+      wait_for(what, timeout) do
+        busy = ImportRun.active.where(user: @user).exists?
+        quiet_since = busy ? nil : (quiet_since || Time.now)
+        quiet_since && Time.now - quiet_since > 5
+      end
+    end
+
+    def wait_for_runs(kind, count, timeout = 120)
+      wait_for("#{count} finished #{kind} run(s)", timeout) { sync_runs(kind).where(state: %w[completed failed]).count >= count }
+    end
+
+    # Stored plays are exactly what Last.fm serves (plus `kept`: plays still stored while their
+    # removal awaits review), windows are contiguous and committed, counts agree.
+    def check_synced(label, kept: {})
+      ws = windows
+      contiguous = ws.each_cons(2).all? { |a, b| a.window_to == b.window_from } && ws.all? { |w| w.state == "committed" }
+      counts = ws.all? { |w| w.committed_count == Scrobble.present.where(user: @user).played_between(w.window_from, w.window_to).count }
+      want = served_multiset.merge(kept) { |_, x, y| x + y }
+      diff = (want.keys | stored_multiset.keys).reject { |k| want[k] == stored_multiset[k] }
+      check(label, contiguous && counts && diff.empty?,
+            "contiguous #{contiguous}, counts #{counts}, #{diff.size} differing plays, #{ws.size} windows")
+    end
+
+    def check_runs_never_overlapped
+      runs = ImportRun.where(user: @user).order(:started_at, :id).to_a
+      overlapping = runs.each_cons(2).reject { |a, b| a.finished_at && a.finished_at <= b.started_at }
+      check("never two runs at once for the account", overlapping.empty?, overlapping.map { |a, b| "#{a.kind}/#{b.kind}" }.join(", ").presence)
+    end
+
+    def import_and_settle!
+      start_workers(recurring: true)
+      orchestrator.start!(@user)
+      wait_for_run("completed")
+      check_complete
+      sleep 4 # several ticks
+      check("no sync during or straight after the import (not due)", sync_runs.none?, sync_runs.pluck(:kind).inspect)
+    end
+
+    # New plays must be older than the current minute: sync fetches whole minutes.
+    def add_plays!(control)
+      Smoke.write_control(control)
+      newest = Array(control[:add]).map(&:first).max.to_i
+      wait_for("the next minute") { Time.now.utc.beginning_of_minute.to_i > newest }
+    end
+
+    def sync_recurring
+      scenario("recurring sync, catch-up and weekly comparison through the real scheduler") do
+        reset!
+        import_and_settle!
+        old = Smoke.plays.find { |p| p.track == "Old 12" }
+        fresh_at = [ Time.now.to_i - 5, windows.last.window_to.to_i ].max
+        add_plays!(add: [ [ fresh_at, "Fresh" ], [ (Time.now - 3.days).to_i, "Offline" ], [ (Smoke.base + 2.months + 10.days).to_i, "Historical" ] ],
+                   drop: [ [ old.played_at.to_i, "Old 12" ] ])
+        frontier = windows.last.window_to
+
+        time_passes!(31.minutes)
+        wait_for_runs("sync", 1)
+        wait_until_quiet("the sync")
+        check("the sync stored the play after the import's cutoff, once", stored_count("Fresh") == 1)
+        check("it didn't reach back past its 24-hour lookback", stored_count("Offline").zero? && stored_count("Historical").zero?)
+        check("the current month's window grew; no window added", windows.last.window_to > frontier && windows.size == 5,
+              "#{windows.size} windows, last ends #{windows.last.window_to}")
+        check("last successful sync recorded", @user.lastfm_connection.reload.last_synced_at.present?)
+
+        time_passes!(25.hours)
+        wait_for_runs("catch_up", 1)
+        wait_until_quiet("the catch-up")
+        check("the daily catch-up stored the back-dated play", stored_count("Offline") == 1)
+
+        time_passes!(7.days)
+        wait_for_runs("reconcile", 1)
+        wait_until_quiet("the weekly comparison")
+        check("months whose counts differed were rechecked: the historical play added",
+              stored_count("Historical") == 1 && sync_runs("reconcile").last.state == "completed", sync_runs("reconcile").last.last_error)
+        dropped = Scrobble.where(user: @user, played_at: old.played_at).joins(:name_variant).where(name_variants: { track_name: "Old 12" })
+        check("the deleted play is suspected, not removed", ScrobbleRemoval.where(user: @user).pluck(:state) == [ "observed" ] && dropped.present.count == 1)
+
+        time_passes!(7.days)
+        wait_for_runs("reconcile", 2)
+        wait_until_quiet("the second weekly comparison")
+        check("a second independent check proposes the removal for review",
+              ScrobbleRemoval.where(user: @user).pluck(:state) == [ "pending_review" ] && Scrobble.where(user: @user).where.not(removed_at: nil).none?)
+        stop_all
+        check_synced("final history: exactly Last.fm's plays, the unreviewed deletion kept, no duplicates",
+                     kept: { [ old.played_at.to_i, old.artist, old.track ] => 1 })
+        check_runs_never_overlapped
+        health = HistoryImport::SyncHealth.for(@user)
+        check("health: import complete, a pending removal, nothing stopped",
+              health[:importComplete] && health[:reviews][:pendingRemovals] == 1 && health[:problemPeriods].empty?, health.slice(:periods, :reviews).inspect)
+        check("the recurring sync task ran under the scheduler", SolidQueue::RecurringExecution.where(task_key: "history_sync").exists?)
+        check("no failed jobs", failed_jobs.empty?, failed_jobs.inspect)
+      end
+    end
+
+    def sync_crash_restart
+      scenario("a worker killed mid-sync: the sync resumes after recovery and applies once") do
+        reset!
+        import_and_settle!
+        add_plays!(add: [ [ [ Time.now.to_i - 5, windows.last.window_to.to_i ].max, "Fresh" ] ])
+        Smoke.write_control(Smoke.control.merge("delay" => 2))
+        time_passes!(31.minutes)
+        wait_for("the sync to fetch") { sync_runs("sync").exists? && recent_requests.any? { |r| r["at"] > sync_runs("sync").last.started_at.to_f } }
+        stop_all(:KILL)
+        check("killed before the sync finished", sync_runs("sync").last.state == "running")
+        Smoke.write_control(Smoke.control.except("delay"))
+        time_passes!(HistoryImport::Recovery::STALL_AFTER + ImportWindow::LEASE + 60)
+        start_workers(recurring: true)
+        wait_for("the sync to finish") { sync_runs("sync").first.reload.state == "completed" }
+        wait_until_quiet("recovery")
+        stop_all
+        check("the new play stored once", stored_count("Fresh") == 1)
+        check_synced("history intact after the crash")
+        check_runs_never_overlapped
+      end
+    end
+
+    def sync_outage
+      scenario("an outage and rate limiting during sync: bounded retries, nothing lost, then caught up") do
+        reset!
+        import_and_settle!
+        before = Scrobble.where(user: @user).pluck(:id, :seq, :name_variant_id).sort
+        add_plays!(add: [ [ [ Time.now.to_i - 5, windows.last.window_to.to_i ].max, "Fresh" ] ])
+        Smoke.write_control(Smoke.control.merge("fail_all" => true))
+        time_passes!(31.minutes)
+        wait_for("the sync to start") { sync_runs("sync").exists? }
+        requests = recent_requests.size
+        8.times do
+          time_passes!(6.hours + 60) # past every retry delay in turn
+          sleep 3
+        end
+        wait_for("the sync to give up") { sync_runs("sync").first.reload.state == "failed" }
+        check("bounded: the sync gave up after a limited number of requests", recent_requests.size - requests <= 60,
+              "#{recent_requests.size - requests} requests")
+        check("nothing lost or changed", Scrobble.where(user: @user).pluck(:id, :seq, :name_variant_id).sort == before)
+        check("the connection isn't failed by a temporary outage", @user.lastfm_connection.reload.history_state == "imported")
+        # Stopped, or already being tried again by the next due run (the hours shifted above passed
+        # rearm_after): never synchronised.
+        status = HistoryImport::SyncStatus.for(@user).last.status
+        check("the period is never reported as synchronised", %i[check_stopped checking].include?(status), status.inspect)
+        check("the failed sync is reported", sync_runs("sync").first.last_error.to_s.include?("need attention"), sync_runs("sync").first.last_error)
+
+        Smoke.write_control(Smoke.control.except("fail_all").merge("rate_limited" => true))
+        time_passes!(25.hours) # catch-up due; the period that gave up may be tried again
+        wait_for("a run to meet the rate limit") { sync_runs.where("started_at > ?", sync_runs("sync").first.started_at).exists? }
+        sleep 4
+        Smoke.write_control(Smoke.control.except("rate_limited"))
+        6.times do
+          time_passes!(2.hours)
+          sleep 3
+        end
+        wait_until_quiet("catching up")
+        stop_all
+        check("caught up once Last.fm answered: the play stored once", stored_count("Fresh") == 1)
+        check_synced("history complete after the outage")
+        check_runs_never_overlapped
+      end
+    end
+
+    def sync_storage_disabled
+      scenario("storage off: due syncs are never started by the scheduler") do
+        reset!
+        import_and_settle!
+        stop_all
+        add_plays!(add: [ [ [ Time.now.to_i - 5, windows.last.window_to.to_i ].max, "Fresh" ] ])
+        requests = Smoke.requests.size
+        start_workers(storage: false, recurring: true)
+        time_passes!(31.minutes)
+        wait_for("ticks with storage off") { SolidQueue::Job.where(class_name: "SyncScheduleJob").where.not(finished_at: nil).count >= 3 }
+        check("no sync started, nothing fetched", sync_runs.none? && Smoke.requests.size == requests)
+        stop_all
+        start_workers(recurring: true)
+        wait_for_runs("sync", 1)
+        wait_until_quiet("the sync")
+        stop_all
+        check("storage back on: the sync ran and stored the play once", stored_count("Fresh") == 1)
+      end
+    end
+
     def all = %i[configuration full_import duplicate_delivery kill_during_fetch crash_around_commit graceful_restart scheduled_retry
-                 pause_resume_cancel storage_disabled reconciliation slow_healthy_worker]
+                 pause_resume_cancel storage_disabled reconciliation slow_healthy_worker
+                 sync_recurring sync_crash_restart sync_outage sync_storage_disabled]
   end
 end
 

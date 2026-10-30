@@ -23,16 +23,23 @@ module HistoryImport
       run = ImportRun.transaction do
         r = ImportRun.create!(user: user, kind: "reconcile", state: "planning", started_at: now,
                               history_from: windows.minimum(:window_from), cutoff_at: windows.maximum(:window_to))
-        # Fresh attempt counters and lifetime request budget for the check; requests stay counted.
-        windows.update_all([ "state = 'pending', import_run_id = ?, attempts = 0, commit_attempts = 0, retry_at = NULL, " \
-                             "validated_at = NULL, fetched_count = NULL, expected_total = NULL, last_error_message = NULL, " \
-                             "http_requests_baseline = http_requests_used, updated_at = ?", r.id, now ])
+        arm!(windows, r, now: now)
         r
       end
       Orchestrator.new(clock: clock).schedule!(run, rotate_from: nil)
       run
     rescue ActiveRecord::RecordNotUnique
       raise Busy, "an import or check is already active for this account"
+    end
+
+    # Puts committed windows back through fetch, validation and commit as a whole-month check in
+    # `run`, with fresh attempt counters and lifetime request budget (requests stay counted).
+    def arm!(windows, run, now:)
+      windows.where(state: "committed").update_all(
+        [ "state = 'pending', import_run_id = ?, check_from = NULL, check_to = NULL, attempts = 0, commit_attempts = 0, " \
+          "retry_at = NULL, validated_at = NULL, fetched_count = NULL, expected_total = NULL, last_error_message = NULL, " \
+          "http_requests_baseline = http_requests_used, updated_at = ?", run.id, now ]
+      )
     end
   end
 end

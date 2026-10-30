@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000015) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_000016) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -119,7 +119,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000015) do
     t.datetime "cancelled_at"
     t.integer "stall_kicks", default: 0, null: false
     t.uuid "step_from_token"
+    t.boolean "count_scan", default: false, null: false
     t.index ["user_id", "created_at"], name: "index_import_runs_on_user_id_and_created_at"
+    t.index ["user_id", "kind", "started_at"], name: "index_import_runs_on_user_id_and_kind_and_started_at"
     t.index ["user_id"], name: "index_import_runs_on_user_id"
     t.index ["user_id"], name: "index_import_runs_one_active_per_user", unique: true, where: "((state)::text = ANY ((ARRAY['planning'::character varying, 'running'::character varying, 'paused'::character varying, 'needs_review'::character varying])::text[]))"
     t.check_constraint "kind::text = ANY (ARRAY['full'::character varying, 'sync'::character varying, 'catch_up'::character varying, 'reconcile'::character varying]::text[])", name: "import_runs_kind"
@@ -192,14 +194,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000015) do
     t.datetime "last_checked_at"
     t.bigint "last_check_fetch_id"
     t.jsonb "last_check_summary"
+    t.datetime "check_from"
+    t.datetime "check_to"
+    t.datetime "last_verified_at"
+    t.datetime "count_checked_at"
+    t.integer "remote_count"
     t.index ["import_run_id"], name: "index_import_windows_on_import_run_id"
     t.index ["parent_window_id"], name: "index_import_windows_on_parent_window_id"
     t.index ["user_id", "state", "retry_at"], name: "index_import_windows_on_user_id_and_state_and_retry_at"
     t.index ["user_id", "state"], name: "index_import_windows_on_user_id_and_state"
     t.index ["user_id", "window_from", "window_to"], name: "index_import_windows_on_user_id_and_window_from_and_window_to", unique: true
     t.index ["user_id"], name: "index_import_windows_on_user_id"
+    t.check_constraint "(check_from IS NULL OR check_from >= window_from AND check_from <= window_to) AND (check_to IS NULL OR check_to > COALESCE(check_from, window_from))", name: "import_windows_check_range"
     t.check_constraint "(state::text <> ALL (ARRAY['validated'::character varying, 'committing'::character varying, 'committed'::character varying]::text[])) OR validated_at IS NOT NULL", name: "import_windows_validated_at"
     t.check_constraint "committed_count IS NULL OR committed_count >= 0", name: "import_windows_committed_count_non_negative"
+    t.check_constraint "remote_count IS NULL OR remote_count >= 0", name: "import_windows_remote_count"
     t.check_constraint "state::text <> 'committed'::text OR committed_at IS NOT NULL", name: "import_windows_committed_at"
     t.check_constraint "state::text <> 'committed'::text OR committed_count IS NOT NULL", name: "import_windows_committed_count"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'fetching'::character varying, 'validating'::character varying, 'validated'::character varying, 'committing'::character varying, 'committed'::character varying, 'failed'::character varying, 'needs_review'::character varying, 'split'::character varying]::text[])", name: "import_windows_state"

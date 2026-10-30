@@ -42,7 +42,7 @@ module HistoryImport
       # Renew the lease after every page: a short transaction between requests, never during one.
       fetcher = SnapshotFetcher.new(client: @client, username: @username, session_key: @session_key, budget: budget,
                                     max_pages: MAX_PAGES, on_page: -> { lease { nil } })
-      range = @window.window_from...@window.window_to
+      range = @window.check_range # the whole window, or the part a sync checks
       previous = nil
 
       MAX_SNAPSHOTS.times do
@@ -205,6 +205,7 @@ module HistoryImport
       return review("window is too large but can't be split further") unless WindowSplitter.splittable?(@window)
       # Splitting would replace a committed month with uncommitted halves and lose its coverage.
       return review("a committed month grew beyond #{MAX_PAGES} pages; check it by hand") if @window.committed_at
+      return review("the range checked is a part of this window and can't be split") unless @window.whole_window_checked?
 
       children = lease { |window| WindowSplitter.split!(window) }
       outcome(:split, "split into #{children.size} windows")

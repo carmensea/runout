@@ -30,13 +30,19 @@ module HistoryImport
   class Reconciler
     SOURCE = "reconciliation".freeze
     EVENT = "reconcile.history_import".freeze
+    # A snapshot lacking more than half of the stored plays in the range (when there are at least
+    # this many) looks like an incomplete answer from Last.fm, not like deletions: the check goes
+    # to review instead of recording removals.
+    MASS_DISAPPEARANCE_MIN = 20
 
-    def initialize(window:, fetch:, rows:, variant_ids:, now:)
+    # `range`: the part of the window being checked (the whole window by default).
+    def initialize(window:, fetch:, rows:, variant_ids:, now:, range: window.window_from...window.window_to)
       @window = window
       @fetch = fetch
       @rows = rows
       @variant_ids = variant_ids
       @now = now
+      @range = range
       @summary = Hash.new(0)
       @inserts = []
       @disputed = Set.new
@@ -47,10 +53,11 @@ module HistoryImport
     def call
       stored = stored_plays
       @removals = ScrobbleRemoval.where(scrobble_id: stored.map(&:id)).order(:id).group_by(&:scrobble_id)
-      @disputes = ReconciliationDispute.where(user_id: @window.user_id, played_at: @window.window_from...@window.window_to,
-                                              state: %w[open dismissed]).order(:id).group_by { |d| d.played_at.to_i }
+      @disputes = ReconciliationDispute.where(user_id: @window.user_id, played_at: @range, state: %w[open dismissed])
+                                       .order(:id).group_by { |d| d.played_at.to_i }
       staged = @rows.group_by { |row| row.played_at.to_i }
       stored_by_second = stored.group_by { |s| s.played_at.to_i }
+      refuse_mass_disappearance!(staged, stored_by_second)
       (staged.keys | stored_by_second.keys).sort.each { |t| reconcile_second(t, staged.fetch(t, []), stored_by_second.fetch(t, [])) }
 
       inserted = @inserts.each_slice(WindowCommitter::BATCH).flat_map { |batch| Scrobble.insert_all!(batch, returning: %w[id]).rows.flatten }
@@ -67,7 +74,7 @@ module HistoryImport
     # database, never from the query cache: writes by other processes don't clear it.
     def stored_plays
       Scrobble.uncached do
-        Scrobble.where(user_id: @window.user_id).played_between(@window.window_from, @window.window_to)
+        Scrobble.where(user_id: @window.user_id).played_between(@range.begin, @range.end)
                 .joins(:name_variant).select("scrobbles.*, name_variants.variant_hash AS stored_hash").to_a
       end
     end
@@ -114,6 +121,21 @@ module HistoryImport
     end
 
     def fail!(message) = raise(WindowCommitter::Inconsistent, "reconciliation check failed: #{message}")
+
+    # Counted before anything is written: present plays the snapshot has no identical play for.
+    def refuse_mass_disappearance!(staged, stored_by_second)
+      present = stored_by_second.values.flatten.count { |s| s.removed_at.nil? }
+      return if present < MASS_DISAPPEARANCE_MIN
+
+      missing = stored_by_second.sum do |t, plays|
+        fetched = staged.fetch(t, []).map(&:variant_hash).tally
+        plays.select { |s| s.removed_at.nil? }.map(&:stored_hash).tally.sum { |h, n| [ n - fetched.fetch(h, 0), 0 ].max }
+      end
+      return unless missing * 2 > present
+
+      raise WindowCommitter::Inconsistent,
+            "the snapshot lacks #{missing} of #{present} stored plays; not treated as deletions (an incomplete answer?)"
+    end
 
     def reconcile_second(t, staged, stored)
       pools = Hash.new { |h, k| h[k] = [] }

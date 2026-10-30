@@ -34,6 +34,13 @@ class ImportWindow < ApplicationRecord
   # Imported at least once: counts as coverage even while a later check of the month is running.
   scope :imported, -> { where.not(committed_at: nil) }
 
+  # The range the current check fetches and reconciles: the whole window unless a check range was
+  # set (HistoryImport::SyncPlanner). It may end past window_to; the window then grows to it when
+  # the check commits.
+  def check_range = (check_from || window_from)...(check_to || window_to)
+
+  def whole_window_checked? = check_range.begin <= window_from && check_range.end >= window_to
+
   # Automatic retries after a failure, by attempt number. Bounded: past the last one the window
   # stops (`failed` with no retry_at) until someone retries it (HistoryImport::Recovery).
   RETRY_DELAYS = [ 5.minutes, 30.minutes, 2.hours, 6.hours ].freeze

@@ -8,5 +8,6 @@ Rails.application.routes.draw do
     resource :session, only: :destroy
     resource :account, only: :destroy
     resource :connection, only: :show
+    resource :sync, only: :show
   end
 end

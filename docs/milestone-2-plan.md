@@ -1,12 +1,12 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.6 and 2.4b are implemented**: feature flag, read-only probe, findings, storage
+Status: **Stages 2.0 to 2.7 are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
 window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
 windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
 canonical artist, album and track matching, on synthetic data (2.5).
-Orchestration and recovery (2.6) and reconciliation of committed months (2.4b) too, on synthetic
-data. Next: 2.7 (ongoing sync), after review.
+Orchestration and recovery (2.6), reconciliation of committed months (2.4b) and ongoing
+synchronisation (2.7) too, on synthetic data. Next: 2.8, after review.
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -624,7 +624,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **Later: catalogue clean-up** | Remove variants and catalogue rows no scrobble references, keeping any that decisions or open reviews refer to | Deferred by decision (2026-10-29); nothing is deleted until then |
 | **Later: matching coverage** | Analytics expose matching coverage: identified, name-only, unmatched, ambiguous | No UI needed at first |
 | **2.4b Reconciliation** (done 2026-10-29, after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
-| **2.7 Sync, catch-up, reconcile** | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
+| **2.7 Sync, catch-up, reconcile** (done 2026-10-30) | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
 | **2.8 API and frontend** | `ConnectionState` mapping, `/api/import` endpoints, 501 handling, Settings import panel | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
 | **2.9 Measure and accept** | Synthetic 300k and 1M benchmarks (time, memory, database size), then a real import of your account **once licensing allows** | Measured numbers recorded; real import matches Last.fm's playcount within the documented tolerance (§11) and reconciliation finds no mismatches |
 
@@ -665,6 +665,45 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.7 synchronisation decisions (`HistoryImport::Sync`, `SyncPlanner`, `SyncHealth`, `SyncScheduleJob`):
+  - **One recurring tick** (`history_sync` in config/recurring.yml, every 30 minutes,
+    `SYNC_SCHEDULE`) starts whichever kind is due per user, most important first: `reconcile`
+    (weekly), `catch_up` (daily), `sync` (every 30 minutes). Intervals are in
+    `config.x.history_sync` (ENV overrides). "Due" counts from the last run of the kind that
+    *started*, whatever its outcome (from the end of the full import before the first), so a
+    failing kind is tried once per interval. The tick does nothing while storage is off.
+  - **Eligible accounts**: the full import completed and the connection is `imported`; identity
+    linked, not revoked, allowed; no active run. One active run per user (the existing unique
+    index), so a sync never runs beside an import or a recheck; it waits for the next tick.
+  - **Ranges.** The frontier is where the user's windows end (the full import's cutoff at first).
+    `sync` checks [frontier − 24 h, now − 15 min); `catch_up` the last 14 days up to the same
+    target. Plays younger than the settle margin are left for the next run; plays scrobbled late
+    inside the lookback are caught by the next run, as unambiguous additions.
+  - **No overlapping windows, no gaps.** Committed windows overlapping the range get a check range
+    (`check_from`/`check_to`) and are reconciled over it (Stage 2.4b). The last window grows
+    within its own month: its check range ends past `window_to`, and `window_to` moves only when
+    that check commits, so coverage only ever includes committed ranges. Later months get new
+    windows (UTC month boundaries; empty months committed with 0). Ranges are half-open, matching
+    Last.fm's inclusive `from` and exclusive `to`.
+  - **Weekly comparison** (`reconcile` with `count_scan`): one `limit=1` request per committed month
+    for Last.fm's count, in batches of 12 per step, resumable through `count_checked_at`. Months
+    whose count differs from the plays present are fully rechecked in the same run. Equal counts
+    record `count_checked_at` only and never set `last_verified_at`: a rename keeps the count.
+  - **Verification time.** `last_verified_at` is set only when one validated snapshot covered the
+    whole window; partial (sync, catch-up) checks set `last_checked_at`. A period is
+    `:synchronized` only if verified within 30 days with nothing open; `:count_matched` if only a
+    recent count agreed; otherwise `:stale`.
+  - **Failures.** Window retries as before (bounded attempts with backoff). A sync whose periods
+    stopped ends `failed` (it never blocks the next one), without touching the connection. A
+    period that gave up is tried again at most once per `rearm_after` (24 h). A period waiting for
+    review is never touched, and nothing is planned past it. An account problem (mismatch,
+    revoked session) stops the run and sets the connection `failed`; nothing more is scheduled
+    until `bin/rails sync:resume`. A blocked sync never updates `last_synced_at`.
+  - **Incomplete answers.** A validated snapshot lacking more than half of 20 or more stored plays
+    in its range goes to review instead of recording removals.
+  - **Status**: `GET /api/sync` and `bin/rails sync:status` (`SyncHealth`); `sync:run KIND=`,
+    `sync:tick`, `sync:resume`.
+  - Job steps, the watchdog and the planner read uncached (the query-cache lesson of `7883e35`).
 - Stage 2.4b reconciliation decisions (`HistoryImport::Reconciler`, `Review`, `Recheck`, `SyncStatus`):
   - **Rechecks reuse the month's window.** A committed month goes back through fetch, validation
     and commit on its existing window, in a run of kind `reconcile` (`HistoryImport::Recheck`,
@@ -840,7 +879,7 @@ Depending on the answer, these fall-backs keep the architecture intact:
     worker gets `StaleLease` and writes nothing. An interrupted window is taken over after its
     lease expires, and the partial fetch is discarded.
   - **Planning.** `WindowPlanner` skips ranges that overlap live windows, so it is idempotent and
-    split-safe. Extending the partial current month is left to sync (Stage 2.7).
+    split-safe. Sync extends the partial current month (Stage 2.7, `SyncPlanner`).
   - **Retry budget** as in §7.3: the background client makes 2 attempts with at most 10 s of
     Retry-After; `ApplicationJob` allows 5 scheduled executions; each validation has a
     per-window request budget. This replaces the earlier 8 polynomial job retries.

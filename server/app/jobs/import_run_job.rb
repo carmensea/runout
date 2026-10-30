@@ -15,7 +15,9 @@ class ImportRunJob < ApplicationJob
     Rails.logger.warn("ImportRunJob stopped: #{error.message}")
   end
 
+  # Uncached: other processes change the run and its windows between this step's reads, and their
+  # writes don't clear this thread's query cache.
   def perform(run_id, token)
-    HistoryImport::Orchestrator.new.step!(run_id, token)
+    ImportRun.uncached { HistoryImport::Orchestrator.new.step!(run_id, token) }
   end
 end

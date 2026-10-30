@@ -1,6 +1,11 @@
-# The production watchdog entry (config/recurring.yml), run every 2 seconds instead of 10 minutes.
+# The production entries (config/recurring.yml), run every 2 seconds instead of every 10 or 30
+# minutes. The sync tick only starts what is due, so frequent ticks change nothing by themselves.
 test:
   import_watchdog:
     class: ImportWatchdogJob
+    queue: default
+    schedule: every 2 seconds
+  history_sync:
+    class: SyncScheduleJob
     queue: default
     schedule: every 2 seconds
