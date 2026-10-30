@@ -7,8 +7,12 @@
 class FakeRecentTracks
   Play = Struct.new(:played_at, :artist, :track, :album, :artist_mbid, :track_mbid, :album_mbid, keyword_init: true)
 
-  attr_reader :requests
-  attr_accessor :to_inclusive, :now_playing, :rate_limit_after
+  attr_reader :requests, :plays
+  attr_accessor :to_inclusive, :now_playing, :rate_limit_after, :shuffle_same_second
+
+  # Scripting for tests: before_request.call(request_number, fake) runs before each response and may
+  # mutate the history; fail_requests maps a request number to a raw response to return instead.
+  attr_accessor :before_request, :fail_requests
 
   def initialize(plays, username: "listener")
     @plays = plays.sort_by { |p| -p.played_at.to_i }
@@ -17,6 +21,22 @@ class FakeRecentTracks
     @now_playing = false
     @rate_limit_after = nil
     @requests = 0
+    @shuffle_same_second = false
+    @fail_requests = {}
+    @random = Random.new(1)
+  end
+
+  def add(play)
+    @plays << play
+    @plays.sort_by! { |p| -p.played_at.to_i }
+  end
+
+  def remove_if(&block)
+    @plays.reject!(&block)
+  end
+
+  def replace_at(index, **changes)
+    @plays[index] = @plays[index].dup.tap { |p| changes.each { |k, v| p[k] = v } }
   end
 
   # Builds `count` plays one minute apart, ending at `ending`, with a few same-second pairs.
@@ -41,6 +61,9 @@ class FakeRecentTracks
 
   def respond(query)
     @requests += 1
+    before_request&.call(@requests, self)
+    return fail_requests[@requests] if fail_requests.key?(@requests)
+
     if rate_limit_after && @requests > rate_limit_after
       return json({ error: 29, message: "Rate Limit Exceeded" }, status: 429)
     end
@@ -48,6 +71,10 @@ class FakeRecentTracks
     limit = (query["limit"] || 50).to_i
     page = (query["page"] || 1).to_i
     selected = @plays.select { |p| in_range?(p.played_at.to_i, query["from"], query["to"]) }
+    if shuffle_same_second
+      # Newest first by second, but plays within one second in a random order on every request.
+      selected = selected.group_by { |p| p.played_at.to_i }.sort_by { |second, _| -second }.flat_map { |_, group| group.shuffle(random: @random) }
+    end
     total_pages = (selected.size / limit.to_f).ceil
     rows = selected.slice((page - 1) * limit, limit) || []
     tracks = rows.map { |p| entry(p) }

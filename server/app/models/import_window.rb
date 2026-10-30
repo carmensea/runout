@@ -8,6 +8,13 @@ class ImportWindow < ApplicationRecord
   # A worker holds a window only while its lease is valid; after a crash the lease expires and
   # another worker may take the window over.
   LEASE = 30.minutes
+  # States a worker may pick up. `validated` waits for commit (Stage 2.4); `needs_review`, `split`
+  # and `committed` are never picked up automatically. `fetching` and `validating` are only taken
+  # over once their lease has expired (an interrupted worker).
+  CLAIMABLE_STATES = %w[pending failed fetching validating].freeze
+
+  # The worker's lease expired or was taken over; it must stop without writing.
+  class StaleLease < StandardError; end
 
   belongs_to :user
   belongs_to :import_run, optional: true
@@ -36,6 +43,34 @@ class ImportWindow < ApplicationRecord
                          .update_all(claim_token: token, lease_expires_at: now + LEASE, updated_at: now)
     reload if claimed == 1
     claimed == 1
+  end
+
+  # Claims the window to fetch and validate it: one conditional UPDATE, so only one worker can win.
+  # Takes over an interrupted window once its lease has expired, and counts the attempt.
+  def claim_for_validation!(token, now: Time.current)
+    ensure_uuid!(token)
+    claimed = self.class.where(id: id, state: CLAIMABLE_STATES)
+                         .where("claim_token IS NULL OR lease_expires_at < ?", now)
+                         .update_all([ "claim_token = ?, lease_expires_at = ?, state = 'fetching', attempts = attempts + 1, updated_at = ?",
+                                       token, now + LEASE, now ])
+    reload if claimed == 1
+    claimed == 1
+  end
+
+  # Runs a short transaction only while `token` still holds an unexpired lease: locks the row,
+  # renews the lease and yields the window. Raises StaleLease otherwise, before anything is written.
+  # Never make network requests inside the block.
+  def with_lease(token, now: Time.current)
+    ensure_uuid!(token)
+    self.class.transaction do
+      window = self.class.lock.where(id: id, claim_token: token).where("lease_expires_at > ?", now).first
+      raise StaleLease, "lease on window #{id} is no longer held" unless window
+
+      window.lease_expires_at = now + LEASE
+      result = yield window
+      window.save! if window.changed?
+      result
+    end
   end
 
   def release!(token)

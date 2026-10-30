@@ -25,6 +25,10 @@ module Lastfm
     USER_AGENT = "Runout/0.1 (personal listening archive)".freeze
     UNSIGNED_PARAMS = %w[format callback].freeze
 
+    # Background imports: one quick retry and short waits, so job retries (scheduled, not blocking)
+    # handle anything longer. See docs/milestone-2-plan.md §7.3, "Combined retry budget".
+    BACKGROUND_OPTIONS = { max_attempts: 2, max_retry_after: 10.0 }.freeze
+
     REDACTED = "[REDACTED]".freeze
     SECRET_PARAMS = %w[api_key api_sig sk token].freeze
 
@@ -42,7 +46,11 @@ module Lastfm
       @max_retry_after = max_retry_after
       @sleeper = sleeper
       @random = random
+      @http_requests = 0
     end
+
+    # HTTP requests actually sent, retries included. Used to enforce per-window request budgets.
+    attr_reader :http_requests
 
     def inspect
       "#<#{self.class.name} api_key=#{REDACTED} shared_secret=#{REDACTED} pacer=#{@pacer.class.name}>"
@@ -160,6 +168,7 @@ module Lastfm
     end
 
     def request(uri)
+      @http_requests += 1
       Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: @open_timeout, read_timeout: @read_timeout) do |http|
         req = Net::HTTP::Get.new(uri)
         req["User-Agent"] = USER_AGENT

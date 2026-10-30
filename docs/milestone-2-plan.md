@@ -1,7 +1,8 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.2 are implemented**: feature flag, read-only probe, findings, storage
-report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2).
+Status: **Stages 2.0 to 2.3 are implemented**: feature flag, read-only probe, findings, storage
+report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
+window fetching, staging and validation on synthetic data (2.3).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -160,18 +161,21 @@ the multiset of plays in that second:
 1. Pair the staged and stored rows whose variant is identical. Identical plays in one second are
    indistinguishable, so any one-to-one pairing between them loses nothing. The staged
    `occurrence` numbers only make the counts explicit, so identical plays stay separate.
-2. Pair what's left on each side in order; each such pair is a **name correction**, recorded in
-   `scrobble_corrections`. The scrobble's `id`, `played_at` and `seq` never change.
-   - **Unambiguous** (exactly one leftover play on each side in that second): state `applied`,
-     and `scrobbles.name_variant_id` moves to the new variant. It is recorded, so it can be
-     reviewed and reversed.
-   - **Anything uncertain:** several leftover plays on either side, so the pairing would be a
-     guess, or leftover counts that differ, so it could equally be a deletion plus a new play.
-     State `pending_review`, and neither side is applied. The scrobble keeps its original variant
-     and no removal or insertion happens in that second until a decision.
+2. **A second with unmatched plays on both sides is always reviewed, never applied
+   automatically.** Without a stable per-play ID from Last.fm, one unmatched play on each side
+   can't be told apart from a deletion followed by a different play in the same second, so even
+   that case is not treated as a correction.
+   - Record a `scrobble_corrections` row in state `pending_review` for the proposed pairing (one
+     row per stored play involved).
+   - Insert nothing and remove nothing in that second until a decision. The stored plays keep
+     their original variants, and their `id`, `played_at` and `seq` never change.
+   - A reviewer chooses: apply the correction, or treat it as a deletion plus a new play.
    - **Order is ignored throughout.** A change in the order Last.fm returns plays within a second
      never produces a correction.
-3. Staged rows still unpaired are **new plays**: insert them with the next free `seq`.
+   - Only seconds with unmatched plays on **one** side are handled without review: new plays
+     (staged only) are inserted, and missing plays (stored only) follow the removal rule in step 4.
+3. In seconds where nothing is stored unmatched, staged rows still unpaired are **new plays**:
+   insert them with the next free `seq`.
 4. Stored rows still unpaired are **missing upstream**:
    - record a `scrobble_removals` row in state `observed`, with `first_missing_fetch_id`;
    - when the next verified fetch of this window also misses them (two consecutive reads agree),
@@ -426,6 +430,19 @@ or recordings together because their names match. A test keeps two Nirvanas and 
   - A window whose lease has expired (30 minutes) while `fetching`, `validating` or `committing`
     is reset to `pending` by a watchdog in `SyncAllUsersJob`, discarding its staging rows.
   - Merges are transactional, so a crash mid-merge leaves no partial writes.
+- **Combined retry budget** (Stage 2.3). The client and the jobs retry separately, so the limits
+  are set together; an outage can't multiply into a flood of requests:
+
+  | Layer | Limit |
+  |---|---|
+  | Client, interactive (sign-in) | Up to 4 attempts per call; waits up to 300 s for a Retry-After |
+  | Client, background (imports) | Up to 2 attempts per call; never waits more than 10 s. A longer Retry-After raises at once |
+  | Job (`ApplicationJob`) | Up to 5 executions per Last.fm failure. Each retry is **scheduled** (the server's Retry-After, or polynomial backoff), so no worker sleeps through a long delay |
+  | Window validation | A hard request budget per validation: 4 snapshots × (pages + 1), × 2 for retries, at most 200. Exceeding it fails the window and records why |
+  | Global | The shared pacer (§7.2) and the global cool-down on HTTP 429 or error 29 |
+
+  The worst case for one page call is 2 × 5 = 10 HTTP attempts, and every request a window
+  validation makes counts against that window's budget.
 - **Retries** (`ApplicationJob` from Milestone 1, plus per-job policy):
   - Last.fm temporary errors and 429: polynomial backoff, 8 attempts.
   - A verification mismatch: up to 3 window attempts, then `failed`.
@@ -520,7 +537,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **2.0 Verify and gate** (done 2026-10-29) | The feature flag (off), a read-only `bin/rails lastfm:probe` for A1 to A7, `docs/lastfm-api-findings.md`, and the storage report skeleton | Probe prints only field names and counts; findings documented; plan updated where an assumption failed |
 | **2.1 Schema** (done 2026-10-29) | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
 | **2.2 Recent-tracks client** (done 2026-10-29) | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
-| **2.3 Window fetch and verify** | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
+| **2.3 Window fetch and verify** (done 2026-10-29) | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
 | **2.4 Merge engine** | §4.4 including revisions and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
 | **2.5 Catalogue resolution** | Variants to artists, albums and tracks; re-resolution; clean-up | MBID and name rules; re-running changes nothing; account deletion leaves no orphans |
 | **2.6 Orchestration** | Jobs, queues, concurrency limits, progress, watchdog, resume | Crash and duplicate-enqueue tests; progress is monotonic; flag off means jobs refuse |
@@ -565,6 +582,31 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.3 validation decisions (`HistoryImport::WindowValidator`):
+  - **Consecutive snapshots.** Validation compares consecutive complete snapshots (up to 4 reads,
+    so 3 comparisons) instead of re-reading page 1. A window is validated only when two
+    consecutive reads have identical multisets: exact strings, occurrence counts, any order. A
+    window that never settles goes to `needs_review`.
+  - **Within one read,** every page must report the same total and page count, and the rows must
+    add up to the total. Otherwise the read is inconsistent (plays added or removed mid-paging) and
+    another read is taken.
+  - **Staging happens only on success.** The validated snapshot is staged in the same short
+    transaction that marks the window `validated`. Every read is still recorded in
+    `import_window_fetches`, with its outcome.
+  - **Oversized windows.** More than 20 pages, detected from page 1, splits the window
+    automatically into non-overlapping halves (down to 2 hours). Persistently inconsistent windows
+    are not split automatically; they go to review.
+  - **Rows we can't place go to review.** Undated, malformed or out-of-range rows send the window to
+    review rather than being dropped.
+  - **Attempt ceiling.** After 5 claims, a window goes to review.
+  - **Leases.** Each worker's writes run in short transactions under a verified lease, so a stale
+    worker gets `StaleLease` and writes nothing. An interrupted window is taken over after its
+    lease expires, and the partial fetch is discarded.
+  - **Planning.** `WindowPlanner` skips ranges that overlap live windows, so it is idempotent and
+    split-safe. Extending the partial current month is left to sync (Stage 2.7).
+  - **Retry budget** as in §7.3: the background client makes 2 attempts with at most 10 s of
+    Retry-After; `ApplicationJob` allows 5 scheduled executions; each validation has a
+    per-window request budget. This replaces the earlier 8 polynomial job retries.
 - Stage 2.2 client decisions:
   - **Global pacing** uses a small non-history table (`api_request_slots`), so it holds across
     processes.
