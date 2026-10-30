@@ -38,12 +38,15 @@ module HistoryImport
 
     # Restarts working runs whose chain went quiet. A run restarted MAX_STALL_KICKS times without
     # progress stops as `failed` instead of being restarted forever.
+    # Quiet for STALL_AFTER, and no step alive: a step renews its window lease after every page, so
+    # a slow but healthy worker holds a live lease and is never restarted underneath.
     def self.stalled_scope(now = Time.current)
       quiet = now - STALL_AFTER
       ImportRun.working
                .where("COALESCE(last_scheduled_at, created_at) < ?", quiet)
                .where("last_activity_at IS NULL OR last_activity_at < ?", quiet)
                .where("next_step_at IS NULL OR next_step_at < ?", quiet)
+               .where("NOT EXISTS (SELECT 1 FROM import_windows w WHERE w.claim_token = import_runs.job_token AND w.lease_expires_at > ?)", now)
     end
 
     def self.stalled?(run, now = Time.current) = stalled_scope(now).exists?(id: run.id)

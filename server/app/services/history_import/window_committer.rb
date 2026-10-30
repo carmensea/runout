@@ -1,6 +1,6 @@
 module HistoryImport
-  # Commits one validated window into permanent storage (docs/milestone-2-plan.md §4.4, first
-  # import only). Makes no Last.fm requests.
+  # Commits one validated window into permanent storage (docs/milestone-2-plan.md §4.4). Makes no
+  # Last.fm requests.
   #
   # Everything happens in one transaction under the worker's lease and a per-user advisory lock:
   # re-check the window and its staged snapshot, insert name variants and scrobbles, mark the
@@ -8,9 +8,12 @@ module HistoryImport
   # never partly committed and never marked committed before its plays are stored. The window
   # then returns to `validated` with its staging intact, ready for another attempt.
   #
-  # Scope (Stage 2.4): windows whose range holds no stored plays yet. A range that already holds
-  # plays needs the merge (corrections and removals), which isn't built; such a window goes to
-  # `needs_review` and nothing is written.
+  # - A window never committed before: its range must hold no plays; they're all inserted. (Plays in
+  #   a never-committed range would mean something wrote outside this path: review, nothing written.)
+  # - A window committed before (a later check of the month): the snapshot is reconciled with the
+  #   stored plays (HistoryImport::Reconciler) in the same transaction.
+  # Either way the window ends `committed` with committed_count = the plays present, and
+  # last_checked_at records this successful check against Last.fm.
   #
   # `seq` is each play's position within its second in the validated snapshot. It is a storage
   # slot only, not an identity that later fetches can be matched on.
@@ -82,16 +85,26 @@ module HistoryImport
 
         ImportWindow.connection.execute(ImportWindow.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{window.user_id}" ]))
         rows = staged_rows(window)
-        check_range_is_empty(window)
-        variant_ids = store_variants(rows)
-        inserted = store_scrobbles(window, rows, variant_ids)
-        stored = Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
-        raise "stored #{stored} plays, expected #{rows.size}" unless inserted == rows.size && stored == rows.size
+        if window.committed_at
+          variant_ids = store_variants(rows)
+          summary = Reconciler.new(window: window, fetch: @fetch, rows: rows, variant_ids: variant_ids, now: now).call
+          added = summary[:added]
+        else
+          check_range_is_empty(window)
+          variant_ids = store_variants(rows)
+          added = store_scrobbles(window, rows, variant_ids)
+          stored = Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
+          raise "stored #{stored} plays, expected #{rows.size}" unless added == rows.size && stored == rows.size
 
-        window.assign_attributes(state: "committed", committed_at: now, committed_count: rows.size, claim_token: nil,
-                                 lease_expires_at: nil, last_error_message: nil, retry_at: nil)
-        ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", rows.size, now ])
-        rows.size
+          summary = { added: added }
+        end
+
+        present = Scrobble.present.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
+        window.assign_attributes(state: "committed", committed_at: window.committed_at || now, committed_count: present,
+                                 last_checked_at: now, last_check_fetch_id: @fetch.id, last_check_summary: summary,
+                                 claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil)
+        ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", added, now ])
+        added
       end
     end
 
@@ -123,7 +136,7 @@ module HistoryImport
     def check_range_is_empty(window)
       return unless Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).exists?
 
-      raise Inconsistent, "plays are already stored in this range; merging with stored plays isn't supported yet"
+      raise Inconsistent, "plays are already stored in a range that was never committed"
     end
 
     # Name variants are shared and immutable: existing ones are reused, never changed. Each one

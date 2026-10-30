@@ -63,6 +63,21 @@ module Smoke
     list += Array.new(3) { |i| play.(Time.now.utc.beginning_of_month + (i * 60), "Now #{i}") }
     list.select { |p| p.played_at < Time.now - 120 }
   end
+
+  # What Last.fm returns now: the history above, changed as control.json says ("rename":
+  # [[unix, old track, new track]], "drop": [[unix, track]], "add": [[unix, track]]).
+  def served_plays(control = self.control)
+    list = plays.map(&:dup)
+    Array(control["rename"]).each do |at, old, new|
+      list.find { |p| p.played_at.to_i == at && p.track == old }&.then { |p| p.track = new }
+    end
+    Array(control["drop"]).each { |at, track| list.delete_at(list.index { |p| p.played_at.to_i == at && p.track == track } || list.size) }
+    Array(control["add"]).each do |at, track|
+      list << FakeRecentTracks::Play.new(played_at: Time.at(at).utc, artist: "Smoke Artist", track: track, album: "",
+                                         artist_mbid: "", track_mbid: "", album_mbid: "")
+    end
+    list
+  end
 end
 
 ENV["LASTFM_API_KEY"] = "smoke-api-key"
@@ -73,7 +88,6 @@ ActiveJob::Base.queue_adapter = :solid_queue
 WebMock.enable!
 WebMock.disable_net_connect!
 stub = Object.new.extend(WebMock::API)
-fake = nil
 stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.hash_including("method" => "user.getRecentTracks"))
     .to_return do |request|
       query = Rack::Utils.parse_query(request.uri.query)
@@ -83,7 +97,7 @@ stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.h
       if Array(control["fail_from"]).include?(query["from"].to_i)
         { status: 502, body: "" }
       else
-        (fake ||= FakeRecentTracks.new(Smoke.plays, username: Smoke::USERNAME)).respond(query)
+        FakeRecentTracks.new(Smoke.served_plays(control), username: Smoke::USERNAME).respond(query)
       end
     end
 stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.hash_including("method" => "user.getInfo"))

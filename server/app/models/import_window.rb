@@ -31,6 +31,8 @@ class ImportWindow < ApplicationRecord
 
   scope :live, -> { where.not(state: "split") }
   scope :committed, -> { where(state: "committed") }
+  # Imported at least once: counts as coverage even while a later check of the month is running.
+  scope :imported, -> { where.not(committed_at: nil) }
 
   # Automatic retries after a failure, by attempt number. Bounded: past the last one the window
   # stops (`failed` with no retry_at) until someone retries it (HistoryImport::Recovery).

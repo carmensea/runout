@@ -1,12 +1,12 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.6 are implemented**: feature flag, read-only probe, findings, storage
+Status: **Stages 2.0 to 2.6 and 2.4b are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
 window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
 windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
 canonical artist, album and track matching, on synthetic data (2.5).
-Orchestration and recovery (2.6) too, on synthetic data. Order from here: 2.4b reconciliation,
-which must land before 2.7 (ongoing sync).
+Orchestration and recovery (2.6) and reconciliation of committed months (2.4b) too, on synthetic
+data. Next: 2.7 (ongoing sync), after review.
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -623,7 +623,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **2.6 Orchestration** (done 2026-10-29) | Jobs, queues, concurrency limits, progress, watchdog, pause, resume, cancel, manual retry; bounded validation and commit retries; expired snapshots re-fetched before commit | Full synthetic import; simultaneous workers; restart halfway; failing and permanently failing months; crashes after validation and mid-commit; expired staging; duplicate jobs; pause, resume, cancel; account deletion and revocation; storage off before and during; final counts and coverage |
 | **Later: catalogue clean-up** | Remove variants and catalogue rows no scrobble references, keeping any that decisions or open reviews refer to | Deferred by decision (2026-10-29); nothing is deleted until then |
 | **Later: matching coverage** | Analytics expose matching coverage: identified, name-only, unmatched, ambiguous | No UI needed at first |
-| **2.4b Reconciliation** (after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
+| **2.4b Reconciliation** (done 2026-10-29, after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
 | **2.7 Sync, catch-up, reconcile** | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
 | **2.8 API and frontend** | `ConnectionState` mapping, `/api/import` endpoints, 501 handling, Settings import panel | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
 | **2.9 Measure and accept** | Synthetic 300k and 1M benchmarks (time, memory, database size), then a real import of your account **once licensing allows** | Measured numbers recorded; real import matches Last.fm's playcount within the documented tolerance (§11) and reconciliation finds no mismatches |
@@ -665,6 +665,51 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.4b reconciliation decisions (`HistoryImport::Reconciler`, `Review`, `Recheck`, `SyncStatus`):
+  - **Rechecks reuse the month's window.** A committed month goes back through fetch, validation
+    and commit on its existing window, in a run of kind `reconcile` (`HistoryImport::Recheck`,
+    `bin/rails import:recheck`). It never creates overlapping windows. A committed month is never
+    split, and one that grew past 20 pages goes to review instead.
+  - **Coverage is "committed at least once"** (`import_windows.committed_at`). A recheck in
+    progress, a failure, or open review items never take it away.
+  - **Three separate statuses** (`HistoryImport::SyncStatus`):
+    - coverage (`ImportCoverage`);
+    - synchronisation (`last_checked_at`, set by every successful commit or reconciliation);
+    - review (open disputes, suspected, pending and reappeared removals).
+    A month is `:synchronized` only with no open items and a check within 30 days.
+  - **Per-second multiset matching** in the commit transaction:
+    - Identical plays pair first, present before removed, in slot order; Last.fm's order is
+      ignored.
+    - Fetched-only leftovers are inserted after the second's highest `seq`, never reusing or
+      renumbering slots.
+    - Stored-only leftovers start the removal process.
+    - Leftovers on both sides open a `reconciliation_dispute` with the evidence (stored scrobble
+      IDs, fetched plays as name variants), and nothing else in that second changes. Other
+      seconds are still reconciled in the same transaction.
+  - **Removals need two independent validated reconciliations.** The confirming fetch must come
+    from a later validation (a higher fetch attempt). The two agreeing reads inside one validation
+    count once, and replaying the same snapshot counts zero times.
+    - A play seen again closes an open proposal (`restored`).
+    - An approved (soft-deleted) play seen again reopens as `reappeared`, for restore or keep.
+    - Nothing is removed without an approval.
+  - **Reopening rules.** A dismissed removal stays dismissed while its play stays missing. Only
+    seeing the play again closes that chain, so a later miss starts a new one. A dismissed dispute
+    stays closed for the same evidence (`evidence_key`) and reopens only when the plays in that
+    second change. An open dispute is touched when the evidence is unchanged and superseded when
+    it changes.
+  - **Review** (`HistoryImport::Review`, `bin/rails review:*`):
+    - approve or dismiss removals;
+    - restore or keep reappeared plays;
+    - resolve a dispute with the reviewer's explicit pairs only. Each pair is an applied
+      `scrobble_correction`, which re-points the play's variant and keeps the old one. Unpaired
+      fetched plays are added; unpaired stored plays become suspected removals.
+    - dismiss a dispute.
+    Every decision takes the per-user lock, re-checks state (retries return `:already`), and is
+    recorded in `review_decisions`. So is every automatic review transition.
+  - **Watchdog:** a run whose step holds a live window lease is never treated as stalled, so a slow
+    but healthy worker is left alone.
+  - **Run scoping:** a run works only on its own windows (`import_run_id`). Import progress reads
+    the latest `full` run.
 - Solid Queue smoke test decisions (`test/smoke/solid_queue/run.rb`, after Stage 2.6). Real
   Solid Queue found three defects that the test adapter couldn't show:
   - **Lost steps on deploy.** A graceful shutdown releases an unfinished step, and Solid Queue

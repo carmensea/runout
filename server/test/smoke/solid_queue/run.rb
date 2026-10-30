@@ -421,8 +421,67 @@ module Smoke
       end
     end
 
+    def reconciliation
+      scenario("recheck: reconcile committed months through real Solid Queue") do
+        reset!
+        start_workers(recurring: true)
+        orchestrator.start!(@user)
+        wait_for_run("completed")
+        full = run
+        old = Smoke.plays.find { |p| p.track == "Old 7" }
+        later = Smoke.plays.find { |p| p.track == "After" }
+        Smoke.write_control(rename: [ [ old.played_at.to_i, "Old 7", "Old 7 (live)" ] ], drop: [ [ later.played_at.to_i, "After" ] ],
+                            add: [ [ (Smoke.base + 25.days).to_i, "Back-dated" ] ])
+        before = Scrobble.where(user: @user).pluck(:id, :seq, :name_variant_id)
+
+        HistoryImport::Recheck.request!(@user)
+        check("coverage kept while the months are rechecked", ImportCoverage.status_for(@user, full.history_from, full.cutoff_at) == :complete)
+        wait_for("the recheck") { ImportRun.where(user: @user, kind: "reconcile").pick(:state) == "completed" }
+        stored = Scrobble.where(user: @user)
+        check("existing plays untouched: same ids, slots and names", stored.where(id: before.map(&:first)).pluck(:id, :seq, :name_variant_id).sort == before.sort)
+        check("the back-dated play was added once", stored.joins(:name_variant).where(name_variants: { track_name: "Back-dated" }).count == 1)
+        check("the renamed play is a dispute, not a change",
+              ReconciliationDispute.open.where(user: @user).sole.stored_scrobbles.map { |x| x.name_variant.track_name } == [ "Old 7" ])
+        check("the missing play is suspected, not removed",
+              ScrobbleRemoval.where(user: @user).pluck(:state) == [ "observed" ] && stored.present.count == before.size + 1)
+        statuses = HistoryImport::SyncStatus.for(@user).map(&:status)
+        check("sync and review status per month", statuses.include?(:differences) && statuses.include?(:suspected), statuses.inspect)
+
+        HistoryImport::Recheck.request!(@user)
+        wait_for("the second recheck") { ImportRun.where(user: @user, kind: "reconcile").order(:created_at).last.state == "completed" }
+        check("a second independent check moves the removal to review", ScrobbleRemoval.where(user: @user).pluck(:state) == [ "pending_review" ])
+        check("nothing duplicated by the second check",
+              ReconciliationDispute.where(user: @user).count == 1 && Scrobble.where(user: @user).count == before.size + 1)
+        check("committed counts match the plays present",
+              windows.all? { |w| w.committed_count == Scrobble.present.where(user: @user).played_between(w.window_from, w.window_to).count })
+        check("no failed jobs", failed_jobs.empty?, failed_jobs.inspect)
+      end
+    end
+
+    def slow_healthy_worker
+      scenario("watchdog leaves a slow but healthy worker alone") do
+        reset!(delay: 6) # a request takes 6 s: one step lasts about 12 s
+        start_workers(recurring: true) # the watchdog runs every 2 seconds
+        orchestrator.start!(@user)
+        wait_for("a fetch in progress") { recent_requests.size >= 1 }
+        # The run has looked quiet for longer than STALL_AFTER, but its worker keeps renewing its lease.
+        quiet = HistoryImport::Recovery::STALL_AFTER.to_i + 60
+        ActiveRecord::Base.connection.execute("UPDATE import_runs SET last_activity_at = last_activity_at - interval '#{quiet} seconds', " \
+                                              "last_scheduled_at = last_scheduled_at - interval '#{quiet} seconds'")
+        sleep 7 # several watchdog runs while the same fetch continues
+        check("the step was still the same fetch throughout", recent_requests.size <= 2, "#{recent_requests.size} requests")
+        watchdog_runs = SolidQueue::Job.where(class_name: "ImportWatchdogJob").where.not(finished_at: nil).count
+        check("the watchdog ran and didn't restart the run", watchdog_runs >= 2 && run.stall_kicks.zero?,
+              "#{watchdog_runs} watchdog runs, stall_kicks #{run.stall_kicks}")
+        Smoke.write_control({})
+        wait_for_run("completed")
+        check_complete
+        check_steps_serialized
+      end
+    end
+
     def all = %i[configuration full_import duplicate_delivery kill_during_fetch crash_around_commit graceful_restart scheduled_retry
-                 pause_resume_cancel storage_disabled]
+                 pause_resume_cancel storage_disabled reconciliation slow_healthy_worker]
   end
 end
 

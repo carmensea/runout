@@ -387,6 +387,49 @@ class HistoryImport::OrchestratorTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs only: CatalogueMatchJob
   end
 
+  test "a recheck reconciles committed months through the job chain and never drops their coverage" do
+    orchestrator.start!(@user)
+    drain
+    full = run_for(@user)
+    oldest = oldest_month
+    old_play = @fake.plays.find { |p| p.track == "Old 7" }
+    @fake.replace_at(@fake.plays.index(old_play), track: "Old 7 (renamed)")
+    @fake.remove_if { |p| p.track == "Later" }
+    @fake.add(play(oldest + 20.days, "Back-dated"))
+
+    run = HistoryImport::Recheck.request!(@user)
+    assert_equal "reconcile", run.kind
+    assert_raises(HistoryImport::Recheck::Busy) { HistoryImport::Recheck.request!(@user) }
+    assert_equal :complete, ImportCoverage.status_for(@user, full.history_from, full.cutoff_at), "coverage kept while checking"
+    drain
+
+    assert_equal "completed", run.reload.state
+    assert_equal [ "Old 7" ], ReconciliationDispute.sole.stored_scrobbles.map { |s| s.name_variant.track_name }
+    assert_equal "observed", ScrobbleRemoval.sole.state
+    assert Scrobble.joins(:name_variant).exists?(user: @user, name_variants: { track_name: "Back-dated" })
+    assert_equal :complete, ImportCoverage.status_for(@user, full.history_from, full.cutoff_at)
+    assert HistoryImport::Progress.for(@user).complete, "import progress is about the import run"
+    statuses = HistoryImport::SyncStatus.for(@user).map(&:status)
+    assert_equal [ :differences, :synchronized, :suspected, :synchronized ], statuses
+  end
+
+  test "the watchdog leaves a slow but healthy worker alone" do
+    run = orchestrator.start!(@user)
+    perform_enqueued_jobs(at: Time.current) # plan
+    clear_enqueued_jobs
+    token = run.reload.job_token
+    window = months.last
+    window.update_columns(state: "fetching", claim_token: token, lease_expires_at: Time.current + ImportWindow::LEASE)
+    run.update_columns(last_activity_at: 1.hour.ago, last_scheduled_at: 1.hour.ago)
+
+    assert_equal 0, HistoryImport::Recovery.new.run![:restarted], "its lease is live: the worker is still renewing it"
+    assert_not HistoryImport::Progress.for(@user).stalled
+    assert_equal token, run.reload.job_token
+
+    travel ImportWindow::LEASE + 1.minute # the worker stopped renewing
+    assert_equal 1, HistoryImport::Recovery.new.run![:restarted]
+  end
+
   test "jobs declare their concurrency limits" do
     assert_equal [ 1, :block ], [ ImportRunJob.concurrency_limit, ImportRunJob.concurrency_on_conflict ]
     # Discarding would drop matches requested while one runs (see CatalogueMatchJob).
@@ -442,6 +485,33 @@ class HistoryImport::OrchestratorConcurrencyTest < ActiveSupport::TestCase
     assert_equal 3, outcomes.count(:deferred), outcomes.inspect
     assert_equal 1, (outcomes - [ :deferred ]).size, "only one did any work"
     assert_equal 1, ImportWindow.where(user: @users.first, state: "committed").count
+  end
+
+  test "competing workers reconciling the same month apply its changes once" do
+    user = @users.first
+    run = orchestrator.start!(user)
+    60.times do
+      run.reload
+      break unless run.working?
+
+      orchestrator.step!(run.id, run.job_token)
+    end
+    @fake.add(play(Time.current.utc.beginning_of_month - 3.months + 20.days, "Back-dated"))
+    @fake.remove_if { |p| p.track == "Old 3" && p.artist == "Artist 3" }
+    HistoryImport::Recheck.request!(user)
+    window = ImportWindow.where(user: user).order(:window_from).first
+    result = HistoryImport::WindowValidator.new(window: window, client: stub_client(**Lastfm::Client::BACKGROUND_OPTIONS),
+                                                username: user.lastfm_identity.username).call
+    assert_equal :validated, result.status
+    before = Scrobble.where(user: user).count
+    outcomes = in_threads(4) { HistoryImport::WindowCommitter.new(window: ImportWindow.find(window.id)).call.status }
+    assert_equal 1, outcomes.count(:committed), outcomes.inspect
+    w = window.reload
+    diagnostics = { summary: w.last_check_summary, state: w.state, fetches: w.fetches.order(:attempt).pluck(:attempt, :outcome, :row_count),
+                    staged_back_dated: @fake.plays.any? { |p| p.track == "Back-dated" }, outcomes: outcomes,
+                    runs: ImportRun.where(user: user).pluck(:kind, :state) }
+    assert_equal before + 1, Scrobble.where(user: user).count, diagnostics.inspect
+    assert_equal ScrobbleRemoval.where(user: user).count, ScrobbleRemoval.where(user: user).distinct.count(:scrobble_id)
   end
 
   test "two accounts import at the same time, each completely and only its own history" do

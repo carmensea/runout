@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000014) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000015) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -189,6 +189,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000014) do
     t.integer "commit_attempts", default: 0, null: false
     t.datetime "retry_at"
     t.integer "http_requests_baseline", default: 0, null: false
+    t.datetime "last_checked_at"
+    t.bigint "last_check_fetch_id"
+    t.jsonb "last_check_summary"
     t.index ["import_run_id"], name: "index_import_windows_on_import_run_id"
     t.index ["parent_window_id"], name: "index_import_windows_on_parent_window_id"
     t.index ["user_id", "state", "retry_at"], name: "index_import_windows_on_user_id_and_state_and_retry_at"
@@ -247,6 +250,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000014) do
     t.check_constraint "track_match IS NULL OR (track_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND track_id IS NOT NULL OR (track_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND track_id IS NULL", name: "name_variants_track_match"
   end
 
+  create_table "reconciliation_disputes", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.bigint "import_window_id"
+    t.datetime "played_at", null: false
+    t.string "state", default: "open", null: false
+    t.bigint "stored_scrobble_ids", default: [], null: false, array: true
+    t.bigint "proposed_variant_ids", default: [], null: false, array: true
+    t.string "evidence_key", null: false
+    t.bigint "first_seen_fetch_id", null: false
+    t.bigint "last_seen_fetch_id", null: false
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.jsonb "resolution"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["decided_by_id"], name: "index_reconciliation_disputes_on_decided_by_id"
+    t.index ["first_seen_fetch_id"], name: "index_reconciliation_disputes_on_first_seen_fetch_id"
+    t.index ["import_window_id"], name: "index_reconciliation_disputes_on_import_window_id"
+    t.index ["last_seen_fetch_id"], name: "index_reconciliation_disputes_on_last_seen_fetch_id"
+    t.index ["user_id", "played_at"], name: "index_reconciliation_disputes_one_open", unique: true, where: "((state)::text = 'open'::text)"
+    t.index ["user_id", "state"], name: "index_reconciliation_disputes_on_user_id_and_state"
+    t.index ["user_id"], name: "index_reconciliation_disputes_on_user_id"
+    t.check_constraint "(state::text = ANY (ARRAY['open'::character varying, 'superseded'::character varying]::text[])) OR decided_at IS NOT NULL", name: "reconciliation_disputes_decided"
+    t.check_constraint "state::text = ANY (ARRAY['open'::character varying, 'resolved'::character varying, 'dismissed'::character varying, 'superseded'::character varying]::text[])", name: "reconciliation_disputes_state"
+  end
+
+  create_table "review_decisions", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.string "subject_type", null: false
+    t.bigint "subject_id", null: false
+    t.string "action", null: false
+    t.string "source", null: false
+    t.uuid "decided_by_id"
+    t.jsonb "details", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["decided_by_id"], name: "index_review_decisions_on_decided_by_id"
+    t.index ["subject_type", "subject_id"], name: "index_review_decisions_on_subject_type_and_subject_id"
+    t.index ["user_id"], name: "index_review_decisions_on_user_id"
+  end
+
   create_table "scrobble_corrections", force: :cascade do |t|
     t.uuid "user_id", null: false
     t.bigint "scrobble_id", null: false
@@ -287,11 +330,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000014) do
     t.index ["decided_by_id"], name: "index_scrobble_removals_on_decided_by_id"
     t.index ["first_missing_fetch_id"], name: "index_scrobble_removals_on_first_missing_fetch_id"
     t.index ["scrobble_id"], name: "index_scrobble_removals_on_scrobble_id"
-    t.index ["scrobble_id"], name: "index_scrobble_removals_one_open", unique: true, where: "((state)::text = ANY ((ARRAY['observed'::character varying, 'pending_review'::character varying])::text[]))"
+    t.index ["scrobble_id"], name: "index_scrobble_removals_one_open", unique: true, where: "((state)::text = ANY ((ARRAY['observed'::character varying, 'pending_review'::character varying, 'reappeared'::character varying])::text[]))"
     t.index ["user_id"], name: "index_scrobble_removals_on_user_id"
     t.check_constraint "(state::text <> ALL (ARRAY['approved'::character varying, 'dismissed'::character varying]::text[])) OR decided_at IS NOT NULL", name: "scrobble_removals_decided"
     t.check_constraint "state::text <> 'pending_review'::text OR confirming_fetch_id IS NOT NULL", name: "scrobble_removals_two_reads"
-    t.check_constraint "state::text = ANY (ARRAY['observed'::character varying, 'pending_review'::character varying, 'approved'::character varying, 'dismissed'::character varying, 'restored'::character varying]::text[])", name: "scrobble_removals_state"
+    t.check_constraint "state::text = ANY (ARRAY['observed'::character varying, 'pending_review'::character varying, 'approved'::character varying, 'dismissed'::character varying, 'restored'::character varying, 'reappeared'::character varying]::text[])", name: "scrobble_removals_state"
   end
 
   create_table "scrobbles", force: :cascade do |t|
@@ -360,6 +403,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000014) do
   add_foreign_key "name_variants", "albums"
   add_foreign_key "name_variants", "artists"
   add_foreign_key "name_variants", "tracks"
+  add_foreign_key "reconciliation_disputes", "import_window_fetches", column: "first_seen_fetch_id"
+  add_foreign_key "reconciliation_disputes", "import_window_fetches", column: "last_seen_fetch_id"
+  add_foreign_key "reconciliation_disputes", "import_windows", on_delete: :nullify
+  add_foreign_key "reconciliation_disputes", "users", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "reconciliation_disputes", "users", on_delete: :cascade
+  add_foreign_key "review_decisions", "users", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "review_decisions", "users", on_delete: :cascade
   add_foreign_key "scrobble_corrections", "import_window_fetches", on_delete: :nullify
   add_foreign_key "scrobble_corrections", "name_variants", column: "from_variant_id"
   add_foreign_key "scrobble_corrections", "name_variants", column: "to_variant_id"

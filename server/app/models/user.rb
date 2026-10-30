@@ -11,6 +11,8 @@ class User < ApplicationRecord
   has_many :import_windows, dependent: nil
   has_many :scrobble_corrections, dependent: nil
   has_many :scrobble_removals, dependent: nil
+  has_many :reconciliation_disputes, dependent: nil
+  has_many :review_decisions, dependent: nil
 
   validates :display_name, presence: true
   validates :reporting_timezone, inclusion: { in: ->(_) { User.timezones } }

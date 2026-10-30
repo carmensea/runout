@@ -203,6 +203,8 @@ module HistoryImport
 
     def split_or_review
       return review("window is too large but can't be split further") unless WindowSplitter.splittable?(@window)
+      # Splitting would replace a committed month with uncommitted halves and lose its coverage.
+      return review("a committed month grew beyond #{MAX_PAGES} pages; check it by hand") if @window.committed_at
 
       children = lease { |window| WindowSplitter.split!(window) }
       outcome(:split, "split into #{children.size} windows")

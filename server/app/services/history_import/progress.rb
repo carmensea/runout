@@ -13,6 +13,8 @@ module HistoryImport
     # Window buckets: `pending` includes failed windows with a retry scheduled; `failed` are those
     # that stopped retrying; `review` awaits a person.
     def self.bucket(window)
+      return :committed if window.committed_at # imported; a later recheck doesn't undo that
+
       case window.state
       when "pending" then :pending
       when "failed" then window.retry_at ? :pending : :failed
@@ -23,12 +25,12 @@ module HistoryImport
     end
 
     def self.for(user)
-      run = ImportRun.where(user: user).order(:created_at).last
+      run = ImportRun.where(user: user, kind: "full").order(:created_at).last
       windows = ImportWindow.live.where(user: user)
-      buckets = windows.select(:state, :retry_at).group_by { |w| bucket(w) }.transform_values(&:size)
-      committed = windows.committed.sum(:committed_count)
+      buckets = windows.select(:state, :retry_at, :committed_at).group_by { |w| bucket(w) }.transform_values(&:size)
+      committed = windows.imported.sum(:committed_count)
       # Last.fm's reported totals for the periods read so far; unread periods are unknown.
-      expected = windows.where(state: %w[validated committing committed]).sum(:expected_total)
+      expected = windows.where(state: %w[validated committing committed]).or(windows.imported).sum(:expected_total)
       coverage = run&.history_from && run.cutoff_at ? ImportCoverage.status_for(user, run.history_from, run.cutoff_at) : :missing
       complete = coverage == :complete && (buckets.keys - [ :committed ]).empty?
       current = run&.current_window_id && ImportWindow.find_by(id: run.current_window_id)

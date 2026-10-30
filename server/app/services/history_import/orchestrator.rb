@@ -117,6 +117,7 @@ module HistoryImport
     # This job started the run's current step, and is running again: Solid Queue redelivered it
     # after its process stopped, or it is a duplicate. Take the step over only if it is dead.
     def take_over_interrupted_step(run, token, step_token)
+      run.reload # the step that just won the token may have started after `run` was read
       return :superseded unless run.step_from_token == token && run.working?
 
       live_until = [ ImportWindow.where(claim_token: run.job_token).maximum(:lease_expires_at),
@@ -167,6 +168,8 @@ module HistoryImport
       end
       raise Stop, "The Last.fm account's registration time doesn't match (identity_changed)." unless info[:registered_at] && info[:registered_at] == identity.registered_at
 
+      return start_reconciling(run) if run.kind == "reconcile"
+
       history_from = run.history_from || Time.utc(info[:registered_at].year, info[:registered_at].month, 1)
       # A run that follows a cancelled one keeps the cutoff its windows were planned with: a later
       # cutoff would leave a gap the monthly planner can't fill (it skips the overlapping current
@@ -179,6 +182,14 @@ module HistoryImport
                .update_all(state: "running", history_from: history_from, cutoff_at: cutoff, reported_playcount: info[:playcount],
                            last_activity_at: now, updated_at: now)
       LastfmConnection.where(user_id: run.user_id).update_all(history_state: "importing", last_error: nil, updated_at: now)
+      schedule!(run, rotate_from: run.job_token)
+      :planned
+    end
+
+    # A recheck run (HistoryImport::Recheck): its windows exist already; nothing to plan.
+    def start_reconciling(run)
+      ImportRun.where(id: run.id, job_token: run.job_token, state: "planning")
+               .update_all(state: "running", last_activity_at: now, updated_at: now)
       schedule!(run, rotate_from: run.job_token)
       :planned
     end
@@ -223,7 +234,7 @@ module HistoryImport
     # The window this step should work on: one ready to commit first, then the newest one due.
     # Windows another live worker holds are skipped; this chain's own (same token) are resumed.
     def next_window(run, token)
-      due = ImportWindow.live.where(user_id: run.user_id).where(<<~SQL, now: now, token: token)
+      due = run_windows(run).where(<<~SQL, now: now, token: token)
         state = 'pending'
         OR (state = 'failed' AND retry_at <= :now)
         OR (state = 'validated' AND (retry_at IS NULL OR retry_at <= :now))
@@ -233,7 +244,7 @@ module HistoryImport
     end
 
     def finish_or_wait(run, token)
-      remaining = ImportWindow.live.where(user_id: run.user_id).where.not(state: "committed")
+      remaining = run_windows(run).where.not(state: "committed")
       if remaining.none?
         complete!(run, token)
         return :completed
@@ -252,10 +263,16 @@ module HistoryImport
       :needs_review
     end
 
+    # A run works only on its own windows: an import on the months it planned or adopted, a
+    # recheck on the months it was asked to check. (Split halves inherit their parent's run.)
+    def run_windows(run) = ImportWindow.live.where(user_id: run.user_id, import_run_id: run.id)
+
     def complete!(run, token)
       done = ImportRun.where(id: run.id, job_token: token)
                       .update_all(state: "completed", job_token: nil, current_window_id: nil, finished_at: now, updated_at: now)
-      LastfmConnection.where(user_id: run.user_id).update_all(history_state: "imported", last_error: nil, updated_at: now) if done == 1
+      return unless done == 1 && run.kind == "full"
+
+      LastfmConnection.where(user_id: run.user_id).update_all(history_state: "imported", last_error: nil, updated_at: now)
     end
 
     def stop!(run, message)
