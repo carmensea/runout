@@ -30,6 +30,19 @@ class ImportWindow < ApplicationRecord
   scope :live, -> { where.not(state: "split") }
   scope :committed, -> { where(state: "committed") }
 
+  # Automatic retries after a failure, by attempt number. Bounded: past the last one the window
+  # stops (`failed` with no retry_at) until someone retries it (HistoryImport::Recovery).
+  RETRY_DELAYS = [ 5.minutes, 30.minutes, 2.hours, 6.hours ].freeze
+
+  def self.retry_delay(attempt, retry_after: nil)
+    [ RETRY_DELAYS.fetch((attempt - 1).clamp(0, RETRY_DELAYS.size - 1)), retry_after.to_f.seconds ].max
+  end
+
+  # Requests counted against the lifetime budget: those since the last manual retry.
+  def budget_requests_used = http_requests_used - http_requests_baseline
+
+  def gave_up? = state == "failed" && retry_at.nil?
+
   UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
 
   # Atomically claims the window for one worker. Returns true only for the caller that wins; a

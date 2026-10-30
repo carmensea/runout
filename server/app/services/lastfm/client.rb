@@ -124,7 +124,8 @@ module Lastfm
       {
         username: username,
         profile_url: user["url"].presence,
-        registered_at: registered.to_s.match?(/\A\d+\z/) ? Time.at(registered.to_i).utc : nil
+        registered_at: registered.to_s.match?(/\A\d+\z/) ? Time.at(registered.to_i).utc : nil,
+        playcount: user["playcount"].to_s.match?(/\A\d+\z/) ? user["playcount"].to_i : nil
       }
     end
 

@@ -19,8 +19,18 @@ module HistoryImport
 
     # The staged snapshot can't be trusted; the window is left for review with its staging kept.
     class Inconsistent < StandardError; end
+    # The snapshot is older than StagingCleaner::STALE_AFTER: fetched again before any commit.
+    class Expired < StandardError; end
 
     BATCH = 1_000
+    # Failed commits retried automatically (with ImportWindow::RETRY_DELAYS) before the window stops
+    # as `failed` for a person to retry.
+    MAX_COMMIT_ATTEMPTS = 3
+    # Errors worth retrying: the database was briefly unavailable or contended. Anything else, such
+    # as a constraint violation, is a data-integrity problem and goes to review instead.
+    TRANSIENT_ERRORS = [ ActiveRecord::ConnectionNotEstablished, ActiveRecord::ConnectionFailed, ActiveRecord::Deadlocked,
+                         ActiveRecord::LockWaitTimeout, ActiveRecord::QueryCanceled, ActiveRecord::SerializationFailure,
+                         ActiveRecord::AdapterTimeout ].freeze
 
     def initialize(window:, token: SecureRandom.uuid, clock: -> { Time.current })
       @window = window
@@ -37,6 +47,8 @@ module HistoryImport
       outcome(:committed, "#{count} plays")
     rescue Inconsistent => e
       review(e.message)
+    rescue Expired => e
+      refetch(e.message)
     rescue ImportWindow::StaleLease => e
       outcome(:stale, e.message)
     rescue HistoryImport::DisabledError
@@ -66,6 +78,7 @@ module HistoryImport
       @window.with_lease(@token, now: now) do |window|
         HistoryImport.ensure_enabled!
         raise ImportWindow::StaleLease, "window #{window.id} is #{window.state}, not committing" unless window.state == "committing"
+        raise Expired, "validated snapshot is older than #{StagingCleaner::STALE_AFTER.inspect}" if window.validated_at < now - StagingCleaner::STALE_AFTER
 
         ImportWindow.connection.execute(ImportWindow.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "history:#{window.user_id}" ]))
         rows = staged_rows(window)
@@ -76,7 +89,7 @@ module HistoryImport
         raise "stored #{stored} plays, expected #{rows.size}" unless inserted == rows.size && stored == rows.size
 
         window.assign_attributes(state: "committed", committed_at: now, committed_count: rows.size, claim_token: nil,
-                                 lease_expires_at: nil, last_error_message: nil)
+                                 lease_expires_at: nil, last_error_message: nil, retry_at: nil)
         ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", rows.size, now ])
         rows.size
       end
@@ -152,15 +165,38 @@ module HistoryImport
       outcome(:stale, e.message)
     end
 
-    # The commit rolled back. The window goes back to `validated`, staging untouched, so a later
-    # attempt can commit it. Only the error's class and first line are kept: database messages can
+    # The commit rolled back. Only the error's class and first line are kept: database messages can
     # quote row contents on later lines.
+    # - A transient error: back to `validated`, staging untouched, retried after a delay, at most
+    #   MAX_COMMIT_ATTEMPTS times. Then `failed` with no retry, for a person to retry.
+    # - Anything else: `needs_review`, staging kept for investigation.
     def retry_later(error)
       message = "commit failed: #{error.class.name}: #{error.message.to_s.lines.first.to_s.strip.truncate(200)}"
+      return review(message) unless TRANSIENT_ERRORS.any? { |klass| error.is_a?(klass) }
+
       @window.with_lease(@token, now: now) do |window|
-        window.assign_attributes(state: "validated", last_error_message: message, claim_token: nil, lease_expires_at: nil)
+        window.commit_attempts += 1
+        if window.commit_attempts >= MAX_COMMIT_ATTEMPTS
+          window.assign_attributes(state: "failed", retry_at: nil, last_error_message: "#{message} (gave up after #{window.commit_attempts} attempts)")
+        else
+          window.assign_attributes(state: "validated", retry_at: now + ImportWindow.retry_delay(window.commit_attempts),
+                                   last_error_message: message)
+        end
+        window.assign_attributes(claim_token: nil, lease_expires_at: nil)
       end
       outcome(:failed, message)
+    rescue ImportWindow::StaleLease => e
+      outcome(:stale, e.message)
+    end
+
+    # The snapshot is too old to trust: drop it and fetch the window again.
+    def refetch(message)
+      @window.with_lease(@token, now: now) do |window|
+        ImportWindowRow.where(import_window_fetch_id: window.fetches.select(:id)).delete_all
+        window.assign_attributes(state: "pending", validated_at: nil, fetched_count: nil, expected_total: nil, retry_at: nil,
+                                 claim_token: nil, lease_expires_at: nil, last_error_message: "#{message}; fetching again")
+      end
+      outcome(:expired, message)
     rescue ImportWindow::StaleLease => e
       outcome(:stale, e.message)
     end

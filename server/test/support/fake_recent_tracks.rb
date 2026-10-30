@@ -11,8 +11,9 @@ class FakeRecentTracks
   attr_accessor :to_inclusive, :now_playing, :rate_limit_after, :shuffle_same_second
 
   # Scripting for tests: before_request.call(request_number, fake) runs before each response and may
-  # mutate the history; fail_requests maps a request number to a raw response to return instead.
-  attr_accessor :before_request, :fail_requests
+  # mutate the history; fail_requests maps a request number to a raw response to return instead;
+  # fail_when.call(query) may return a raw response for any request (for example, one period).
+  attr_accessor :before_request, :fail_requests, :fail_when
 
   def initialize(plays, username: "listener")
     @plays = plays.sort_by { |p| -p.played_at.to_i }
@@ -63,6 +64,9 @@ class FakeRecentTracks
     @requests += 1
     before_request&.call(@requests, self)
     return fail_requests[@requests] if fail_requests.key?(@requests)
+    if fail_when && (failure = fail_when.call(query))
+      return failure
+    end
 
     if rate_limit_after && @requests > rate_limit_after
       return json({ error: 29, message: "Rate Limit Exceeded" }, status: 429)

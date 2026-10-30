@@ -6,7 +6,9 @@ module HistoryImport
   # - staging of committed windows (the plays are in `scrobbles`);
   # - unfinished fetches of windows whose worker no longer holds a lease (a crashed worker);
   # - staging of windows validated more than STALE_AFTER ago that were never committed. Those
-  #   windows go back to `pending` and are fetched again, since the snapshot is out of date anyway.
+  #   windows go back to `pending` and are fetched again, since the snapshot is out of date anyway;
+  # - staging still held by `pending` or `failed` windows (a commit that gave up), which are
+  #   fetched again from scratch.
   #
   # Never touched: windows under a valid lease (a worker is busy with them), `committing` windows,
   # and `needs_review` windows, whose staging a reviewer may need.
@@ -26,6 +28,7 @@ module HistoryImport
       ImportWindow.committed.where(id: windows_with_staging).find_each { |window| deleted[:committed] += clean_window(window) }
       ImportWindow.where(id: windows_with_unfinished_fetches).find_each { |window| deleted[:abandoned] += abandon_fetches(window) }
       ImportWindow.where(state: "validated").where(validated_at: ...(now - STALE_AFTER)).find_each { |window| deleted[:stale] += reset_stale(window) }
+      ImportWindow.where(state: %w[pending failed], id: windows_with_staging).find_each { |window| deleted[:refetch] += drop_refetch_staging(window) }
       deleted
     end
 
@@ -71,6 +74,16 @@ module HistoryImport
         count = ImportWindowRow.where(import_window_fetch_id: stale.select(:id)).delete_all
         stale.update_all(outcome: "failed", error_message: "abandoned: the worker stopped before finishing", finished_at: now, updated_at: now)
         count
+      end
+    end
+
+    # Pending and failed windows are fetched again from scratch, so a snapshot they still hold
+    # (from a commit that gave up) is never used.
+    def drop_refetch_staging(window)
+      locked(window) do |w|
+        next 0 unless %w[pending failed].include?(w.state) && idle?(w)
+
+        staging_for(w).where.not(import_window_fetch_id: w.fetches.where(outcome: "in_progress").select(:id)).delete_all
       end
     end
 

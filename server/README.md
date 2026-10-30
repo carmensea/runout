@@ -80,6 +80,20 @@ bin/rails runout:storage_report # on-disk size of all data derived from Last.fm
 
 Findings: `docs/lastfm-api-findings.md`.
 
+The import itself (Stage 2.6) is built but refuses to run while storage is off. When it is
+allowed, these operator tasks drive it (`USERNAME=` picks the account; default: the single linked
+one):
+
+```sh
+bin/rails import:start    # plan and start, newest month first; safe to repeat
+bin/rails import:status   # progress from committed data only
+bin/rails import:pause    # the month in progress finishes, nothing new starts
+bin/rails import:resume   # verifies the account again, then continues
+bin/rails import:cancel   # stops; committed history is kept
+bin/rails import:retry    # retries stopped or reviewed months (WINDOW=id for one)
+bin/rails catalogue:match # matches stored names to artists, albums and tracks
+```
+
 ## Environment
 
 | Variable | Purpose |
@@ -90,7 +104,10 @@ Findings: `docs/lastfm-api-findings.md`.
 | `ACTIVE_RECORD_ENCRYPTION_*` | Required in production; derived from the local secret in development |
 | `DATABASE_URL`, `CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL` | Production (Neon, direct connections) |
 | `SECRET_KEY_BASE` | Production |
-| `JOB_THREADS` | Solid Queue worker threads (default 2) |
+| `SOLID_QUEUE_IN_PUMA` | Production: set to `1` to run Solid Queue (jobs, recurring watchdog) inside Puma |
+| `JOB_THREADS` | Solid Queue worker threads (default 2): one import step and one maintenance job at a time |
+| `RAILS_MAX_THREADS` | Database connections per pool (default 5). Keep it at least Puma's threads, and at least `JOB_THREADS` + 2 for the queue database |
+| `SOLID_QUEUE_SHUTDOWN_TIMEOUT` | Seconds a running job gets to finish on deploy (default 25; keep below Render's 30 s grace period). Unfinished jobs are released and redelivered |
 | `LASTFM_MIN_REQUEST_INTERVAL` | Seconds between Last.fm requests across all processes (default 1.0) |
 | `LASTFM_HISTORY_STORAGE_ENABLED` | Off unless exactly `true` or `1`. Gates storing Last.fm listening history; keep off until Last.fm's storage terms are resolved |
 

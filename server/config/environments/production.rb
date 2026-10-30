@@ -46,6 +46,10 @@ Rails.application.configure do
   # Replace the default in-process and non-durable queuing backend for Active Job.
   config.active_job.queue_adapter = :solid_queue
   config.solid_queue.connects_to = { database: { writing: :queue } }
+  # On deploy, give a running job time to finish its current request before the process stops.
+  # A job that doesn't finish is released and redelivered; import steps resume where they were.
+  # Keep this below the platform's shutdown grace period (Render: 30 s).
+  config.solid_queue.shutdown_timeout = ENV.fetch("SOLID_QUEUE_SHUTDOWN_TIMEOUT", 25).to_i.seconds
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).

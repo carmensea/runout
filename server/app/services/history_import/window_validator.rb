@@ -38,7 +38,7 @@ module HistoryImport
         return review("validation was attempted #{@window.attempts - 1} times without success")
       end
 
-      @budget = budget = RequestBudget.new(@client, previously_used: @window.http_requests_used)
+      @budget = budget = RequestBudget.new(@client, previously_used: @window.budget_requests_used)
       fetcher = SnapshotFetcher.new(client: @client, username: @username, session_key: @session_key, budget: budget,
                                     max_pages: MAX_PAGES)
       range = @window.window_from...@window.window_to
@@ -62,10 +62,11 @@ module HistoryImport
             return review("request budget for this window is used up across attempts (#{budget.total_used} of #{budget.total_limit} requests)")
           end
 
-          return fail_window(message: "#{e.message} (#{budget.used} of #{budget.limit} requests this run)")
+          return fail_window(message: "#{e.message} (#{budget.used} of #{budget.limit} requests this run)", retryable: true)
         rescue Lastfm::Error => e
           finish_fetch(fetch, outcome: "failed", message: e.message, http_status: e.http_status, lastfm_error: e.code)
-          return fail_window(message: e.message, http_status: e.http_status, lastfm_error: e.code)
+          return fail_window(message: e.message, http_status: e.http_status, lastfm_error: e.code, retryable: e.retryable?,
+                             retry_after: e.retry_after)
         end
 
         snapshot = result.snapshot
@@ -177,21 +178,24 @@ module HistoryImport
         matching_fetch.update!(outcome: "validated", finished_at: matching_fetch.finished_at || now)
         fetch.update!(outcome: "validated", finished_at: now)
         window.assign_attributes(state: "validated", validated_at: now, expected_total: snapshot.reported_total,
-                                 fetched_count: snapshot.size, malformed_count: 0, claim_token: nil, lease_expires_at: nil,
+                                 fetched_count: snapshot.size, malformed_count: 0, claim_token: nil, lease_expires_at: nil, retry_at: nil,
                                  last_error_message: nil, last_http_status: nil, last_lastfm_error: nil)
       end
       outcome(:validated, "#{snapshot.size} plays")
     end
 
     def review(message)
-      lease { |window| window.assign_attributes(state: "needs_review", last_error_message: message, claim_token: nil, lease_expires_at: nil) }
+      lease { |window| window.assign_attributes(state: "needs_review", last_error_message: message, claim_token: nil, lease_expires_at: nil, retry_at: nil) }
       outcome(:needs_review, message)
     end
 
-    def fail_window(message:, http_status: nil, lastfm_error: nil)
+    # Transient failures are retried later, with backoff, until the attempt ceiling. Permanent ones
+    # (a rejected request, a response we can't use) stop at once: retrying would fail the same way.
+    def fail_window(message:, http_status: nil, lastfm_error: nil, retryable: false, retry_after: nil)
+      retry_at = (now + ImportWindow.retry_delay(@window.attempts, retry_after: retry_after) if retryable && @window.attempts < MAX_WINDOW_ATTEMPTS)
       lease do |window|
         window.assign_attributes(state: "failed", last_error_message: message, last_http_status: http_status,
-                                 last_lastfm_error: lastfm_error, claim_token: nil, lease_expires_at: nil)
+                                 last_lastfm_error: lastfm_error, claim_token: nil, lease_expires_at: nil, retry_at: retry_at)
       end
       outcome(:failed, message)
     end

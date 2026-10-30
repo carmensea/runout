@@ -1,12 +1,12 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.4 are implemented**: feature flag, read-only probe, findings, storage
+Status: **Stages 2.0 to 2.6 are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
 window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
 windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
 canonical artist, album and track matching, on synthetic data (2.5).
-Order from here: 2.6 orchestration, then 2.4b reconciliation, which must land before 2.7
-(ongoing sync).
+Orchestration and recovery (2.6) too, on synthetic data. Order from here: 2.4b reconciliation,
+which must land before 2.7 (ongoing sync).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -384,8 +384,9 @@ to the resolved artist and to any artists merged into it.
    found before anything is created, under an advisory lock per name, so repeats and concurrent
    runs create no duplicates. Links are final after one pass. A second pass may add a
    `possible_match` review for a variant matched before an identified entity of that name existed.
-8. **Clean-up** of variants and catalogue rows that no scrobble references is deferred to Stage
-   2.6 (watchdog), and must keep rows that manual decisions or open reviews refer to.
+8. **Clean-up** of variants and catalogue rows that no scrobble references is deferred by decision
+   (2026-10-29); nothing in the catalogue is deleted yet. When built, it must keep rows that manual
+   decisions or open reviews refer to.
 
 ### 6.5 Performance notes
 
@@ -425,21 +426,44 @@ to the resolved artist and to any artists merged into it.
 
 ### 7.1 Job graph
 
+Implemented in Stage 2.6 as one chain of short steps per run (`HistoryImport::Orchestrator`),
+rather than separate fetch and merge jobs. One step handles one window, so a window's validation
+and commit happen back to back and its staging lives for seconds.
+
 | Job | Queue | Does |
 |---|---|---|
-| `StartImportJob(user)` | `default` | Account resolution (§5.1), plan windows, enqueue fetches newest first |
-| `FetchWindowJob(window)` | `lastfm` | Fetch, then verify; on success enqueue the merge |
-| `MergeWindowJob(window)` | `default` | Merge (§4.4), update run progress, finish the run when all windows are merged |
-| `IncrementalSyncJob`, `CatchUpJob`, `ReconcileJob` | `default` | Create windows; the work happens in the same fetch and merge jobs |
+| `ImportRunJob(run, token)` | `lastfm` | One step. In `planning`: verify the account (§5.1), plan windows, start. In `running`: the next window due (ready-to-commit first, then newest first), validated then committed. Then enqueue the next step, wait for the earliest retry, finish, or hand the run to review |
+| `CatalogueMatchJob` | `default` | After commits: `Catalogue::Matcher#match_pending!`, 2,000 variants per job (duplicates discarded) |
+| `ImportWatchdogJob` | `default`, every 10 min (`config/recurring.yml`) | `HistoryImport::Recovery#run!`: expired leases, `StagingCleaner`, stalled runs |
+| `IncrementalSyncJob`, `CatchUpJob`, `ReconcileJob` | `default` | Stage 2.7: create windows; the work happens in the same steps |
+
+**Run states:** `planning`, `running`, then `completed`. Also `paused` and `needs_review` (both
+wait for a person; only stopped or reviewed windows remain), `failed` (the account check or access
+failed, or the run stalled repeatedly) and `cancelled`. At most one active run per user (a partial
+unique index).
+
+**The job token.** `import_runs.job_token` names the one job chain allowed to act.
+- A step swaps the token for a new one as it starts (a conditional UPDATE), so of two deliveries
+  of the same job only one proceeds.
+- The step's token is also its window lease token.
+- Pause, cancel and watchdog restarts replace the token, so stale or duplicate jobs stop at once.
+- A step that dies leaves a token no job holds. The watchdog restarts the quiet run, and the
+  window it held is taken over once its lease expires.
 
 ### 7.2 Concurrency and pacing
 
-- **Queues** (`config/queue.yml`):
-  - `lastfm`: 1 thread, so all Last.fm traffic from this process is serialised.
-  - `default`: 1 thread.
-  - This is still within the conservative settings from Milestone 1.
-- **One import per user:** `limits_concurrency to: 1, key: ->(user) { user.id }` on
-  `StartImportJob` and the sync jobs.
+- **Queues** (`config/queue.yml`): one worker process with `JOB_THREADS` (2) threads for all
+  queues, inside Puma. That allows one import step and one maintenance job at a time. All Last.fm
+  traffic also goes through the global pacer.
+- **One import step per user:** `ImportRunJob` has `limits_concurrency to: 1` keyed by user, which
+  blocks rather than discards (the next step is enqueued while the current one still holds the
+  semaphore). The job token makes duplicates harmless anyway. `CatalogueMatchJob` and
+  `ImportWatchdogJob` discard duplicates.
+- **Short jobs.** A step is at most one window (4 complete reads of at most 20 pages, about 90
+  seconds at the default pacing), and no transaction or lock is held during its HTTP requests.
+- **Deploys.** `SOLID_QUEUE_SHUTDOWN_TIMEOUT` (25 s) lets a running step finish its current
+  request. A job that doesn't finish is redelivered after the restart; its token is stale by
+  then, so it stops, and the watchdog resumes the run.
 - **Pacing (implemented in Stage 2.2):** `Lastfm::RequestPacer`, backed by the
   `api_request_slots` table, gives one schedule shared by every process.
   - Each request atomically reserves the next slot (`LASTFM_MIN_REQUEST_INTERVAL`, default 1 s)
@@ -456,11 +480,17 @@ to the resolved artist and to any artists merged into it.
 - **Every job re-reads state first** and does nothing if there is nothing to do (for example, the
   window is already `committed`). Enqueuing a job twice is harmless.
 - **State changes** use `lock_version`, so concurrent duplicates cannot both proceed.
-- **Process crashes** (deploy or OOM):
-  - Solid Queue reclaims jobs whose process died.
-  - A window whose lease has expired (30 minutes) while `fetching`, `validating` or `committing`
-    is reset to `pending` by a watchdog in `SyncAllUsersJob`, discarding its staging rows.
-  - Merges are transactional, so a crash mid-merge leaves no partial writes.
+- **Process crashes** (deploy or OOM), handled by the watchdog (`HistoryImport::Recovery`,
+  Stage 2.6):
+  - A window whose lease has expired goes back to where a new worker starts. `fetching` or
+    `validating` goes to `pending`, and `StagingCleaner` discards the partial fetch. `committing`
+    goes to `validated`: the transaction rolled back, and staging is intact.
+  - A working run with no step for 20 minutes (`STALL_AFTER`) is restarted with a new token.
+    After 5 restarts without progress it stops as `failed`.
+  - Commits are transactional, so a crash mid-commit leaves no partial writes. Committed windows
+    are never claimed again.
+  - The watchdog schedules nothing while history storage is off. Its clean-up deletes only
+    staging rows, never history, reviews or catalogue rows.
 - **Combined retry budget** (Stage 2.3). The client and the jobs retry separately, so the limits
   are set together; an outage can't multiply into a flood of requests:
 
@@ -475,12 +505,28 @@ to the resolved artist and to any artists merged into it.
 
   The worst case for one page call is 2 × 5 = 10 HTTP attempts, and every request a window
   validation makes counts against that window's budget.
-- **Retries** (`ApplicationJob` from Milestone 1, plus per-job policy):
-  - Last.fm temporary errors and 429: polynomial backoff, 8 attempts.
-  - A verification mismatch: up to 3 window attempts, then `failed`.
-  - Error 9: stop and revoke. Errors 10 and 26: stop all Last.fm jobs and record an alert.
-- **Resume:** `POST /api/import/resume` re-queues `failed` windows (and `needs_review` windows,
-  once reviewed). It never restarts merged windows.
+- **Retries** (Stage 2.6), all scheduled through `retry_at` (5 min, 30 min, 2 h, 6 h), never by
+  sleeping:
+  - **Validation:**
+    - Transient Last.fm errors, and a per-run budget overrun, retry until the window's 5th
+      attempt.
+    - Permanent errors (a rejected request, an unusable response) stop at once.
+    - A stopped window is `failed` with no `retry_at`.
+    - Lifetime budget exhaustion and data problems go to `needs_review`.
+  - **Commit:** transient database errors (connection, deadlock, timeout) retry up to 3 times,
+    then the window stops as `failed`. Any other error is a data-integrity problem and goes to
+    `needs_review` at once, staging kept.
+  - **Expired snapshots:** a commit refuses a snapshot validated more than 7 days earlier. The
+    window goes back to `pending` and is fetched and validated again.
+  - **Account check:** transient failures retry, bounded by the stall limit.
+  - **Run-stopping errors:** error 9 (session rejected) and errors 10 and 26 (API key) stop the
+    run as `failed`, with a message. Identities are not changed by the import.
+  - **Isolation:** one window's failure never stops the others. The run goes to `needs_review`
+    only when every remaining window needs a person.
+- **Manual retry:** `bin/rails import:retry` (API in Stage 2.8). It re-fetches stopped or reviewed
+  windows from scratch, with fresh attempt counters and a fresh lifetime request budget
+  (`http_requests_baseline`; all requests stay counted in `http_requests_used`). A run waiting for
+  review then resumes. Committed windows never restart.
 
 ## 8. API contracts
 
@@ -572,7 +618,9 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **2.3 Window fetch and verify** (done 2026-10-29) | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
 | **2.4 Atomic commit** (done 2026-10-29) | Commit of validated windows into ranges with no stored plays; staging clean-up; coverage status; lifetime request accounting | Commit, rollback, crash, lease, concurrency, flag, coverage and budget tests; nothing real stored |
 | **2.5 Catalogue matching** (done 2026-10-29) | §6.4: variants to artists, releases and recordings; aliases; reviews and decisions; re-matching | Duplicate names, missing and invalid IDs, aliases, distinct recordings, ambiguity, repeat and concurrent matching, account isolation; nothing touches scrobbles |
-| **2.6 Orchestration** | Jobs, queues, concurrency limits, progress, watchdog, resume, catalogue clean-up | Crash and duplicate-enqueue tests; progress is monotonic; flag off means jobs refuse. **Bounded commit retries:** repeated commit failures move a window to a recoverable `failed` or `needs_review` state instead of retrying forever. **Expired snapshots:** a window whose staged snapshot expired (`StagingCleaner`) is re-fetched and re-validated before any later commit |
+| **2.6 Orchestration** (done 2026-10-29) | Jobs, queues, concurrency limits, progress, watchdog, pause, resume, cancel, manual retry; bounded validation and commit retries; expired snapshots re-fetched before commit | Full synthetic import; simultaneous workers; restart halfway; failing and permanently failing months; crashes after validation and mid-commit; expired staging; duplicate jobs; pause, resume, cancel; account deletion and revocation; storage off before and during; final counts and coverage |
+| **Later: catalogue clean-up** | Remove variants and catalogue rows no scrobble references, keeping any that decisions or open reviews refer to | Deferred by decision (2026-10-29); nothing is deleted until then |
+| **Later: matching coverage** | Analytics expose matching coverage: identified, name-only, unmatched, ambiguous | No UI needed at first |
 | **2.4b Reconciliation** (after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
 | **2.7 Sync, catch-up, reconcile** | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
 | **2.8 API and frontend** | `ConnectionState` mapping, `/api/import` endpoints, 501 handling, Settings import panel | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
@@ -615,6 +663,28 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
+- Stage 2.6 orchestration decisions (`HistoryImport::Orchestrator`, `Recovery`, `Progress`):
+  - **One chain of short steps per run**, guarded by a job token swapped at the start of every
+    step, instead of separate fetch and merge jobs. Same-token window reclaims were dropped: two
+    deliveries of one job could otherwise both act. Recovery after a crash therefore waits for
+    the watchdog (stall 20 min, lease 30 min) rather than being instant. That is slower, but
+    never doubles work.
+  - **Progress** (`HistoryImport::Progress.for(user)`) counts only committed windows. "Complete"
+    is judged by coverage from the first month to the run's cutoff, never by comparing counts:
+    Last.fm's playcount includes later plays and can change. `percent` stays at most 99 until
+    coverage is complete. Window buckets are `pending` (including scheduled retries),
+    `processing`, `committed`, `failed` (stopped) and `review`.
+  - **Cancellation** stops new work and keeps committed history. A later run adopts the
+    uncommitted windows. A step already validating may finish its fetch, but it doesn't commit
+    once the run is paused or cancelled.
+  - **Account deletion** cascades runs, windows, staging and scrobbles. A step in progress ends
+    with `StaleLease` or `:gone`.
+  - **Revocation** (identity revoked or session missing) and error 9 stop the run. The import
+    never edits identities; the auth system is unchanged.
+  - **Storage off:** `start!`, `schedule!`, `before_enqueue` on the import and matching jobs, and
+    every step check the flag. A step that finds it off mid-way raises before staging or
+    committing, and the run resumes when storage is enabled again (watchdog).
+  - **Clean-up of shared catalogue rows** stays deferred. `match_method` stays.
 - Stage 2.5 matching decisions (`Catalogue::Matcher`, `Catalogue::Decisions`):
   - **No name-only merging into identified entities.** This replaces the earlier rule that
     same-named artists without MBIDs collapse into an identified one. Name-only entities stand

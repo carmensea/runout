@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000011) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000013) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -106,10 +106,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000011) do
     t.text "last_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "job_token"
+    t.datetime "history_from"
+    t.datetime "cutoff_at"
+    t.integer "reported_playcount"
+    t.bigint "current_window_id"
+    t.datetime "last_activity_at"
+    t.datetime "last_committed_at"
+    t.datetime "last_scheduled_at"
+    t.datetime "next_step_at"
+    t.datetime "paused_at"
+    t.datetime "cancelled_at"
+    t.integer "stall_kicks", default: 0, null: false
     t.index ["user_id", "created_at"], name: "index_import_runs_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_import_runs_on_user_id"
+    t.index ["user_id"], name: "index_import_runs_one_active_per_user", unique: true, where: "((state)::text = ANY ((ARRAY['planning'::character varying, 'running'::character varying, 'paused'::character varying, 'needs_review'::character varying])::text[]))"
     t.check_constraint "kind::text = ANY (ARRAY['full'::character varying, 'sync'::character varying, 'catch_up'::character varying, 'reconcile'::character varying]::text[])", name: "import_runs_kind"
-    t.check_constraint "state::text = ANY (ARRAY['planning'::character varying, 'running'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "import_runs_state"
+    t.check_constraint "state::text = ANY (ARRAY['planning'::character varying, 'running'::character varying, 'paused'::character varying, 'needs_review'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "import_runs_state"
   end
 
   create_table "import_window_fetches", force: :cascade do |t|
@@ -172,8 +185,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000011) do
     t.datetime "updated_at", null: false
     t.integer "committed_count"
     t.integer "http_requests_used", default: 0, null: false
+    t.integer "commit_attempts", default: 0, null: false
+    t.datetime "retry_at"
+    t.integer "http_requests_baseline", default: 0, null: false
     t.index ["import_run_id"], name: "index_import_windows_on_import_run_id"
     t.index ["parent_window_id"], name: "index_import_windows_on_parent_window_id"
+    t.index ["user_id", "state", "retry_at"], name: "index_import_windows_on_user_id_and_state_and_retry_at"
     t.index ["user_id", "state"], name: "index_import_windows_on_user_id_and_state"
     t.index ["user_id", "window_from", "window_to"], name: "index_import_windows_on_user_id_and_window_from_and_window_to", unique: true
     t.index ["user_id"], name: "index_import_windows_on_user_id"

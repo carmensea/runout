@@ -23,7 +23,7 @@ class HistoryImport::WindowCommitterTest < ActiveSupport::TestCase
   def staged(window = @window) = ImportWindowRow.where(import_window_fetch_id: window.fetches.select(:id))
 
   # Replaces Scrobble.insert_all! for the duration of the block. `fail_on` names the call that raises.
-  def failing_inserts(fail_on:, error: ActiveRecord::StatementInvalid.new("simulated failure\nDETAIL: Failing row contains (secret)"))
+  def failing_inserts(fail_on:, error: ActiveRecord::ConnectionFailed.new("simulated failure\nDETAIL: Failing row contains (secret)"))
     calls = 0
     Scrobble.define_singleton_method(:insert_all!) do |*args, **options|
       calls += 1
@@ -132,7 +132,8 @@ class HistoryImport::WindowCommitterTest < ActiveSupport::TestCase
     assert_equal 0, stored.count, "the first batch was rolled back too"
     assert_equal 0, NameVariant.count, "variants inserted in the failed transaction are gone"
     w = @window.reload
-    assert_equal [ "validated", nil, nil, nil ], [ w.state, w.committed_at, w.committed_count, w.claim_token ]
+    assert_equal [ "validated", nil, nil, nil, 1 ], [ w.state, w.committed_at, w.committed_count, w.claim_token, w.commit_attempts ]
+    assert_in_delta 5.minutes.from_now, w.retry_at, 5, "a scheduled retry, not an immediate one"
     assert_match "simulated failure", w.last_error_message
     assert_no_match "secret", w.last_error_message, "only the first line of a database error is kept"
     assert_equal 1_500, staged.count, "staging survives for the retry"
@@ -140,6 +141,34 @@ class HistoryImport::WindowCommitterTest < ActiveSupport::TestCase
     assert_equal :committed, commit.status
     assert_equal 1_500, stored.count
     assert_nil @window.reload.last_error_message
+  end
+
+  test "commit retries are bounded: after the last one the window stops for a person to retry" do
+    stage!(@window, plays(2))
+    attempts = HistoryImport::WindowCommitter::MAX_COMMIT_ATTEMPTS
+    failing_inserts(fail_on: 1) { assert_equal :failed, commit.status }
+    (attempts - 1).times { failing_inserts(fail_on: 1) { commit } }
+    w = @window.reload
+    assert_equal [ "failed", nil, attempts ], [ w.state, w.retry_at, w.commit_attempts ]
+    assert w.gave_up?
+    assert_match "gave up after #{attempts} attempts", w.last_error_message
+    assert_equal :not_claimed, commit.status, "a stopped window isn't committed automatically"
+    assert_equal 0, stored.count
+  end
+
+  test "a data-integrity error during commit goes to review at once, staging kept" do
+    stage!(@window, plays(2))
+    result = failing_inserts(fail_on: 1, error: ActiveRecord::RecordNotUnique.new("duplicate key")) { commit }
+    assert_equal :needs_review, result.status
+    assert_equal [ "needs_review", 0, 2 ], [ @window.reload.state, @window.commit_attempts, staged.count ]
+  end
+
+  test "an expired snapshot is never committed; the window is fetched again" do
+    stage!(@window, plays(2), at: 8.days.ago)
+    result = commit
+    assert_equal :expired, result.status
+    assert_equal [ "pending", nil, 0 ], [ @window.reload.state, @window.validated_at, staged.count ]
+    assert_equal 0, stored.count
   end
 
   test "a crash mid-commit leaves nothing behind, and the window is committed once the lease expires" do

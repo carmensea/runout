@@ -36,11 +36,14 @@ module Catalogue
     end
 
     # Matches every variant not yet matched under the current rules. Returns how many were processed.
-    def match_pending!
-      scope = NameVariant.where("match_version IS NULL OR match_version < ?", VERSION)
+    # `limit` bounds one call, so a job never runs for long.
+    def match_pending!(limit: nil)
+      scope = NameVariant.where("match_version IS NULL OR match_version < ?", VERSION).order(:id)
       count = 0
       scope.in_batches(of: 500) do |batch|
         batch.order(:id).each do |variant|
+          return count if limit && count >= limit
+
           match!(variant)
           count += 1
         end
