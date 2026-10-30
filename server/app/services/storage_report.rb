@@ -1,9 +1,13 @@
 # Size of everything Runout stores that derives from Last.fm (docs/milestone-2-plan.md §2), to
 # compare with whatever Last.fm's terms allow. Read-only.
 #
-# Later stages add their tables (scrobbles, name variants, staging, catalogue) to LASTFM_TABLES.
 module StorageReport
-  LASTFM_TABLES = %w[identities lastfm_connections].freeze
+  LASTFM_TABLES = %w[
+    identities lastfm_connections
+    scrobbles scrobble_corrections scrobble_removals
+    name_variants artists albums tracks
+    import_runs import_windows import_window_fetches import_window_rows
+  ].freeze
 
   Row = Data.define(:table, :rows, :bytes)
 

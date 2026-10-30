@@ -58,4 +58,14 @@ namespace :runout do
     report.each { |row| puts format("%-24s %10d rows %12s", row.table, row.rows, ActiveSupport::NumberHelper.number_to_human_size(row.bytes)) }
     puts format("%-24s %16s %12s", "total", "", ActiveSupport::NumberHelper.number_to_human_size(StorageReport.total_bytes(report)))
   end
+
+  # Measures on-disk size (tables plus indexes) for a synthetic history of the given size, then
+  # rolls everything back. Synthetic data only; refuses to run in production.
+  #   RAILS_ENV=test bin/rails "runout:storage_estimate[209000]"
+  desc "Measure storage for a synthetic history (rolled back; not in production)"
+  task :storage_estimate, [ :scrobbles ] => :environment do |_task, args|
+    abort "Refusing to run in production." if Rails.env.production?
+
+    StorageEstimate.run(scrobbles: Integer(args[:scrobbles] || 209_000)).each { |line| puts line }
+  end
 end

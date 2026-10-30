@@ -1,6 +1,7 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stage 2.0 is implemented** (feature flag, read-only probe, findings, storage report).
+Status: **Stages 2.0 and 2.1 are implemented**: feature flag, read-only probe, findings, storage
+report (2.0); database schema and models, with no data stored (2.1).
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
 storage questions (`docs/lastfm-permission-email.md`) are resolved.
 
@@ -133,7 +134,7 @@ pacing of 1 request per second (A7 may change this), that's about 32 minutes.
    - every page succeeded and the total row count matches what Last.fm reported (A1);
    - a second read of page 1, taken after the last page, reports the same total and the same
      first row (catches new or back-dated plays landing mid-fetch);
-   - `malformed_count = 0`, or the window is marked `needs_review` and not merged automatically.
+   - `malformed_count = 0`, or the window is marked `needs_review` and not committed automatically.
 5. **Mismatch.** Clear the staging rows and refetch, up to 3 attempts. After that the window is
    `failed`, with details kept (§7).
 
@@ -147,25 +148,28 @@ Transaction-level locks are safe on a direct connection (backend-plan §9).
 
 The merge follows the algorithm in backend-plan §4. For each second `t`:
 
-1. Pair the staged and stored rows whose `variant_hash` is identical.
-2. Pair what's left on each side in order; each such pair is a **name correction**:
-   - update `scrobbles.variant_id`;
-   - insert into `scrobble_revisions` (from, to, and the import that saw it);
-   - the scrobble's `id`, `played_at` and `seq` never change.
+1. Pair the staged and stored rows whose variant is identical, matching the staged `occurrence`
+   numbers to stored rows one to one, so identical plays in one second stay separate.
+2. Pair what's left on each side in order; each such pair is a **name correction**, recorded in
+   `scrobble_corrections`. The scrobble's `id`, `played_at` and `seq` never change.
+   - **Unambiguous** (exactly one leftover play on each side in that second): state `applied`,
+     and `scrobbles.name_variant_id` moves to the new variant.
+   - **Anything uncertain** (several leftover plays in the second, so the pairing is a guess):
+     state `pending_review`. The scrobble keeps its original variant until a decision.
 3. Staged rows still unpaired are **new plays**: insert them with the next free `seq`.
 4. Stored rows still unpaired are **missing upstream**:
-   - record them in `scrobble_absences(scrobble_id, import_window_fetch_id)`;
-   - when the previous verified fetch of this window also missed them (two consecutive reads
-     agree), mark them **pending removal** (`scrobble_absences.state = 'pending_review'`);
+   - record a `scrobble_removals` row in state `observed`, with `first_missing_fetch_id`;
+   - when the next verified fetch of this window also misses them (two consecutive reads agree),
+     set `confirming_fetch_id` and state `pending_review`;
    - **every removal requires review (decision 2).** The merge never sets `removed_at` itself.
      Pending removals are listed for review (`bin/rails import:removals` from Stage 2.4; the
      Settings panel from Stage 2.8):
      - **Approving** sets `removed_at` (still a soft delete).
-     - **Dismissing** keeps the scrobble. A later fetch that sees the play again clears the absence
-       automatically.
+     - **Dismissing** keeps the scrobble. If a later fetch sees the play again, an open proposal
+       becomes `restored` automatically.
    - Pending removals don't block the rest of the merge: new plays and name corrections in the same
      window are still applied.
-5. Delete the window's staging rows; mark the window `merged` and set `merged_at`.
+5. Delete the window's staging rows; mark the window `committed` and set `committed_at`.
 
 **Never destructive.** No code path hard-deletes scrobbles except account deletion. A failed,
 partial or interrupted window writes nothing to `scrobbles`, because the merge runs only after
@@ -209,36 +213,49 @@ relink re-points the identity without moving any rows.
 Incremental sync and catch-up reuse the window fetch, verify and merge pipeline. There is only
 one code path that writes `scrobbles`.
 
-## 6. Data model
+## 6. Data model (implemented in Stage 2.1)
 
-All user-owned tables carry `user_id uuid` with `on_delete: :cascade`.
+All user-owned tables carry `user_id uuid` with `on_delete: :cascade`, so deleting an account
+removes its history in one statement. Every history model refuses to create rows while history
+storage is disabled (`HistoryStorage` concern, `LASTFM_HISTORY_STORAGE_ENABLED`).
 
-### 6.1 History
+### 6.1 History and reconciliation
 
-**`scrobbles`**
+**`scrobbles`**: one row per play.
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | bigint | |
+| `id` | bigint | Each play's own internal ID (Last.fm provides none) |
 | `user_id` | uuid, not null | |
-| `played_at` | timestamptz, not null | UTC, second precision |
-| `seq` | smallint, not null, default 0 | Order among plays in the same second |
-| `variant_id` | bigint, not null | References `name_variants` |
-| `removed_at` | timestamptz | Soft delete, set only by an approved review (§4.4) |
-| `first_seen_window_fetch_id` | bigint | |
-| `created_at`, `updated_at` | timestamptz | |
+| `played_at` | timestamp, not null | UTC, second precision |
+| `seq` | smallint, not null, default 0 | Slot among plays in the same second; check `seq >= 0` |
+| `name_variant_id` | bigint, not null | Exact strings Last.fm sent; FK restrict |
+| `removed_at` | timestamp | Soft delete, set only by an approved removal |
+| `first_seen_fetch_id` | bigint | Audit: the fetch that first stored it |
+| `created_at` | timestamp | No `updated_at`: kept lean |
 
 Indexes:
-- unique `(user_id, played_at, seq)` (identity);
-- `(user_id, played_at) WHERE removed_at IS NULL` (range reads for charts);
-- `(variant_id)` (catalogue clean-up and re-resolution).
+- Unique `(user_id, played_at, seq)` is the identity, and also serves user-scoped date-range
+  queries. Track identity is deliberately **not** in the key: identical plays in one second are
+  separate rows, and a renamed play never becomes a second row.
+- `(name_variant_id)`.
 
-**`scrobble_revisions`**: `scrobble_id`, `from_variant_id`, `to_variant_id`,
-`import_window_fetch_id`, `created_at`. Indexed on `scrobble_id`.
+There is no separate range index; a test confirms the planner uses the identity index.
 
-**`scrobble_absences`**: `scrobble_id`, `import_window_fetch_id`, `state` (`observed`,
-`pending_review`, `approved`, `dismissed`), `reviewed_at`. Unique on (`scrobble_id`,
-`import_window_fetch_id`).
+**`scrobble_corrections`**: `user_id`, `scrobble_id`, `from_variant_id`, `to_variant_id`,
+`import_window_fetch_id`, `state` (`applied`, `pending_review`, `dismissed`), `reason`,
+`decided_at`, `decided_by_id`, `decision_note`.
+- Checks: the variant must change, and decided states need `decided_at`.
+- At most one `pending_review` per scrobble (partial unique index).
+- Rows are never deleted.
+
+**`scrobble_removals`**: `user_id`, `scrobble_id`, `first_missing_fetch_id`,
+`confirming_fetch_id`, `state` (`observed`, `pending_review`, `approved`, `dismissed`,
+`restored`), `decided_at`, `decided_by_id`, `decision_note`.
+- `pending_review` requires `confirming_fetch_id` (two reads), and decided states need
+  `decided_at`.
+- At most one open proposal per scrobble (partial unique index).
+- Rows are never deleted.
 
 **`loved` (deferred, decision 3).** It's not requested (`extended=0`) or stored in Milestone 2.
 Forward compatibility:
@@ -250,42 +267,61 @@ Forward compatibility:
 
 ### 6.2 Import state
 
-**`import_runs`**: `user_id`, `kind` (`full`, `sync`, `catch_up`, `reconcile`), `state` (`planning`,
-`running`, `completed`, `failed`, `cancelled`), `started_at`, `finished_at`,
-`expected_scrobbles` (Last.fm `playcount` at the start), `merged_scrobbles`, `last_error`.
-Index `(user_id, created_at)`.
+**`import_runs`**: `user_id`, `kind` (`full`, `sync`, `catch_up`, `reconcile`), `state`
+(`planning`, `running`, `completed`, `failed`, `cancelled`), `expected_scrobbles`,
+`committed_scrobbles`, `started_at`, `finished_at`, `last_error`.
 
-**`import_windows`**
+**`import_windows`**: a range `[window_from, window_to)`, monthly by default.
 
 | Column | Notes |
 |---|---|
-| `user_id`, `window_from`, `window_to` | Unique together |
-| `state` | `pending`, `fetching`, `verified`, `merging`, `merged`, `failed`, `needs_review` |
+| `user_id`, `window_from`, `window_to` | Unique together; check `window_from < window_to` |
+| `state` | `pending → fetching → validating → validated → committing → committed`, plus `failed`, `needs_review` and `split` (a window replaced by smaller ones, linked by `parent_window_id`) |
 | `expected_total`, `fetched_count`, `malformed_count`, `attempts` | |
-| `last_error_code`, `last_http_status`, `last_error_page`, `last_error_message` | |
-| `verified_at`, `merged_at`, `lock_version` | `lock_version` for optimistic locking |
-| `import_run_id` | Latest run to touch it |
+| `claim_token` (uuid), `lease_expires_at` | Crash recovery: one worker holds a lease (30 minutes); an expired lease can be taken over. `claim!` is a single conditional `UPDATE` and rejects non-UUID tokens |
+| `lock_version` | Optimistic locking against stale concurrent writers |
+| `last_http_status`, `last_lastfm_error`, `last_error_page`, `last_error_message` | For "Technical details" and resume |
+| `validated_at`, `committed_at` | Required by check constraints for the states that imply them |
 
-**`import_window_fetches`**: one row per verified read of a window; used by the two-reads rule.
+- **No overlaps.** An exclusion constraint (`btree_gist`, `tsrange`) guarantees one user's live
+  (non-`split`) windows never overlap, so every play belongs to exactly one window.
+- **Coverage.** `ImportCoverage.ranges(user)` returns the committed periods (adjacent windows
+  merged), and `complete?(user, from, to)` checks a period. Anything outside is not known to be
+  complete, so charts must not present it as complete.
 
-**`import_window_rows`** (staging): `import_window_fetch_id`, `played_at`, `variant_hash`, the raw
-strings and MBIDs, and `position` (order within the second, from the API's order). Deleted after
-merge.
+**`import_window_fetches`**: one row per attempt.
+- Columns: `attempt` (unique per window), `outcome` (`in_progress`, `validated`, `mismatch`,
+  `failed`), `expected_total`, `row_count`, `malformed_count`, `http_status`, `lastfm_error`,
+  `error_page`, `error_message`, `started_at`, `finished_at`.
+- Used for audit and by the two-reads removal rule.
+
+**`import_window_rows`**: the staged snapshot of one fetch.
+- Columns: `played_at`, `position` (order within the second, as returned), `occurrence` (nth
+  identical play in that second), `variant_hash`, raw strings and MBIDs.
+- Unique on `(fetch, played_at, position)` and on `(fetch, played_at, variant_hash, occurrence)`.
+- Deleted with its fetch.
 
 ### 6.3 Catalogue (shared, no user data)
 
 **`name_variants`** (immutable once written)
 
-- Exact strings: `artist_name`, `track_name`, `album_name` (empty string for "no album").
+- Exact strings: `artist_name`, `track_name`, `album_name` (`""` means Last.fm sent no album).
 - `artist_mbid`, `track_mbid`, `album_mbid`.
-- `variant_hash`, unique.
-- Resolved links: `artist_id`, `album_id`, `track_id` (nullable until resolved), `resolved_at`.
+- `variant_hash`: SHA-256 over a JSON array of the exact fields, so field boundaries are
+  unambiguous and nil differs from `""`. Unique.
+- Links: `artist_id`, `album_id`, `track_id` (nullable), plus `match_method` (`mbid`,
+  `normalized_name`, `manual`) and `matched_at`.
+- The model refuses edits to the strings or the hash.
 
-**`artists`**: `name` (the first display form seen), `normalized_name`, `mbid` (unique when present).
+**`artists`**, **`albums`** (scoped to `artist_id`) and **`tracks`** (scoped to `artist_id`):
 
-**`albums`**: `artist_id`, `title`, `normalized_title`, `mbid` (unique when present).
+- name or title, plus the normalised form;
+- `mbid`, unique **only when present**;
+- `merged_into_id`, a self-reference for redirecting duplicates later.
 
-**`tracks`**: `artist_id`, `title`, `normalized_title`, `mbid` (unique when present).
+Normalised names are indexed but **never unique**, so the schema never forces two distinct artists
+or recordings together because their names match. A test keeps two Nirvanas and an unlabelled
+"nirvana" apart.
 
 ### 6.4 Canonical resolution rules
 
@@ -309,6 +345,22 @@ merge.
 - **No partitioning or rollups in Milestone 2.** Stage 2.9 measures import and merge speed on
   synthetic histories of 300k and 1M scrobbles, plus query plans for the range index, before any
   optimisation is proposed.
+- **Measured storage (Stage 2.1, synthetic, rolled back).** `bin/rails "runout:storage_estimate[209000]"`,
+  shaped like the first real account:
+
+  | Table | Rows | Size, including indexes |
+  |---|---|---|
+  | `scrobbles` | 209,000 | 34.9 MB (about 175 bytes per play) |
+  | `name_variants` | 41,800 | 17.1 MB |
+  | `tracks` | 35,530 | 11.0 MB |
+  | `albums` | 12,540 | 3.8 MB |
+  | `artists` | 4,180 | 1.2 MB |
+  | `import_window_rows` (one full window) | 4,000 | 1.5 MB |
+  | **Total** | | **69.8 MB**, about 350 bytes per play |
+
+  Measured on freshly truncated tables inside a rolled-back transaction; repeated runs agree to
+  within 0.1 MB. The variant and catalogue counts are assumptions: about one distinct name combination per five
+  plays. The real ratio is unknown until import. A ratio of one in three would add roughly 12 MB.
 
 ## 7. Jobs on Solid Queue
 
@@ -335,12 +387,12 @@ merge.
 ### 7.3 Idempotency and recovery
 
 - **Every job re-reads state first** and does nothing if there is nothing to do (for example, the
-  window is already `merged`). Enqueuing a job twice is harmless.
+  window is already `committed`). Enqueuing a job twice is harmless.
 - **State changes** use `lock_version`, so concurrent duplicates cannot both proceed.
 - **Process crashes** (deploy or OOM):
   - Solid Queue reclaims jobs whose process died.
-  - A window stuck in `fetching` or `merging` for more than 30 minutes is reset to `pending` by a
-    watchdog in `SyncAllUsersJob`, discarding its staging rows.
+  - A window whose lease has expired (30 minutes) while `fetching`, `validating` or `committing`
+    is reset to `pending` by a watchdog in `SyncAllUsersJob`, discarding its staging rows.
   - Merges are transactional, so a crash mid-merge leaves no partial writes.
 - **Retries** (`ApplicationJob` from Milestone 1, plus per-job policy):
   - Last.fm temporary errors and 429: polynomial backoff, 8 attempts.
@@ -434,7 +486,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | Stage | Delivers | Acceptance |
 |---|---|---|
 | **2.0 Verify and gate** (done 2026-10-29) | The feature flag (off), a read-only `bin/rails lastfm:probe` for A1 to A7, `docs/lastfm-api-findings.md`, and the storage report skeleton | Probe prints only field names and counts; findings documented; plan updated where an assumption failed |
-| **2.1 Schema** | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
+| **2.1 Schema** (done 2026-10-29) | Migrations and models for §6, with constraints and indexes | Migrations reversible; constraint tests (uniqueness, cascades, check constraints); no jobs |
 | **2.2 Recent-tracks client** | `get_recent_tracks(from:, to:, page:)`, parser, pacing | Fixture tests for parsing (missing MBIDs, "now playing", missing date, Unicode kept exact), pacing and error mapping |
 | **2.3 Window fetch and verify** | Planner (months, bisection), fetch to staging, verification | `FakeLastfm` tests: mid-fetch inserts trigger a refetch; failure after 3 attempts is recorded with page and status; nothing reaches `scrobbles` |
 | **2.4 Merge engine** | §4.4 including revisions and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases |
@@ -481,8 +533,16 @@ Depending on the answer, these fall-backs keep the architecture intact:
 - `loved` is deferred, not stored in Milestone 2, and can be added later without rework (§6.1).
 - Removals always need review; there is no automatic threshold (§4.4).
 - The licensing flag is off in development too, until you opt in.
-- A per-second `position` is staged, and `scrobble_absences` and `import_window_fetches` are added,
-  to implement the two-reads removal rule concretely.
+- Stage 2.1 schema decisions:
+  - **Corrections** are recorded in `scrobble_corrections`, and uncertain ones wait for review
+    rather than being applied automatically.
+  - **Removal proposals** live in `scrobble_removals`, with a `restored` state.
+  - **Window states** are `pending, fetching, validating, validated, committing, committed`, plus
+    `failed`, `needs_review` and `split`. Windows also have leases and a no-overlap exclusion
+    constraint.
+  - **Staging** records an `occurrence` number for identical same-second plays.
+  - **Catalogue** rows have a `merged_into_id` redirect.
+  - **`scrobbles`** has no `updated_at` and no separate range index (the identity index serves).
 - "Now" handling: the current month is fetched only up to the start of the run.
 - Account verification (§5.1): runs never follow a username change automatically, because Last.fm
   has no stable account ID. A mismatch stops sync until an explicit relink.
