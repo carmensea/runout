@@ -654,6 +654,45 @@ module Smoke
       end
     end
 
+    def sync_stuck_period
+      scenario("a period stuck on a row Last.fm can't date: an explicit gap, and later listening carries on") do
+        reset!
+        import_and_settle!
+        bad = [ Time.now.to_i - 10, windows.last.window_to.to_i ].max
+        add_plays!(undated_at: bad, add: [ [ bad + 1, "Next to the bad row" ] ])
+        time_passes!(31.minutes)
+        wait_for_runs("sync", 1)
+        wait_until_quiet("the first sync")
+        current = windows.last
+        check("the current month's check stopped for a person, its imported plays kept",
+              current.state == "needs_review" && current.review_reason == "undated_rows" && current.committed_at.present?,
+              [ current.state, current.review_reason ].inspect)
+        check("counted as needing attention", HistoryImport::Attention.for(@user)[:total] == 1)
+
+        # The next sync detaches the stopped check's new range; that range holds the bad row too, and
+        # is too short to split: it becomes an explicit gap.
+        time_passes!(31.minutes)
+        wait_for_runs("sync", 2)
+        wait_until_quiet("the second sync")
+        gaps = HistoryImport::SyncHealth.for(@user)[:missingPeriods]
+        check("the range holding the bad row is an explicit gap, under 2 hours", gaps.size == 1 && gaps.first[:state] == "needs_review" &&
+              Time.zone.parse(gaps.first[:to]) - Time.zone.parse(gaps.first[:from]) < 2.hours, gaps.inspect)
+
+        later = Time.now.to_i + 2
+        Smoke.write_control(Smoke.control.merge("add" => Smoke.control["add"] + [ [ later, "Later listening" ] ]))
+        wait_for("the next minute") { Time.now.utc.beginning_of_minute.to_i > later }
+        time_passes!(31.minutes)
+        wait_for_runs("sync", 3)
+        wait_until_quiet("the third sync")
+        stop_all
+        check("later listening was stored, past the gap", stored_count("Later listening") == 1)
+        check("the play in the gap is waiting, not lost or guessed", stored_count("Next to the bad row").zero?)
+        check("coverage is reported as partial across the gap, never complete",
+              ImportCoverage.status_for(@user, windows.first.window_from, windows.last.window_to) == :partial)
+        check("no failed jobs", failed_jobs.empty?, failed_jobs.inspect)
+      end
+    end
+
     def sync_storage_disabled
       scenario("storage off: due syncs are never started by the scheduler") do
         reset!
@@ -676,7 +715,7 @@ module Smoke
 
     def all = %i[configuration full_import duplicate_delivery kill_during_fetch crash_around_commit graceful_restart scheduled_retry
                  pause_resume_cancel storage_disabled reconciliation slow_healthy_worker
-                 sync_recurring sync_crash_restart sync_outage sync_storage_disabled]
+                 sync_recurring sync_crash_restart sync_outage sync_stuck_period sync_storage_disabled]
   end
 end
 

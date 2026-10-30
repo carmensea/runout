@@ -35,7 +35,7 @@ module HistoryImport
 
       abandon_interrupted_fetches
       if @window.reload.attempts > MAX_WINDOW_ATTEMPTS
-        return review("validation was attempted #{@window.attempts - 1} times without success")
+        return review("validation was attempted #{@window.attempts - 1} times without success", reason: "attempts_exhausted")
       end
 
       @budget = budget = RequestBudget.new(@client, previously_used: @window.budget_requests_used)
@@ -60,7 +60,8 @@ module HistoryImport
         rescue SnapshotFetcher::BudgetExceeded => e
           finish_fetch(fetch, outcome: "failed", message: e.message)
           if budget.total_exhausted?
-            return review("request budget for this window is used up across attempts (#{budget.total_used} of #{budget.total_limit} requests)")
+            return review("request budget for this window is used up across attempts (#{budget.total_used} of #{budget.total_limit} requests)",
+                          reason: "budget_exhausted")
           end
 
           return fail_window(message: "#{e.message} (#{budget.used} of #{budget.limit} requests this run)", retryable: true)
@@ -72,8 +73,8 @@ module HistoryImport
 
         snapshot = result.snapshot
         if (problem = snapshot_problem(snapshot))
-          finish_fetch(fetch, outcome: "failed", message: problem, snapshot: snapshot)
-          return review(problem)
+          finish_fetch(fetch, outcome: "failed", message: problem.first, snapshot: snapshot)
+          return review(problem.first, **problem.last)
         end
 
         record_snapshot(fetch, snapshot)
@@ -89,7 +90,7 @@ module HistoryImport
       end
 
       mark_mismatch(previous, message: "no later snapshot to compare with")
-      review("snapshots kept changing after #{MAX_SNAPSHOTS} complete reads")
+      review("snapshots kept changing after #{MAX_SNAPSHOTS} complete reads", reason: "unstable")
     rescue ImportWindow::StaleLease => e
       record_orphaned_requests
       outcome(:stale, e.message)
@@ -162,10 +163,11 @@ module HistoryImport
     end
 
     # Rows Last.fm returned that we can't place safely: never accepted silently.
+    # [message, { reason: }] for review.
     def snapshot_problem(snapshot)
-      return "#{snapshot.undated_count} plays without a date" if snapshot.undated_count.positive?
-      return "#{snapshot.malformed_count} malformed entries" if snapshot.malformed_count.positive?
-      return "#{snapshot.out_of_window_count} plays outside the requested range" if snapshot.out_of_window_count.positive?
+      return [ "#{snapshot.undated_count} plays without a date", { reason: "undated_rows" } ] if snapshot.undated_count.positive?
+      return [ "#{snapshot.malformed_count} malformed entries", { reason: "malformed_rows" } ] if snapshot.malformed_count.positive?
+      return [ "#{snapshot.out_of_window_count} plays outside the requested range", { reason: "out_of_range_rows" } ] if snapshot.out_of_window_count.positive?
 
       nil
     end
@@ -185,8 +187,17 @@ module HistoryImport
       outcome(:validated, "#{snapshot.size} plays")
     end
 
-    def review(message)
-      lease { |window| window.assign_attributes(state: "needs_review", last_error_message: message, claim_token: nil, lease_expires_at: nil, retry_at: nil) }
+    # `reason`: a code (ImportWindow::REVIEW_REASONS) that decides whether the stop is retried
+    # automatically or waits for a person. A period never imported that stops for an integrity
+    # reason is split instead, to isolate the problem (docs/milestone-2-plan.md §15.6); only a
+    # period too small to split goes to review, as an explicit coverage gap.
+    def review(message, reason:)
+      return isolate(message) if isolatable?(reason)
+
+      lease do |window|
+        window.assign_attributes(state: "needs_review", review_reason: reason, last_error_message: message, claim_token: nil,
+                                 lease_expires_at: nil, retry_at: nil)
+      end
       outcome(:needs_review, message)
     end
 
@@ -201,11 +212,24 @@ module HistoryImport
       outcome(:failed, message)
     end
 
+    def isolatable?(reason)
+      @window.committed_at.nil? && @window.whole_window_checked? && WindowSplitter.splittable?(@window) &&
+        !ImportWindow::TRANSIENT_REVIEW_REASONS.include?(reason) && reason != "too_large"
+    end
+
+    def isolate(message)
+      children = lease do |window|
+        window.last_error_message = "#{message}; split to isolate the problem"
+        WindowSplitter.split!(window)
+      end
+      outcome(:split, "#{message}; split into #{children.size} windows to isolate the problem")
+    end
+
     def split_or_review
-      return review("window is too large but can't be split further") unless WindowSplitter.splittable?(@window)
+      return review("window is too large but can't be split further", reason: "too_large") unless WindowSplitter.splittable?(@window)
       # Splitting would replace a committed month with uncommitted halves and lose its coverage.
-      return review("a committed month grew beyond #{MAX_PAGES} pages; check it by hand") if @window.committed_at
-      return review("the range checked is a part of this window and can't be split") unless @window.whole_window_checked?
+      return review("a committed month grew beyond #{MAX_PAGES} pages; check it by hand", reason: "too_large") if @window.committed_at
+      return review("the range checked is a part of this window and can't be split", reason: "too_large") unless @window.whole_window_checked?
 
       children = lease { |window| WindowSplitter.split!(window) }
       outcome(:split, "split into #{children.size} windows")

@@ -83,7 +83,7 @@ module HistoryImport
         next false unless w.state == "needs_review" || w.gave_up?
 
         ImportWindowRow.where(import_window_fetch_id: w.fetches.select(:id)).delete_all
-        w.update!(state: "pending", attempts: 0, commit_attempts: 0, retry_at: nil, validated_at: nil, fetched_count: nil,
+        w.update!(state: "pending", review_reason: nil, attempts: 0, commit_attempts: 0, retry_at: nil, validated_at: nil, fetched_count: nil,
                   expected_total: nil, http_requests_baseline: w.http_requests_used, claim_token: nil, lease_expires_at: nil,
                   last_error_message: "retried by hand (was: #{w.last_error_message.to_s.truncate(150)})")
         true

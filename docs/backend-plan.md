@@ -32,7 +32,7 @@ Quotes are from the Last.fm API Terms of Service (`last.fm/api/tos`).
 | §3.1 | Non-commercial use only | Confirmed |
 | §4.4 | Usage limits are enforced; no figures are published | Confirmed. The actual figures are unknown. |
 | §5.1.6 | Last.fm Data must not be used to personally identify or contact users | Confirmed |
-| §9.3 | Delete all Last.fm Data on termination | Confirmed |
+| §9.3 | Delete all Last.fm Data on termination (of the API agreement; ending API calls or a subscription isn't necessarily termination) | Confirmed |
 
 What this means for the build:
 

@@ -1,19 +1,33 @@
-import { useId, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import stateStyles from '../components/states/States.module.css';
-import { useAppData } from '../data/AppDataContext';
-import { PendingScreen } from './PendingScreen';
-import styles from './PendingScreen.module.css';
+import { useEffect, useId, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import stateStyles from '../../components/states/States.module.css';
+import { useAppData } from '../../data/AppDataContext';
+import type { ConnectedState } from '../../data/types';
+import { usePeriod } from '../../state/PeriodContext';
+import styles from '../PendingScreen.module.css';
+import { HistorySection } from './HistorySection';
+import { ReviewSection } from './ReviewSection';
+import settings from './Settings.module.css';
 
 /**
- * Settings is designed but not built. Until it is, this keeps the controls authentication
- * needs: signing out, and deleting the account and everything stored for it.
+ * Settings: the listening-history import and sync, differences to review, and the account
+ * (sign out, delete). Preferences, metadata coverage and export arrive later.
  */
 export function SettingsScreen() {
   const { api, connection } = useAppData();
   const navigate = useNavigate();
+  const { withPeriod } = usePeriod();
+
+  useEffect(() => {
+    document.title = 'Settings · Runout';
+  }, []);
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
-  const signedIn = connection.status === 'success' && connection.data.status !== 'none' ? connection.data : null;
+  // While the connection reloads (after any action here), keep showing the account it last
+  // reported, so the sections below don't unmount and lose what they show.
+  const current = connection.status === 'success' ? (connection.data.status !== 'none' ? connection.data : null) : undefined;
+  const [lastKnown, setLastKnown] = useState<ConnectedState | null>(null);
+  if (current !== undefined && current !== lastKnown) setLastKnown(current);
+  const signedIn = current === undefined ? lastKnown : current;
   const [deletedRevokeUrl, setDeletedRevokeUrl] = useState<string | null>(null);
 
   async function signOut() {
@@ -28,11 +42,26 @@ export function SettingsScreen() {
   }
 
   return (
-    <PendingScreen
-      eyebrow="07 / Settings"
-      title="Settings"
-      description="Last.fm connection and import, metadata coverage, preferences such as timezone, account and data export."
-    >
+    <main id="main" className={settings.main}>
+      <div className="eyebrow">07 / Settings</div>
+      <h1 className={settings.title}>Settings</h1>
+      {!signedIn && !deletedRevokeUrl && (
+        <p className={settings.lede}>Sign in with Last.fm to import your listening history and manage it here.</p>
+      )}
+      {signedIn && (
+        <section className={settings.section} id="history" aria-labelledby="history-title">
+          <h2 id="history-title" className={settings.h2}>Listening history</h2>
+          <HistorySection onChanged={connection.retry} />
+        </section>
+      )}
+      {signedIn && (
+        <section className={settings.section} id="review" aria-labelledby="review-title">
+          <h2 id="review-title" className={settings.h2}>To review</h2>
+          <ReviewSection onChanged={connection.retry} />
+        </section>
+      )}
+      <section className={settings.section} aria-labelledby="account-title">
+        <h2 id="account-title" className={settings.h2}>Account</h2>
       {deletedRevokeUrl && (
         <div className={styles.panel} role="status">
           <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>Your Runout account and its data were deleted.</strong>
@@ -63,7 +92,10 @@ export function SettingsScreen() {
           }}
         />
       )}
-    </PendingScreen>
+      </section>
+      <p className={settings.note} style={{ marginTop: 32 }}>Preferences, metadata coverage and data export arrive in later versions.</p>
+      <Link to={withPeriod('/overview')} className={styles.back}>Back to Overview</Link>
+    </main>
   );
 }
 

@@ -72,6 +72,7 @@ module HistoryImport
       connection = LastfmConnection.find_by(user_id: user.id)
       identity = Identity.find_by(user_id: user.id, provider: Identity::LASTFM)
       return :not_imported unless connection&.history_state == "imported" && ImportRun.exists?(user_id: user.id, kind: "full", state: "completed")
+      return :paused if connection.sync_paused_at
       return :not_linked unless identity&.revoked_at.nil? && identity&.session_key
       return :not_allowed unless Lastfm::AccountPolicy.allowed?(identity.username)
       return :busy if ImportRun.active.exists?(user_id: user.id)
@@ -100,6 +101,20 @@ module HistoryImport
       frontier = ImportWindow.live.where(user_id: user_id).maximum(:window_to) || target
       since = kind == "catch_up" ? target - config[:catch_up_span] : frontier - config[:lookback]
       [ [ since, target ].min, target ]
+    end
+
+    # The owner pauses automatic synchronisation: no new sync starts, and a sync in progress pauses
+    # after its current step. Nothing is cancelled or deleted; `unpause!` carries on from there.
+    def pause!(user, now: Time.current)
+      paused = LastfmConnection.where(user_id: user.id, sync_paused_at: nil).update_all(sync_paused_at: now, updated_at: now) == 1
+      ImportRun.active.where(user_id: user.id).where.not(kind: "full").find_each { |run| Orchestrator.new.pause!(run) }
+      paused
+    end
+
+    def unpause!(user, now: Time.current)
+      resumed = LastfmConnection.where(user_id: user.id).where.not(sync_paused_at: nil).update_all(sync_paused_at: nil, updated_at: now) == 1
+      ImportRun.where(user_id: user.id, state: "paused").where.not(kind: "full").find_each { |run| Orchestrator.new.resume!(run) }
+      resumed
     end
 
     # After a sync stopped for an account problem and the operator fixed it (relinked): allow

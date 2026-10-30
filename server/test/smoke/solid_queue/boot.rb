@@ -96,6 +96,10 @@ stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.h
       sleep(control["delay"].to_f) if control["delay"]
       if Array(control["fail_from"]).include?(query["from"].to_i) || control["fail_all"]
         { status: 502, body: "" }
+      elsif (bad = control["undated_at"]) && query["from"] && (query["from"].to_i...query["to"].to_i).cover?(bad)
+        # A row Last.fm can't date, in any range that holds that second.
+        { status: 200, body: { recenttracks: { "@attr" => { page: "1", perPage: "200", totalPages: "1", total: "1" },
+                                               track: [ { artist: { "#text" => "A" }, name: "No date" } ] } }.to_json }
       elsif control["rate_limited"]
         { status: 429, body: { error: 29, message: "Rate Limit Exceeded" }.to_json }
       else

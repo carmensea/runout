@@ -366,6 +366,8 @@ class HistoryImport::ReconciliationTest < ActiveSupport::TestCase
     check!(base)
     assert_equal :synchronized, status.status
     @window.update_columns(committed_count: @window.committed_count + 1)
+    assert_equal :synchronized, status.status, "status never counts plays itself"
+    HistoryImport::CountCheck.run!(@user.id) # the daily background count
     assert_equal :inconsistent, status.status
     assert_equal [ 4, 5 ], [ status.present_count, status.committed_count ]
   end

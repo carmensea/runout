@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { LoadingState, MessageState } from '../../components/states/States';
 import stateStyles from '../../components/states/States.module.css';
-import { NotConnectedError } from '../../data/api';
+import { NotAvailableError, NotConnectedError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { ConnectionState, OverviewData } from '../../data/types';
 import { useActiveSection } from '../../hooks/useActiveSection';
@@ -151,7 +151,7 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
       <MessageState
         icon="link"
         message={`Signed in as ${connection.data.username}.`}
-        detail="Importing your Last.fm history is not available in this version of Runout yet. Charts appear here once it is."
+        detail={<>Your listening history hasn’t been imported yet. <Link to={withPeriod('/settings#history')}>Start the import in Settings</Link>. Charts appear here once it has.</>}
       />
     );
   }
@@ -161,6 +161,15 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
     return <LoadingState label={`Loading scrobbles for ${periodLabel(current, today)}`} />;
   }
   if (main.status === 'error') {
+    if (main.error instanceof NotAvailableError) {
+      return (
+        <MessageState
+          icon="hourglass_empty"
+          message="Your history is stored in Runout. Charts arrive in the next version."
+          detail={<Link to={withPeriod('/settings#history')}>See import and sync status in Settings</Link>}
+        />
+      );
+    }
     if (main.error instanceof NotConnectedError) {
       return <MessageState icon="link_off" message="Your Last.fm account is no longer connected." detail={<Link to={withPeriod('/settings#lastfm')}>Reconnect in Settings</Link>} />;
     }

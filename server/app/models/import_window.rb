@@ -15,6 +15,12 @@ class ImportWindow < ApplicationRecord
   # over once their lease has expired (an interrupted worker).
   CLAIMABLE_STATES = %w[pending failed fetching validating].freeze
 
+  # Why a period stopped for review (review_reason). Transient ones are tried again automatically,
+  # at most once per Sync rearm_after; the rest wait for a person (docs/milestone-2-plan.md §15.6).
+  REVIEW_REASONS = %w[attempts_exhausted budget_exhausted unstable malformed_rows undated_rows out_of_range_rows too_large
+                      reconciliation_check incomplete_answer staging_inconsistent commit_error].freeze
+  TRANSIENT_REVIEW_REASONS = %w[attempts_exhausted budget_exhausted unstable].freeze
+
   # The worker's lease expired or was taken over; it must stop without writing.
   class StaleLease < StandardError; end
 
@@ -53,6 +59,12 @@ class ImportWindow < ApplicationRecord
   def budget_requests_used = http_requests_used - http_requests_baseline
 
   def gave_up? = state == "failed" && retry_at.nil?
+
+  # Stopped: waiting for review, or given up after its automatic retries.
+  def stopped? = state == "needs_review" || gave_up?
+
+  # A stop that is worth trying again automatically: failures that gave up, and transient reviews.
+  def transient_stop? = gave_up? || (state == "needs_review" && TRANSIENT_REVIEW_REASONS.include?(review_reason))
 
   UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
 

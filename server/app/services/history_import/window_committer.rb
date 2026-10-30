@@ -26,7 +26,14 @@ module HistoryImport
     Outcome = Data.define(:status, :detail)
 
     # The staged snapshot can't be trusted; the window is left for review with its staging kept.
-    class Inconsistent < StandardError; end
+    class Inconsistent < StandardError
+      attr_reader :reason
+
+      def initialize(message = nil, reason: "staging_inconsistent")
+        super(message)
+        @reason = reason
+      end
+    end
     # The snapshot is older than StagingCleaner::STALE_AFTER: fetched again before any commit.
     class Expired < StandardError; end
 
@@ -54,7 +61,7 @@ module HistoryImport
       StagingCleaner.new(clock: @clock).clean_window(@window)
       outcome(:committed, "#{count} plays")
     rescue Inconsistent => e
-      review(e.message)
+      review(e.message, reason: e.reason)
     rescue Expired => e
       refetch(e.message)
     rescue ImportWindow::StaleLease => e
@@ -118,7 +125,8 @@ module HistoryImport
         present = Scrobble.present.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
         window.assign_attributes(state: "committed", committed_at: window.committed_at || now, committed_count: present,
                                  last_checked_at: now, last_check_fetch_id: @fetch.id, last_check_summary: summary,
-                                 check_from: nil, check_to: nil, claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil)
+                                 check_from: nil, check_to: nil, claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil,
+                                 review_reason: nil, present_count: present, count_mismatch_at: nil)
         window.last_verified_at = now if verified
         ImportRun.where(id: window.import_run_id).update_all([ "committed_scrobbles = committed_scrobbles + ?, updated_at = ?", added, now ])
         added
@@ -186,9 +194,10 @@ module HistoryImport
       NameVariant::IDENTITY_FIELDS.index_with { |field| row[field] }
     end
 
-    def review(message)
+    def review(message, reason:)
       @window.with_lease(@token, now: now) do |window|
-        window.assign_attributes(state: "needs_review", last_error_message: message, claim_token: nil, lease_expires_at: nil)
+        window.assign_attributes(state: "needs_review", review_reason: reason, last_error_message: message, claim_token: nil,
+                                 lease_expires_at: nil)
       end
       outcome(:needs_review, message)
     rescue ImportWindow::StaleLease => e
@@ -202,7 +211,7 @@ module HistoryImport
     # - Anything else: `needs_review`, staging kept for investigation.
     def retry_later(error)
       message = "commit failed: #{error.class.name}: #{error.message.to_s.lines.first.to_s.strip.truncate(200)}"
-      return review(message) unless TRANSIENT_ERRORS.any? { |klass| error.is_a?(klass) }
+      return review(message, reason: "commit_error") unless TRANSIENT_ERRORS.any? { |klass| error.is_a?(klass) }
 
       @window.with_lease(@token, now: now) do |window|
         window.commit_attempts += 1

@@ -194,12 +194,9 @@ module HistoryImport
     # it is now. An empty plan (nothing to check yet) completes at the first work step.
     def start_syncing(run)
       since, target = Sync.range_for(run.kind, run.user_id, now)
-      plan = SyncPlanner.plan!(run, since: since, target: target, now: now)
-      note = ("stopped at a period that needs attention (window #{plan.blocked_by}); later periods wait for it" if plan.blocked_by)
-      return give_up!(run, note) if note && plan.armed.empty? && plan.created.empty?
-
+      SyncPlanner.plan!(run, since: since, target: target, now: now)
       ImportRun.where(id: run.id, job_token: run.job_token, state: "planning")
-               .update_all(state: "running", history_from: since, cutoff_at: target, last_error: note, last_activity_at: now, updated_at: now)
+               .update_all(state: "running", history_from: since, cutoff_at: target, last_activity_at: now, updated_at: now)
       schedule!(run, rotate_from: run.job_token)
       :planned
     end
@@ -285,9 +282,16 @@ module HistoryImport
 
       # Only stopped (`failed` with no retry) or `needs_review` windows remain. An import waits for a
       # person. A sync ends, so it never blocks the next one; its stopped periods stay visible
-      # (SyncStatus) and are tried again by a later sync (SyncPlanner).
+      # (SyncStatus) and are handled by later syncs (SyncPlanner). A sync that reached its target
+      # (its newest period committed) succeeded; the stopped periods are reported separately.
       message = "#{remaining.count} periods need attention"
-      return give_up!(run, message, token: token) unless run.kind == "full"
+      unless run.kind == "full"
+        newest = run_windows(run).order(window_to: :desc).first
+        return give_up!(run, message, token: token) unless %w[sync catch_up].include?(run.kind) && newest&.state == "committed"
+
+        complete!(run, token, note: message)
+        return :completed
+      end
 
       ImportRun.where(id: run.id, job_token: token).update_all(state: "needs_review", job_token: nil, current_window_id: nil,
                                                                last_error: message, updated_at: now)
@@ -316,7 +320,7 @@ module HistoryImport
         ImportWindow.uncached do
           present = Scrobble.present.where(user_id: run.user_id).played_between(month.window_from, month.window_to).count
           scope = ImportWindow.where(id: month.id, state: "committed", window_to: month.window_to)
-          scope.update_all(count_checked_at: now, remote_count: remote, updated_at: now)
+          scope.update_all(count_checked_at: now, remote_count: remote, present_count: present, updated_at: now)
           Recheck.arm!(scope, run, now: now) unless remote == present
         end
         ImportRun.where(id: run.id, job_token: token).update_all(last_activity_at: now, updated_at: now)
@@ -348,14 +352,9 @@ module HistoryImport
     # recheck on the months it was asked to check. (Split halves inherit their parent's run.)
     def run_windows(run) = ImportWindow.live.where(user_id: run.user_id, import_run_id: run.id)
 
-    def complete!(run, token)
-      # A sync that couldn't reach its target (a period before it needs attention) checked what it
-      # could, but isn't a successful synchronisation.
-      blocked = run.kind != "full" && ImportRun.where(id: run.id).pick(:last_error).present?
-      return give_up!(run, ImportRun.where(id: run.id).pick(:last_error), token: token) if blocked
-
+    def complete!(run, token, note: nil)
       done = ImportRun.where(id: run.id, job_token: token)
-                      .update_all(state: "completed", job_token: nil, current_window_id: nil, finished_at: now, updated_at: now)
+                      .update_all(state: "completed", job_token: nil, current_window_id: nil, finished_at: now, last_error: note, updated_at: now)
       return unless done == 1
 
       case run.kind

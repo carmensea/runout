@@ -53,10 +53,11 @@ My questions:
 6. **Rate limits (§4.4).** Is there a published request rate I should stay under for a one-off
    history import and the ongoing sync?
 
-7. **Keeping my own history after I stop using the API (§9.3).** If I later stop using the API,
-   or stop using Last.fm, may I keep my own listening history (my scrobbles: times and names) in
-   my private archive? If §9.3 requires deleting it, is a personal data export of my account the
-   right way to keep a copy of my own history?
+7. **My own history and termination (§9.3).** I understand §9.3 applies when the API agreement is
+   terminated. If I simply stop making API calls, or stop using Last.fm, does that terminate the
+   agreement? And if the agreement is terminated, may I keep my own listening history (my
+   scrobbles: times and names) in my private archive, or must it be deleted? If it must, is a
+   personal data export of my account an acceptable way to keep a copy of my own history?
 
 If any of this needs a different kind of agreement, I'm happy to adjust the design: for example,
 storing less, refreshing more often, or deleting data on a schedule. Nothing has been imported yet;
@@ -77,5 +78,6 @@ Thank you,
   reports the real stored size.
 - Don't include your API secret or session key.
 - Question 7 was added on 2026-10-30 for the long-term direction (`docs/long-term-architecture.md`
-  §3): keeping the full history after leaving Last.fm depends on the answer. Remove it if you'd
-  rather ask separately.
+  §3) and reworded on 2026-10-31: §9.3 is about termination of the API agreement, which isn't
+  necessarily the same as stopping API calls or leaving Last.fm. Nothing is assumed about keeping
+  history either way. Remove it if you'd rather ask separately.

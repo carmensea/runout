@@ -37,14 +37,31 @@ function GlobalBanner() {
   if (c.status === 'importing') {
     return (
       <BarBanner tag="Importing">
-        Importing your Last.fm history, {fmt.percent(c.progress)} done. Charts fill in as each year arrives.
+        Importing your Last.fm history, {fmt.percent(c.progress)} done.
+        {c.attention ? <> {c.attention === 1 ? '1 item needs' : `${c.attention} items need`} your attention. <Link to="/settings#review">Review in Settings</Link></> : null}
       </BarBanner>
     );
   }
   if (c.status === 'failed') {
     return (
       <BarBanner tag="Import failed">
-        {c.message} Imported scrobbles are kept. <Link to="/settings#lastfm">Resume import</Link>
+        {c.message} Imported scrobbles are kept. <Link to="/settings#history">Open Settings</Link>
+      </BarBanner>
+    );
+  }
+  // Only what needs the owner: review items and problems, never background work.
+  if (c.status === 'synced' && c.attention) {
+    return (
+      <BarBanner tag="Needs attention">
+        {c.attention === 1 ? '1 item in your history needs your attention.' : `${c.attention} items in your history need your attention.`}{' '}
+        <Link to="/settings#review">Review in Settings</Link>
+      </BarBanner>
+    );
+  }
+  if (c.status === 'synced' && c.syncPaused) {
+    return (
+      <BarBanner tag="Sync paused">
+        Automatic sync is paused, so new scrobbles aren’t being added. <Link to="/settings#history">Resume in Settings</Link>
       </BarBanner>
     );
   }

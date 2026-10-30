@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_30_000016) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -199,6 +199,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000016) do
     t.datetime "last_verified_at"
     t.datetime "count_checked_at"
     t.integer "remote_count"
+    t.string "review_reason"
+    t.integer "present_count"
+    t.datetime "count_mismatch_at"
     t.index ["import_run_id"], name: "index_import_windows_on_import_run_id"
     t.index ["parent_window_id"], name: "index_import_windows_on_parent_window_id"
     t.index ["user_id", "state", "retry_at"], name: "index_import_windows_on_user_id_and_state_and_retry_at"
@@ -208,7 +211,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000016) do
     t.check_constraint "(check_from IS NULL OR check_from >= window_from AND check_from <= window_to) AND (check_to IS NULL OR check_to > COALESCE(check_from, window_from))", name: "import_windows_check_range"
     t.check_constraint "(state::text <> ALL (ARRAY['validated'::character varying, 'committing'::character varying, 'committed'::character varying]::text[])) OR validated_at IS NOT NULL", name: "import_windows_validated_at"
     t.check_constraint "committed_count IS NULL OR committed_count >= 0", name: "import_windows_committed_count_non_negative"
+    t.check_constraint "present_count IS NULL OR present_count >= 0", name: "import_windows_present_count"
     t.check_constraint "remote_count IS NULL OR remote_count >= 0", name: "import_windows_remote_count"
+    t.check_constraint "review_reason IS NULL OR (review_reason::text = ANY (ARRAY['attempts_exhausted'::character varying, 'budget_exhausted'::character varying, 'unstable'::character varying, 'malformed_rows'::character varying, 'undated_rows'::character varying, 'out_of_range_rows'::character varying, 'too_large'::character varying, 'reconciliation_check'::character varying, 'incomplete_answer'::character varying, 'staging_inconsistent'::character varying, 'commit_error'::character varying]::text[]))", name: "import_windows_review_reason"
     t.check_constraint "state::text <> 'committed'::text OR committed_at IS NOT NULL", name: "import_windows_committed_at"
     t.check_constraint "state::text <> 'committed'::text OR committed_count IS NOT NULL", name: "import_windows_committed_count"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'fetching'::character varying, 'validating'::character varying, 'validated'::character varying, 'committing'::character varying, 'committed'::character varying, 'failed'::character varying, 'needs_review'::character varying, 'split'::character varying]::text[])", name: "import_windows_state"
@@ -224,6 +229,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000016) do
     t.text "last_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "sync_paused_at"
     t.index ["identity_id"], name: "index_lastfm_connections_on_identity_id", unique: true
     t.index ["user_id"], name: "index_lastfm_connections_on_user_id", unique: true
     t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying, 'importing'::character varying, 'imported'::character varying, 'failed'::character varying]::text[])", name: "lastfm_connections_history_state_check"

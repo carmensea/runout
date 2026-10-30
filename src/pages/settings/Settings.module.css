@@ -1,0 +1,360 @@
+/* Settings: listening history, review, account. Dark editorial, from tokens.css only. */
+
+.main {
+  max-width: var(--content-max);
+  padding: 40px 40px 96px;
+}
+
+.title {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 48px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.section {
+  margin-top: 48px;
+  border-top: 1px solid var(--fg);
+  padding-top: 20px;
+  max-width: 760px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.lede {
+  margin-top: 8px;
+  max-width: 600px;
+  color: var(--fg2);
+  font-size: 14px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* What the archive is doing now: a sentence, with a dot only while work is in progress. */
+.now {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mu);
+}
+
+.dotBusy {
+  background: var(--ac);
+}
+
+.dotOk {
+  background: var(--c3);
+}
+
+.dotErr {
+  background: var(--err);
+}
+
+.panel {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--ln);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.panelTitle {
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: 6px 20px;
+}
+
+.facts dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-top: 2px;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: 4px;
+  background: var(--s2);
+}
+
+.fill {
+  height: 100%;
+  background: var(--ac);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.danger {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--err);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--err);
+  font-size: 13px;
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--err);
+  color: var(--bg);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.confirm {
+  padding: 12px 14px;
+  border-left: 2px solid var(--err);
+  background: var(--s1);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.error {
+  margin: 0;
+  color: var(--err);
+}
+
+.note {
+  margin: 0;
+  color: var(--mu);
+  font-size: 12px;
+}
+
+/* Periods: missing ones carry the hatch, the design's sign for "unknown / missing". */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ln2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ln2);
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border: 1px solid var(--ln);
+}
+
+.swatchMissing {
+  background: var(--hatch);
+}
+
+.swatchStopped {
+  background: var(--s2);
+}
+
+.rowTitle {
+  color: var(--fg);
+}
+
+.rowBody {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
+.tagAttention {
+  color: var(--ac);
+}
+
+.technical summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.technical pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg2);
+}
+
+/* Review: what Runout has, and what Last.fm says, side by side. */
+.item {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ln2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.itemHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.play {
+  padding: 8px 10px;
+  border: 1px solid var(--ln);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.play small {
+  display: block;
+  color: var(--fg2);
+  font-size: 12px;
+}
+
+.playGone {
+  border-style: dashed;
+  color: var(--fg2);
+}
+
+.select {
+  height: 32px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.outcome {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--fg2);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg2);
+}
+
+@media (max-width: 1023px) {
+  .main {
+    padding: 32px 24px 72px;
+  }
+}
+
+@media (max-width: 767px) {
+  .main {
+    padding: 24px 16px 48px;
+  }
+
+  .title {
+    font-size: 36px;
+  }
+
+  .compare {
+    grid-template-columns: 1fr;
+  }
+
+  .facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .facts dd {
+    margin-bottom: 8px;
+  }
+}

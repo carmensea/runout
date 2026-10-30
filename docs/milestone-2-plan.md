@@ -1,12 +1,13 @@
 # Milestone 2 plan: historical import and synchronization
 
-Status: **Stages 2.0 to 2.7 are implemented**: feature flag, read-only probe, findings, storage
+Status: **Stages 2.0 to 2.8 are implemented**: feature flag, read-only probe, findings, storage
 report (2.0); database schema and models, with no data stored (2.1); client reliability (2.2);
 window fetching, staging and validation on synthetic data (2.3); atomic commit of validated
 windows into empty ranges, staging clean-up and coverage status, on synthetic data (2.4);
 canonical artist, album and track matching, on synthetic data (2.5).
 Orchestration and recovery (2.6), reconciliation of committed months (2.4b) and ongoing
-synchronisation (2.7) too, on synthetic data. Next: 2.8 (plan in §15), after review. The
+synchronisation (2.7), and the app's import, sync and review controls (2.8, §15) too, on synthetic
+data. Next: 2.9, after review. The
 long-term direction (Runout as an independent scrobbling service that can replace Last.fm) is in
 `docs/long-term-architecture.md`.
 Stages 2.1 onwards are plans, reviewed one at a time. No history is imported until the Last.fm
@@ -627,7 +628,7 @@ Nothing touches real Last.fm data until Stage 2.9, and only after licensing is r
 | **Later: matching coverage** | Analytics expose matching coverage: identified, name-only, unmatched, ambiguous | No UI needed at first |
 | **2.4b Reconciliation** (done 2026-10-29, after 2.6, before 2.7) | The rest of §4.4: windows whose range already holds plays, corrections and the removal safety rules | Invariant, idempotency and safety tests; same-second and rename cases. Required before ongoing sync is enabled |
 | **2.7 Sync, catch-up, reconcile** (done 2026-10-30) | Recurring jobs (§5) | Back-dated play inside 14 days is caught; a deliberate count mismatch triggers a refetch; a username or registration-time mismatch stops sync with a relink message and fetches nothing |
-| **2.8 API and frontend** (planned, §15) | `ConnectionState` mapping, import and sync controls, review workflows, 501 handling, Settings panels; sync never blocked by a stuck period (§15.6); status in constant queries (§15.7) | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
+| **2.8 API and frontend** (done 2026-10-31, §15) | `ConnectionState` mapping, import and sync controls, review workflows, 501 handling, Settings panels; sync never blocked by a stuck period (§15.6); status in constant queries (§15.7) | Request tests per state; frontend tests for every connection state and panel action; shared contract examples pass on both sides |
 | **2.9 Measure and accept** | Synthetic 300k and 1M benchmarks (time, memory, database size), then a real import of your account **once licensing allows** | Measured numbers recorded; real import matches Last.fm's playcount within the documented tolerance (§11) and reconciliation finds no mismatches |
 
 ## 11. Milestone 2 acceptance criteria
@@ -916,7 +917,58 @@ Depending on the answer, these fall-backs keep the architecture intact:
 4. **Before Last.fm replies:** read-only API verification and synthetic-data testing are allowed.
    No full historical ingestion of a real account (§2).
 
-## 15. Stage 2.8 plan (for review; not started)
+## 15. Stage 2.8 (implemented 2026-10-31)
+
+**Decisions from review (2026-10-31):**
+
+1. Stuck periods that were never imported are split automatically, down to the minimum window size
+   (one hour); what still can't be imported is an explicit coverage gap, never marked complete.
+2. Transient failures (network, timeouts, rate limits, recoverable job errors) retry automatically
+   with bounded backoff; ambiguous corrections, integrity problems and proposed deletions wait for
+   review.
+3. Cancel is offered for the full import only. Synchronisation has its own Pause Sync control,
+   which stops automatic sync without cancelling or deleting anything.
+4. The banner shows an attention count: actionable review items and failures only. Not counted:
+   background work, informational warnings, automatic retries, removals seen once, catalogue
+   suggestions.
+5. Catalogue matching reviews stay CLI-only for now.
+
+**As built (where it differs from or sharpens the plan below):**
+
+- **Isolation happens in the validator**, within the same run: a never-imported period that stops
+  for an integrity reason is split at once (as oversized periods already were), so one bad row
+  costs at most a period of one to two hours. This applies to the full import too. The planner
+  still splits any such period it finds stopped.
+- **Stop reasons are codes** (`import_windows.review_reason`, migration 017).
+  - Transient (retried automatically at most once per `rearm_after`): `attempts_exhausted`,
+    `budget_exhausted`, `unstable`, and windows that gave up after their retries.
+  - Everything else waits for a person.
+- **A sync that reached its target succeeds**, even when an older period stopped. That period is
+  reported separately and keeps its imported plays; its pending extension is detached into an
+  ordinary new period.
+- **Counts for status are measured in the background:**
+  - a daily `CountCheckJob` (one grouped statement per user, under the per-user lock) records
+    `present_count` and `count_mismatch_at`;
+  - the weekly comparison records the count it compared.
+  - Queries per request, measured on a synthetic 20-year history (240 months) and identical for
+    1 year (`status_queries_test.rb`):
+    - `GET /api/sync`: 7, plus 1 for the ETag;
+    - `GET /api/import`: 13;
+    - the review queue: 11 (pages of 50);
+    - the attention count: 4, which `GET /api/connection` adds to its existing queries.
+- **`GET /api/sync` uses an ETag**, so an unchanged status costs a `304`.
+- **Polling paces itself from the data:** every 15 s while something is imported or checked,
+  otherwise every 60 s. A hidden tab polls nothing.
+- **Review decisions** require the item version that was shown; a changed item answers 409 with the
+  item as it is now. Removing a play, keeping a reappeared play removed, and applying corrections
+  need explicit confirmation. Repeats answer `already`, and the UI never sends a second request
+  while one is in flight.
+- **Pause Sync:** `lastfm_connections.sync_paused_at`. A running sync is paused, not cancelled;
+  resuming carries the same run on.
+
+The plan as reviewed follows.
+
+## 15a. Stage 2.8 plan (as reviewed 2026-10-30)
 
 Stage 2.8 makes the finished import and sync usable and observable from the app, and fixes two
 sync issues found in Stage 2.7. It adds no new ingestion source and changes no Last.fm behaviour

@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/shell/AppShell';
 import { OverviewPage } from '../pages/overview/OverviewPage';
 import { PendingScreen } from '../pages/PendingScreen';
-import { SettingsScreen } from '../pages/SettingsScreen';
+import { SettingsScreen } from '../pages/settings/SettingsScreen';
 import { PeriodProvider } from '../state/PeriodContext';
 
 export function App() {

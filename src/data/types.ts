@@ -4,13 +4,17 @@
  * (2014 | 2014-03 | 2014-W11 | 2014-03-15), already bucketed in the user's timezone.
  */
 
+/**
+ * `attention`: review items and problems that need the owner (never background work or automatic
+ * retries). `syncPaused`: the owner paused automatic synchronisation.
+ */
 export type ConnectionState =
   | { status: 'none' }
   /** Signed in with Last.fm; listening history has not been imported. */
   | { status: 'connected'; username: string; timezone: string }
-  | { status: 'importing'; username: string; timezone: string; progress: number }
-  | { status: 'synced'; username: string; timezone: string; lastSyncedAt: string }
-  | { status: 'failed'; username: string; timezone: string; lastSyncedAt: string | null; message: string };
+  | { status: 'importing'; username: string; timezone: string; progress: number; attention?: number }
+  | { status: 'synced'; username: string; timezone: string; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
+  | { status: 'failed'; username: string; timezone: string; lastSyncedAt: string | null; message: string; attention?: number };
 
 export type ConnectedState = Exclude<ConnectionState, { status: 'none' }>;
 
@@ -157,4 +161,156 @@ export interface SearchResults {
   artists: ArtistRef[];
   albums: Array<{ id: string; name: string; artist: string }>;
   tracks: Array<{ id: string; name: string; artist: string }>;
+}
+
+/* ---- Listening-history import, sync and review (GET /api/import, /api/sync, /api/reviews) ---- */
+
+/** UTC instants, ISO 8601, half-open [from, to). */
+export interface PeriodRange {
+  from: string;
+  to: string;
+}
+
+/** What the archive is doing now, as a code the UI words (pages/settings/copy.ts). */
+export type HistoryActivity =
+  | 'idle' | 'importing' | 'syncing' | 'catching_up' | 'comparing' | 'paused' | 'sync_paused' | 'waiting_for_review' | 'working';
+
+/** Why a period stopped. Codes from the server; see pages/settings/copy.ts. */
+export type StopReason =
+  | 'attempts_exhausted' | 'budget_exhausted' | 'unstable' | 'malformed_rows' | 'undated_rows' | 'out_of_range_rows'
+  | 'too_large' | 'reconciliation_check' | 'incomplete_answer' | 'staging_inconsistent' | 'commit_error' | 'gave_up';
+
+/** A period whose import or check stopped, or whose stored count disagrees. */
+export interface ProblemPeriod extends PeriodRange {
+  id: number;
+  status: 'check_stopped' | 'inconsistent';
+  /** Imported before: its plays still count; only its latest check stopped. */
+  imported: boolean;
+  reason: StopReason | null;
+  /** Technical detail, for "Technical details". */
+  message: string | null;
+  retriesAutomatically: boolean;
+  attempts: number;
+  httpStatus: number | null;
+  lastfmError: number | null;
+}
+
+/** A range with no imported plays, between the first period and the last. Never shown as complete. */
+export interface MissingPeriod extends PeriodRange {
+  state: 'needs_review' | 'retrying_later' | 'importing';
+  reason: StopReason | null;
+  message: string | null;
+}
+
+export interface ImportStatus {
+  /** History storage is switched on for this server. */
+  enabled: boolean;
+  state: 'not_started' | 'planning' | 'running' | 'paused' | 'needs_review' | 'completed' | 'failed' | 'cancelled';
+  complete: boolean;
+  /** The import has gone quiet; it restarts automatically. */
+  stalled: boolean;
+  activity: HistoryActivity;
+  /** Below 100 until complete; null until Last.fm's total is known. */
+  percent: number | null;
+  importedScrobbles: number;
+  lastfmPlaycount: number | null;
+  historyFrom: string | null;
+  cutoffAt: string | null;
+  currentPeriod: PeriodRange | null;
+  periods: { pending: number; processing: number; committed: number; failed: number; review: number };
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastImportedAt: string | null;
+  error: string | null;
+  failures: ProblemPeriod[];
+  missingPeriods: MissingPeriod[];
+  attention: number;
+  canStart: boolean;
+}
+
+export interface SyncRun {
+  kind: 'full' | 'sync' | 'catch_up' | 'reconcile' | 'recheck';
+  state: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  checkedFrom: string | null;
+  checkedTo: string | null;
+  newScrobbles: number;
+  error: string | null;
+}
+
+export interface SyncHealth {
+  enabled: boolean;
+  importComplete: boolean;
+  connectionState: 'not_started' | 'importing' | 'imported' | 'failed' | null;
+  syncPaused: boolean;
+  activity: HistoryActivity;
+  /** An account problem that stopped synchronisation. */
+  message: string | null;
+  lastSuccessfulSyncAt: string | null;
+  lastAttemptedSyncAt: string | null;
+  syncedThrough: string | null;
+  /** Where coverage from the first period stops being contiguous. */
+  coveredThrough: string | null;
+  coverage: PeriodRange[];
+  missingPeriods: MissingPeriod[];
+  activeRun: SyncRun | null;
+  lastRun: SyncRun | null;
+  newScrobbles: { lastRun: number; last24Hours: number };
+  periods: Record<string, number>;
+  awaitingRecheck: number;
+  problemPeriods: ProblemPeriod[];
+  stalePeriods: number;
+  reviews: { disputes: number; suspectedRemovals: number; pendingRemovals: number; reappeared: number };
+  attention: { reviews: number; periods: number; account: number; total: number };
+  nextDue: { reconcile: string | null; catch_up: string | null; sync: string | null };
+}
+
+export interface PlayNames {
+  artist: string;
+  track: string;
+  album: string | null;
+}
+
+export interface ReviewPlay extends PlayNames {
+  id: number;
+  seq: number;
+}
+
+export interface ReviewHistoryEntry {
+  action: string;
+  source: string;
+  at: string;
+}
+
+interface ReviewItemBase {
+  id: number;
+  /** The version the decision must name; a changed item is refused, not decided blind. */
+  version: string;
+  playedAt: string;
+  history: ReviewHistoryEntry[];
+}
+
+export type ReviewItem =
+  /** Missing from Last.fm in two independent checks; removing hides it (it can be restored). */
+  | (ReviewItemBase & { kind: 'removal'; play: ReviewPlay; removedAt: null; firstMissingAt: string; confirmedMissingAt: string | null })
+  /** Removed earlier, but Last.fm returns it again. */
+  | (ReviewItemBase & { kind: 'reappeared'; play: ReviewPlay; removedAt: string; firstMissingAt: string; confirmedMissingAt: string | null })
+  /** Plays in one second differ on both sides: a correction, or different plays. */
+  | (ReviewItemBase & { kind: 'dispute'; stored: ReviewPlay[]; fetched: Array<PlayNames & { index: number }>; firstSeenAt: string; lastSeenAt: string });
+
+export interface ReviewQueue {
+  items: ReviewItem[];
+  total: number;
+  offset: number;
+  /** Seen missing once; waiting for a second independent check before anyone can decide. */
+  waiting: number;
+}
+
+export type ReviewDecisionName = 'approve' | 'dismiss' | 'restore' | 'keep' | 'resolve';
+
+export interface ReviewDecisionResult {
+  result: string;
+  /** The item as it is now, or null once it no longer needs review. */
+  item: ReviewItem | null;
 }

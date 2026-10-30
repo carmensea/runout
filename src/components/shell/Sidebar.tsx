@@ -115,8 +115,8 @@ function AccountStatus() {
       </div>
       {c.status === 'synced' && (
         <div className={styles.syncLine}>
-          <span className={styles.dot} style={{ background: 'var(--c3)' }} />
-          <span>{syncedLabel(c.lastSyncedAt)}</span>
+          <span className={styles.dot} style={{ background: c.syncPaused ? 'var(--mu)' : 'var(--c3)' }} />
+          <span>{c.syncPaused ? 'Sync paused' : syncedLabel(c.lastSyncedAt)}</span>
         </div>
       )}
       {c.status === 'failed' && (

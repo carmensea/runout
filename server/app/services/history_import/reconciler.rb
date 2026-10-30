@@ -120,7 +120,7 @@ module HistoryImport
       fail!("a missing play has no removal record") unless @missing.all? { |id| %w[observed pending_review dismissed].include?(flagged[id]) }
     end
 
-    def fail!(message) = raise(WindowCommitter::Inconsistent, "reconciliation check failed: #{message}")
+    def fail!(message) = raise(WindowCommitter::Inconsistent.new("reconciliation check failed: #{message}", reason: "reconciliation_check"))
 
     # Counted before anything is written: present plays the snapshot has no identical play for.
     def refuse_mass_disappearance!(staged, stored_by_second)
@@ -133,8 +133,8 @@ module HistoryImport
       end
       return unless missing * 2 > present
 
-      raise WindowCommitter::Inconsistent,
-            "the snapshot lacks #{missing} of #{present} stored plays; not treated as deletions (an incomplete answer?)"
+      raise WindowCommitter::Inconsistent.new("the snapshot lacks #{missing} of #{present} stored plays; not treated as deletions " \
+                                              "(an incomplete answer?)", reason: "incomplete_answer")
     end
 
     def reconcile_second(t, staged, stored)

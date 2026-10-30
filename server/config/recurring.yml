@@ -23,6 +23,12 @@ production:
     class: SyncScheduleJob
     queue: default
     schedule: <%= ENV.fetch("SYNC_SCHEDULE", "every 30 minutes") %>
+  # Measures the plays present per period for the status endpoint's discrepancy check
+  # (HistoryImport::CountCheck). Does nothing while history storage is off.
+  history_count_check:
+    class: CountCheckJob
+    queue: default
+    schedule: every day at 4:15am
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12

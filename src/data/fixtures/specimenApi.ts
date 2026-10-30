@@ -8,7 +8,7 @@
  * format token. Nothing here is, or should ever be presented as, listening data.
  */
 import { serializePeriod, type Period } from '../../lib/period';
-import type { RunoutApi } from '../api';
+import type { HistoryApi, RunoutApi } from '../api';
 import type { ActivityBucket, GenreBreakdown, OverviewData, TopEntry } from '../types';
 
 function rng(seed: number) {
@@ -137,6 +137,45 @@ function buildOverview(period: Period, seed: number): OverviewData {
   };
 }
 
+/** Settings layout review: one of each state the history panels can show. Nothing is real. */
+const specimenHistory: HistoryApi = {
+  importStatus: async () => ({
+    enabled: true, state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 0,
+    lastfmPlaycount: 0, historyFrom: '2006-01-01T00:00:00Z', cutoffAt: '2026-01-01T00:00:00Z', currentPeriod: null,
+    periods: { pending: 0, processing: 0, committed: 0, failed: 0, review: 1 }, startedAt: null, finishedAt: null, lastImportedAt: null,
+    error: null, failures: [], missingPeriods: [], attention: 2, canStart: false,
+  }),
+  syncHealth: async () => ({
+    enabled: true, importComplete: true, connectionState: 'imported', syncPaused: false, activity: 'idle', message: null,
+    lastSuccessfulSyncAt: '2026-01-01T00:00:00Z', lastAttemptedSyncAt: '2026-01-01T00:00:00Z', syncedThrough: '2026-01-01T00:00:00Z',
+    coveredThrough: '2014-03-05T10:00:00Z', coverage: [], activeRun: null, lastRun: null, newScrobbles: { lastRun: 0, last24Hours: 0 },
+    missingPeriods: [{ from: '2014-03-05T10:00:00Z', to: '2014-03-05T11:00:00Z', state: 'needs_review', reason: 'undated_rows', message: null }],
+    problemPeriods: [
+      { id: 1, from: '2014-03-05T10:00:00Z', to: '2014-03-05T11:00:00Z', status: 'check_stopped', imported: false, reason: 'undated_rows',
+        message: 'Specimen', retriesAutomatically: false, attempts: 1, httpStatus: null, lastfmError: null },
+      { id: 2, from: '2025-12-01T00:00:00Z', to: '2026-01-01T00:00:00Z', status: 'check_stopped', imported: true, reason: 'gave_up',
+        message: 'Specimen', retriesAutomatically: true, attempts: 5, httpStatus: 502, lastfmError: null },
+    ],
+    periods: {}, awaitingRecheck: 0, stalePeriods: 0, reviews: { disputes: 1, suspectedRemovals: 1, pendingRemovals: 1, reappeared: 0 },
+    attention: { reviews: 2, periods: 1, account: 0, total: 3 },
+    nextDue: { reconcile: '2026-01-01T00:00:00Z', catch_up: '2026-01-01T00:00:00Z', sync: '2026-01-01T00:00:00Z' },
+  }),
+  reviews: async () => ({
+    total: 2, offset: 0, waiting: 1,
+    items: [
+      { kind: 'removal', id: 1, version: 'specimen', playedAt: '2014-03-15T20:00:00Z', history: [], removedAt: null,
+        play: { id: 1, seq: 0, artist: placeholder('Artist', 1), track: placeholder('Track title', 1), album: placeholder('Album title', 1) },
+        firstMissingAt: '2026-01-01T00:00:00Z', confirmedMissingAt: '2026-01-01T00:00:00Z' },
+      { kind: 'dispute', id: 2, version: 'specimen', playedAt: '2014-04-02T09:00:00Z', history: [], firstSeenAt: '2026-01-01T00:00:00Z',
+        lastSeenAt: '2026-01-01T00:00:00Z', stored: [{ id: 2, seq: 0, artist: placeholder('Artist', 2), track: placeholder('Track title', 2), album: null }],
+        fetched: [{ index: 0, artist: placeholder('Artist', 2), track: placeholder('Track title', 3), album: null }] },
+    ],
+  }),
+  startImport: async () => {}, pauseImport: async () => {}, resumeImport: async () => {}, cancelImport: async () => {},
+  retryPeriod: async () => {}, refreshSync: async () => {}, pauseSync: async () => {}, resumeSync: async () => {},
+  decide: async () => ({ result: 'specimen', item: null }),
+};
+
 export const specimenApi: RunoutApi = {
   getConnection: async () => ({ status: 'synced', username: 'lastfm-username', timezone: 'Europe/London', lastSyncedAt: '2026-01-01T00:00:00Z' }),
   getOverview: async (period) => buildOverview(period, 7 + serializePeriod(period).length),
@@ -150,4 +189,5 @@ export const specimenApi: RunoutApi = {
   deleteAccount: async () => {
     throw new Error('Specimen mode has no account to delete.');
   },
+  history: specimenHistory,
 };

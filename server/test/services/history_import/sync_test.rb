@@ -227,7 +227,7 @@ class HistoryImport::SyncTest < ActiveSupport::TestCase
     assert_equal "sync", sync.tick![@user.id]
   end
 
-  test "an outage: bounded retries, the run fails, history is untouched; the period is tried again after rearm_after" do
+  test "an outage: bounded retries, the run fails, history is untouched; later listening continues; the period is retried after rearm_after" do
     import!(at: Time.utc(2026, 10, 14, 12))
     before = Scrobble.where(user: @user).pluck(:id, :seq, :name_variant_id, :removed_at)
     @fake.add(play(Time.utc(2026, 10, 14, 12, 10), "During the outage"))
@@ -252,16 +252,28 @@ class HistoryImport::SyncTest < ActiveSupport::TestCase
     assert_equal [ "check_stopped" ], health[:problemPeriods].map { |p| p[:status].to_s }
     assert_nil health[:lastSuccessfulSyncAt]
 
-    requests = @fake.requests
-    assert_equal "sync", tick_and_drain
-    assert_equal "failed", last_run("sync").state, "the period that gave up waits for rearm_after"
-    assert_match(/needs attention/, last_run("sync").last_error)
-    assert_equal requests, @fake.requests, "nothing fetched for it"
+    assert_equal 0, health[:attention][:total], "retried automatically: nothing for the owner to do"
+    assert health[:problemPeriods].sole[:retriesAutomatically]
 
+    # Last.fm is back. The period that gave up waits for rearm_after, but new listening doesn't wait for it.
     @fake.fail_when = nil
+    october = windows.last
+    assert_equal "sync", tick_and_drain
+    run = last_run("sync")
+    assert_equal "completed", run.state, "it reached its target"
+    assert_equal [ october.id ], health[:problemPeriods].map { |p| p[:id] }, "the stopped period is still reported"
+    october.reload
+    assert_equal [ "failed", Time.utc(2026, 10, 14, 12), nil ], [ october.state, october.window_to, october.check_to ],
+                 "untouched, its extension detached"
+    assert_equal Time.utc(2026, 10, 14, 12), windows.last.window_from, "the detached range became a new period"
+    assert_equal 1, stored("During the outage").count
+    assert_equal Time.current, @user.lastfm_connection.reload.last_synced_at
+    assert_equal :complete, ImportCoverage.status_for(@user, windows.first.window_from, target_at(Time.current)), "October's plays still count"
+    assert_empty health[:missingPeriods]
+
     travel 1.day
     assert_includes %w[catch_up sync], tick_and_drain
-    assert_equal 1, stored("During the outage").count
+    assert_equal "committed", october.reload.state, "tried again once rearm_after passed"
     assert_contiguous(to: target_at(Time.current))
   end
 
@@ -318,10 +330,18 @@ class HistoryImport::SyncTest < ActiveSupport::TestCase
     assert_equal "failed", last_run("sync").state
     assert_nil @user.lastfm_connection.reload.last_synced_at
 
+    assert_equal 1, health[:attention][:total], "an integrity stop waits for a person"
+
+    @fake.add(play(Time.utc(2026, 10, 14, 13, 5), "Listening goes on"))
     tick_and_drain(at: Time.utc(2026, 10, 14, 13, 31))
-    assert_equal "failed", last_run("sync").state
-    assert_match(/needs attention/, last_run("sync").last_error)
-    assert_equal Time.utc(2026, 10, 14, 12), windows.last.window_to, "coverage doesn't jump over the period under review"
+    assert_equal "completed", last_run("sync").state, "new listening isn't held back by the period under review"
+    assert_equal 1, stored("Listening goes on").count
+    assert_equal [ "needs_review", Time.utc(2026, 10, 14, 12) ], [ october.reload.state, october.window_to ], "still waiting for a person"
+    assert ScrobbleRemoval.none?, "still nothing treated as deleted"
+    assert_equal Time.utc(2026, 10, 14, 12), windows.last.window_from
+    assert_equal :complete, ImportCoverage.status_for(@user, windows.first.window_from, target_at(Time.current)),
+                 "October's imported plays keep their coverage; only its check stopped"
+    assert_equal 1, health[:attention][:total]
   end
 
   test "storage off: the tick schedules nothing; turned off mid-run, nothing more is written until it's back" do

@@ -8,6 +8,21 @@ Rails.application.routes.draw do
     resource :session, only: :destroy
     resource :account, only: :destroy
     resource :connection, only: :show
-    resource :sync, only: :show
+    resource :import, only: %i[show create] do
+      post :pause
+      post :resume
+      post :cancel
+      post "periods/:id/retry", action: :retry_period, as: :retry_period
+    end
+    resource :sync, only: :show do
+      post :refresh
+      post :pause
+      post :resume
+    end
+    resources :reviews, only: :index
+    post "reviews/:kind/:id/:decision", to: "reviews#decide", as: :review_decision,
+                                        constraints: { kind: /removal|reappeared|dispute/, id: /\d+/ }
+    get "overview", to: "unavailable#show"
+    get "search", to: "unavailable#show"
   end
 end

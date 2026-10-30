@@ -42,7 +42,8 @@ describe('Overview, authentication states', () => {
     };
     renderApp(api);
     expect(await screen.findByText('Signed in as test-user.')).toBeInTheDocument();
-    expect(screen.getByText(/Importing your Last.fm history is not available/)).toBeInTheDocument();
+    expect(screen.getByText(/Your listening history hasn’t been imported yet/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Start the import in Settings' })).toBeInTheDocument();
     expect(overviewCalls).toBe(0);
     expect(screen.getAllByText('Last.fm connected').length).toBeGreaterThan(0);
   });

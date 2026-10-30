@@ -13,6 +13,12 @@ module HistoryImport
   # play to another immutable name variant and records the old one in scrobble_corrections.
   module Review
     class Invalid < StandardError; end
+    # The item changed after the reviewer loaded it (another decision, or a later check): nothing
+    # was decided. The caller shows the item as it is now.
+    class Changed < StandardError; end
+
+    # Identifies the version of an item a reviewer saw. Any change to the item changes it.
+    def self.version(item) = item.updated_at.utc.iso8601(6)
 
     module_function
 
@@ -22,9 +28,10 @@ module HistoryImport
         removals: ScrobbleRemoval.unresolved.where(user: user).includes(scrobble: :name_variant).order(:id).to_a }
     end
 
-    def approve_removal!(removal, by:, note: nil, source: "cli")
+    def approve_removal!(removal, by:, note: nil, source: "cli", expected_version: nil)
       decide(removal, ScrobbleRemoval) do |r|
         next :already if r.state == "approved"
+        check_version!(r, expected_version)
         raise Invalid, "only a removal pending review can be approved (this one is #{r.state})" unless r.state == "pending_review"
 
         now = Time.current
@@ -36,9 +43,10 @@ module HistoryImport
       end
     end
 
-    def dismiss_removal!(removal, by:, note: nil, source: "cli")
+    def dismiss_removal!(removal, by:, note: nil, source: "cli", expected_version: nil)
       decide(removal, ScrobbleRemoval) do |r|
         next :already if r.state == "dismissed"
+        check_version!(r, expected_version)
         raise Invalid, "only an open removal can be dismissed (this one is #{r.state})" unless %w[observed pending_review].include?(r.state)
 
         r.update!(state: "dismissed", decided_at: Time.current, decided_by: by, decision_note: note)
@@ -48,9 +56,10 @@ module HistoryImport
     end
 
     # A removed play that Last.fm returns again: bring it back.
-    def restore_reappeared!(removal, by:, note: nil, source: "cli")
+    def restore_reappeared!(removal, by:, note: nil, source: "cli", expected_version: nil)
       decide(removal, ScrobbleRemoval) do |r|
         next :already if r.state == "restored"
+        check_version!(r, expected_version)
         raise Invalid, "only a reappeared play can be restored (this one is #{r.state})" unless r.state == "reappeared"
 
         r.update!(state: "restored", decided_at: Time.current, decided_by: by, decision_note: note)
@@ -62,9 +71,10 @@ module HistoryImport
     end
 
     # A removed play that Last.fm returns again: keep it removed.
-    def keep_removed!(removal, by:, note: nil, source: "cli")
+    def keep_removed!(removal, by:, note: nil, source: "cli", expected_version: nil)
       decide(removal, ScrobbleRemoval) do |r|
         next :already if r.state == "approved"
+        check_version!(r, expected_version)
         raise Invalid, "only a reappeared play can be kept removed (this one is #{r.state})" unless r.state == "reappeared"
 
         r.update!(state: "approved", decided_at: Time.current, decided_by: by, decision_note: note)
@@ -80,9 +90,10 @@ module HistoryImport
     # - stored plays left unpaired are not removed: they start the usual removal process
     #   (`observed`), which needs a later independent check and an approval.
     # With no pairs, every fetched play is new and every stored play is suspected missing.
-    def resolve_dispute!(dispute, by:, pairs: [], note: nil, source: "cli")
+    def resolve_dispute!(dispute, by:, pairs: [], note: nil, source: "cli", expected_version: nil)
       decide(dispute, ReconciliationDispute) do |d|
         next :already if d.state == "resolved"
+        check_version!(d, expected_version)
         raise Invalid, "only an open dispute can be resolved (this one is #{d.state})" unless d.state == "open"
 
         pairs = validate_pairs!(d, pairs)
@@ -128,9 +139,10 @@ module HistoryImport
 
     # Keeps the stored plays as they are. The same evidence won't reopen the dispute; a later check
     # that sees different plays in that second opens a new one.
-    def dismiss_dispute!(dispute, by:, note: nil, source: "cli")
+    def dismiss_dispute!(dispute, by:, note: nil, source: "cli", expected_version: nil)
       decide(dispute, ReconciliationDispute) do |d|
         next :already if d.state == "dismissed"
+        check_version!(d, expected_version)
         raise Invalid, "only an open dispute can be dismissed (this one is #{d.state})" unless d.state == "open"
 
         d.update!(state: "dismissed", decided_at: Time.current, decided_by: by, resolution: { note: note })
@@ -140,6 +152,10 @@ module HistoryImport
     end
 
     # Uncached, like WindowCommitter#commit: decisions must read what is stored now.
+    def check_version!(item, expected)
+      raise Changed, "this item changed since it was loaded; review it again" if expected && version(item) != expected
+    end
+
     def decide(item, model)
       HistoryImport.ensure_enabled!
       model.uncached do
@@ -167,7 +183,7 @@ module HistoryImport
       return unless window
 
       present = Scrobble.present.where(user_id: user_id).played_between(window.window_from, window.window_to).count
-      ImportWindow.where(id: window.id).update_all(committed_count: present, updated_at: Time.current)
+      ImportWindow.where(id: window.id).update_all(committed_count: present, present_count: present, count_mismatch_at: nil, updated_at: Time.current)
     end
   end
 end

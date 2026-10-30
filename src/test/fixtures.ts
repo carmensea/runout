@@ -1,7 +1,7 @@
 /** Test-only data. Small, obviously synthetic values used to exercise rendering paths. */
-import type { RunoutApi } from '../data/api';
-import { NotConnectedError } from '../data/api';
-import type { OverviewData } from '../data/types';
+import type { HistoryApi, RunoutApi } from '../data/api';
+import { NotConnectedError, noHistoryApi } from '../data/api';
+import type { ImportStatus, OverviewData, ReviewQueue, SyncHealth } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0);
@@ -72,6 +72,59 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     signInUrl: () => '/api/auth/lastfm',
     signOut: async () => {},
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
+    history: fakeHistoryApi(),
+  };
+}
+
+export function makeImportStatus(overrides: Partial<ImportStatus> = {}): ImportStatus {
+  return {
+    enabled: true, state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 4321,
+    lastfmPlaycount: 4321, historyFrom: '2020-01-01T00:00:00Z', cutoffAt: '2026-10-29T08:00:00Z', currentPeriod: null,
+    periods: { pending: 0, processing: 0, committed: 82, failed: 0, review: 0 }, startedAt: '2026-10-29T07:00:00Z',
+    finishedAt: '2026-10-29T08:00:00Z', lastImportedAt: '2026-10-29T08:00:00Z', error: null, failures: [], missingPeriods: [],
+    attention: 0, canStart: false, ...overrides,
+  };
+}
+
+export function makeSyncHealth(overrides: Partial<SyncHealth> = {}): SyncHealth {
+  return {
+    enabled: true, importComplete: true, connectionState: 'imported', syncPaused: false, activity: 'idle', message: null,
+    lastSuccessfulSyncAt: '2026-10-29T09:00:00Z', lastAttemptedSyncAt: '2026-10-29T09:00:00Z', syncedThrough: '2026-10-29T08:45:00Z',
+    coveredThrough: '2026-10-29T08:45:00Z', coverage: [{ from: '2020-01-01T00:00:00Z', to: '2026-10-29T08:45:00Z' }], missingPeriods: [],
+    activeRun: null, lastRun: null, newScrobbles: { lastRun: 2, last24Hours: 12 }, periods: { synchronized: 82 }, awaitingRecheck: 0,
+    problemPeriods: [], stalePeriods: 0, reviews: { disputes: 0, suspectedRemovals: 0, pendingRemovals: 0, reappeared: 0 },
+    attention: { reviews: 0, periods: 0, account: 0, total: 0 },
+    nextDue: { reconcile: '2026-11-05T08:00:00Z', catch_up: '2026-10-30T08:00:00Z', sync: '2026-10-29T09:30:00Z' }, ...overrides,
+  };
+}
+
+/** A history API answering from fixed data, with every call recorded. Override any method. */
+export function fakeHistoryApi(overrides: Partial<HistoryApi> & { calls?: string[] } = {}): HistoryApi & { calls: string[] } {
+  const calls = overrides.calls ?? [];
+  const record = (name: string) => async () => {
+    calls.push(name);
+  };
+  const empty: ReviewQueue = { items: [], total: 0, offset: 0, waiting: 0 };
+  return {
+    importStatus: async () => makeImportStatus(),
+    syncHealth: async () => makeSyncHealth(),
+    reviews: async () => empty,
+    startImport: record('startImport'),
+    pauseImport: record('pauseImport'),
+    resumeImport: record('resumeImport'),
+    cancelImport: record('cancelImport'),
+    retryPeriod: async (id) => {
+      calls.push(`retryPeriod:${id}`);
+    },
+    refreshSync: record('refreshSync'),
+    pauseSync: record('pauseSync'),
+    resumeSync: record('resumeSync'),
+    decide: async (item, decision, options) => {
+      calls.push(`decide:${item.kind}:${item.id}:${decision}:${JSON.stringify(options ?? {})}`);
+      return { result: decision, item: null };
+    },
+    ...overrides,
+    calls,
   };
 }
 
@@ -88,4 +141,5 @@ export const notConnectedApi: RunoutApi = {
   deleteAccount: async () => {
     throw new NotConnectedError();
   },
+  history: noHistoryApi,
 };

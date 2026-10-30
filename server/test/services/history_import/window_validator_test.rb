@@ -182,15 +182,24 @@ class HistoryImport::WindowValidatorTest < ActiveSupport::TestCase
     assert_equal 1, @fake.requests, "the size is known from the first page"
   end
 
-  test "undated or malformed rows send the window to review instead of being dropped" do
+  test "undated or malformed rows are never dropped: a period is split to isolate them, the smallest one goes to review" do
     serve(count: 3)
-    @fake.fail_requests = { 1 => { status: 200, body: { recenttracks: { "@attr" => { page: "1", perPage: "200", totalPages: "1", total: "2" },
-                                                                         track: [ { artist: { "#text" => "A" }, name: "T", date: { uts: "1394000000" } },
-                                                                                  { artist: { "#text" => "A" }, name: "No date" } ] } }.to_json } }
+    undated = { status: 200, body: { recenttracks: { "@attr" => { page: "1", perPage: "200", totalPages: "1", total: "2" },
+                                                     track: [ { artist: { "#text" => "A" }, name: "T", date: { uts: "1394000000" } },
+                                                              { artist: { "#text" => "A" }, name: "No date" } ] } }.to_json }
+    @fake.fail_requests = { 1 => undated }
     result = validate
-    assert_equal :needs_review, result.status
+    assert_equal :split, result.status, "a month never imported is split to isolate the problem"
     assert_includes result.detail, "without a date"
+    assert_equal 2, @window.reload.child_windows.count
     assert_equal 0, staged.count
+
+    hour = window(@user, from: Time.utc(2014, 5, 1, 10), to: Time.utc(2014, 5, 1, 11, 30)) # too small to split
+    @fake.fail_requests = { @fake.requests + 1 => undated }
+    result = validate(hour)
+    assert_equal :needs_review, result.status
+    assert_equal [ "needs_review", "undated_rows" ], [ hour.reload.state, hour.review_reason ]
+    assert_includes result.detail, "without a date"
   end
 
   test "a window that keeps failing is left for review after the attempt limit" do
