@@ -40,6 +40,13 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
 - **History storage stays off.** `LASTFM_HISTORY_STORAGE_ENABLED` is off in every environment.
   Don't import or persist real listening history until Last.fm's storage terms are resolved
   (`docs/lastfm-permission-email.md`). History models refuse to create rows while it's off.
+- **One authorised exception (2026-10-30):** the owner explicitly authorised a single supervised
+  import of their own Last.fm history into the local `runout_development` database, with storage
+  switched on only in that import's processes (`docs/real-import-runbook.md`, "Import record").
+  It's done: storage is off again and the default configuration is unchanged. It authorises
+  nothing else. Not another import, sync with storage on, production, Render or Neon: each needs
+  the owner's explicit approval. The imported history is real data: never reset, truncate,
+  restore over or rewrite it without the owner's approval.
 - **Live API checks are read-only.** Any live Last.fm verification must be read-only and
   conservatively paced, and must not persist scrobbles.
 - **Storage figures prove nothing about compliance.** Measured sizes don't establish compliance

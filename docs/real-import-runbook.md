@@ -1,6 +1,6 @@
 # Runbook: supervised first real import (local)
 
-Status: **prepared, not run.** The first real import of your Last.fm history happens only when you
+Status: **run once, 2026-10-30/31** (see "Import record" at the end). The first real import of your Last.fm history happens only when you
 authorise it. Everything below runs on this Mac against `runout_development`. Whether you may
 keep the history under Last.fm's terms is your decision (`docs/lastfm-permission-email.md`); this
 runbook is only about doing it safely.
@@ -206,3 +206,32 @@ replaces the database's contents, so it is your explicit decision, never automat
 ```sh
 pg_restore -U postgres --clean --if-exists -d runout_development ~/runout-development-before-import.dump
 ```
+
+## Import record (2026-10-30/31, Pacific evening; times below UTC)
+
+Explicitly authorised by the owner, supervised, local only. Storage was on only in the import's
+`bin/jobs`, `bin/rails server` and rake processes; `.env` was never changed. Recurring sync was held
+with the existing sync pause during the import, then unpaused.
+
+| | |
+|---|---|
+| Backups | `~/runout-development-before-import.dump` (before) and `~/runout-development-after-import.dump` (after, 11 MB); each restored into a scratch database and checked |
+| Started / finished | 05:11:42 / 06:20:01 (68 min overall; about 44 min of importing, the rest paused for the fix below) |
+| Periods | 267 months, August 2004 to October 2026, all committed; none split, failed or left for review |
+| Plays | 209,383, equal to the sum of Last.fm's per-period totals in every month; no removals, disputes or corrections |
+| Earliest / latest | 2006-09-10 23:20:36 / 2026-10-31 02:40:53 (Last.fm returned nothing before September 2006) |
+| Profile total | 209,417: 34 more than any history query returns, none dated before August 2004 or after the cutoff (assumption A1) |
+| Requests | 2,461 by the periods, 2 account checks, about 23 read-only diagnostic requests |
+| Storage | 104 MB of Last.fm-derived data (`runout:storage_report`), 114 MB database |
+| Matching | all 42,502 name variants matched; artists 79.6% of plays by MusicBrainz ID, 20.4% by name; tracks 71.9% / 28.1% |
+
+**Issue found and fixed during the import.** Last.fm returned different recording IDs for the same
+plays between requests, so May to July 2026 never validated. The import was paused, and commit
+`8bcb909` made MusicBrainz IDs enrichment rather than identity (`mbid_disputes`), with tests. The
+committed history was unchanged (same fingerprint), and the three months then validated at once. Two
+songs have disputed recording IDs.
+
+**Open:** 860 artist names exist both as an identified artist and a name-only one (Last.fm sends no
+artist ID with some plays), so such an artist ranks twice (10,102 plays, 4.8%); 1,929 possible-match
+reviews are open. This comes from the existing matching rule, which never joins a name to an
+identified artist; a correction needs the owner's decision.
