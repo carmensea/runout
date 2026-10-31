@@ -1,9 +1,7 @@
 import { HOUR_TICKS, WEEKDAY_SHORT } from '../../lib/dates';
-import { quantileBucketer } from '../../lib/scale';
+import { HEAT_RAMP, quantileBucketer } from '../../lib/scale';
 import styles from './Charts.module.css';
 
-/** Accent opacity per quantile step (HANDOFF.md: 5 steps, zero = --s1). */
-const HEAT_RAMP = [0.12, 0.3, 0.5, 0.75, 1];
 
 interface Props {
   /** 7 rows (Monday first) × 24 hours. */

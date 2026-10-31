@@ -1,7 +1,7 @@
 import { serializePeriod, type Period } from '../lib/period';
 import type {
-  ConnectionState, ImportStatus, OverviewData, ReviewDecisionName, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults,
-  SyncHealth,
+  CalendarDays, ConnectionState, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
+  ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
 } from './types';
 
 /**
@@ -12,6 +12,11 @@ export interface RunoutApi {
   getConnection(signal?: AbortSignal): Promise<ConnectionState>;
   getOverview(period: Period, signal?: AbortSignal): Promise<OverviewData>;
   search(query: string, signal?: AbortSignal): Promise<SearchResults>;
+  /** Time Machine: the whole history, plays per day, the plays themselves, and "On this day". */
+  getCalendar(signal?: AbortSignal): Promise<HistoryCalendar>;
+  getCalendarDays(from: string, to: string, signal?: AbortSignal): Promise<CalendarDays>;
+  getPlays(period: Period, cursor: string | null, signal?: AbortSignal): Promise<PlaysPage>;
+  getOnThisDay(date: string, signal?: AbortSignal): Promise<OnThisDay>;
   /** Where to send the browser to sign in with Last.fm, or null when no server is configured. */
   signInUrl(): string | null;
   signOut(): Promise<void>;
@@ -142,6 +147,10 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     getConnection: (signal) => get<ConnectionState>('/connection', {}, signal),
     getOverview: (period, signal) => get<OverviewData>('/overview', { period: serializePeriod(period) }, signal),
     search: (query, signal) => get<SearchResults>('/search', { q: query }, signal),
+    getCalendar: (signal) => get<HistoryCalendar>('/calendar', {}, signal),
+    getCalendarDays: (from, to, signal) => get<CalendarDays>('/calendar', { from, to }, signal),
+    getPlays: (period, cursor, signal) => get<PlaysPage>('/plays', { period: serializePeriod(period), ...(cursor ? { cursor } : {}) }, signal),
+    getOnThisDay: (date, signal) => get<OnThisDay>('/on-this-day', { date }, signal),
     signInUrl: () => {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       return `${root}/auth/lastfm${tz ? `?${new URLSearchParams({ tz })}` : ''}`;
@@ -188,9 +197,11 @@ export const disconnectedApi: RunoutApi = {
   getOverview: async () => {
     throw new NotConnectedError();
   },
-  search: async () => {
-    throw new NotConnectedError();
-  },
+  search: notConnected,
+  getCalendar: notConnected,
+  getCalendarDays: notConnected,
+  getPlays: notConnected,
+  getOnThisDay: notConnected,
   signInUrl: () => null,
   signOut: async () => {},
   deleteAccount: async () => {

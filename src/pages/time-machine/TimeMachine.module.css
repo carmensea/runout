@@ -1,0 +1,799 @@
+/* Time Machine. Tokens only (src/styles/tokens.css); dark only; no motion beyond hover colour. */
+
+.main {
+  max-width: var(--content-max);
+  padding: 40px 40px 96px;
+}
+
+/* ---- Header ---- */
+
+.header {
+  display: grid;
+  gap: 12px;
+}
+
+.trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
+.trail li + li::before {
+  content: '/';
+  margin: 0 8px;
+  color: var(--ln);
+}
+
+.trail a {
+  color: var(--fg2);
+  text-decoration: none;
+}
+
+.trail a:hover {
+  color: var(--ac);
+}
+
+.trail [aria-current='page'] {
+  color: var(--fg);
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 48px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.subtitle {
+  margin-top: 8px;
+  color: var(--fg2);
+  font-size: 15px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stepper {
+  display: flex;
+}
+
+.stepButton {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.stepButton + .stepButton {
+  margin-left: -1px;
+}
+
+.stepButton:hover {
+  background: var(--s1);
+  color: var(--fg);
+}
+
+.stepDisabled,
+.stepDisabled:hover {
+  color: var(--mu);
+  background: none;
+  opacity: 0.5;
+}
+
+.overviewLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg2);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.footnote {
+  margin-top: 56px;
+  border-top: 1px solid var(--ln);
+  padding-top: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+/* ---- Timeline strips ---- */
+
+.timeline {
+  margin-top: 32px;
+  border-top: 1px solid var(--ln);
+  border-bottom: 1px solid var(--ln);
+  padding: 16px 0;
+  display: grid;
+  gap: 12px;
+}
+
+.strip {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.stripItem {
+  flex: 1 0 22px;
+  display: grid;
+  grid-template-rows: 48px auto;
+  gap: 4px;
+  padding: 4px 1px 0;
+  color: var(--mu);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+
+.months .stripItem {
+  grid-template-rows: 28px auto;
+}
+
+.stripItem:hover {
+  color: var(--fg);
+  background: var(--s1);
+}
+
+.stripTrack {
+  display: flex;
+  align-items: flex-end;
+}
+
+.stripBar {
+  width: 100%;
+  background: var(--ln);
+}
+
+.stripItem:hover .stripBar {
+  background: var(--fg2);
+}
+
+.stripItem[aria-current='true'] {
+  color: var(--fg);
+}
+
+.stripItem[aria-current='true'] .stripBar {
+  background: var(--ac);
+}
+
+.stripLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ---- Status: not imported (hatch), partly imported, still to come ---- */
+
+.missing,
+.partial {
+  position: relative;
+}
+
+.missing::before,
+.partial::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hatch);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.partial::before {
+  opacity: 0.14;
+}
+
+.future {
+  color: var(--mu);
+  opacity: 0.45;
+}
+
+/* ---- Panel ---- */
+
+.panel {
+  margin-top: 32px;
+  min-width: 0;
+}
+
+.hint,
+.logStatus,
+.empty {
+  margin-top: 24px;
+  color: var(--fg2);
+}
+
+.empty {
+  border: 1px solid var(--ln);
+  padding: 24px;
+  font-size: 15px;
+}
+
+.textButton {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--fg);
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+/* ---- Whole history: years × months ---- */
+
+.historyGrid {
+  display: grid;
+  gap: 3px;
+}
+
+.historyRow {
+  display: grid;
+  grid-template-columns: 48px repeat(12, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.colHead {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+  text-align: center;
+}
+
+.rowHead a {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg2);
+  text-decoration: none;
+}
+
+.heatCell {
+  display: block;
+  height: 20px;
+  background: var(--s1);
+  border-radius: 1px;
+}
+
+.heatCell:hover {
+  outline: 1px solid var(--fg2);
+}
+
+/* ---- A year: twelve small months ---- */
+
+.yearGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px 28px;
+}
+
+.miniTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ln);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.miniTitle .mono {
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.miniGrid {
+  display: grid;
+  gap: 3px;
+}
+
+.miniRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.miniDay,
+.miniBlank {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 1px;
+}
+
+.miniDay {
+  background: var(--s1);
+}
+
+.miniDay:hover {
+  outline: 1px solid var(--fg2);
+}
+
+/* ---- A month: the calendar ---- */
+
+.calendar {
+  display: grid;
+  gap: 4px;
+}
+
+.calRow {
+  display: grid;
+  grid-template-columns: 36px repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekHead {
+  display: grid;
+}
+
+.weekLink {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+
+.weekLink:hover {
+  background: var(--s1);
+}
+
+.calDay {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 64px;
+  padding: 8px;
+  background: var(--s1);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.calDay:hover {
+  outline: 1px solid var(--fg2);
+  color: inherit;
+}
+
+.calDate {
+  font-size: 13px;
+}
+
+.calCount {
+  align-self: flex-end;
+  font-size: 11px;
+}
+
+.outside {
+  background: none;
+  color: var(--mu);
+  opacity: 0.55;
+}
+
+.selected {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+
+/* ---- A week ---- */
+
+.weekDays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekDay {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: var(--s1);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.weekDay:hover {
+  outline: 1px solid var(--fg2);
+  color: inherit;
+}
+
+.weekDate {
+  font-size: 15px;
+}
+
+.weekCount {
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.weekBar {
+  display: block;
+  height: 3px;
+  background: var(--s2);
+}
+
+.weekBar span {
+  display: block;
+  height: 100%;
+  background: var(--ac);
+}
+
+/* ---- A custom range ---- */
+
+.rangeBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 120px;
+  border-bottom: 1px solid var(--ln);
+}
+
+.rangeBar {
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.rangeBar span {
+  display: block;
+  width: 100%;
+  background: var(--ln);
+}
+
+.rangeBar:hover span,
+.rangeBar:focus-visible span {
+  background: var(--ac);
+}
+
+.rangeAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mu);
+}
+
+/* ---- A day: the plays, with "On this day" beside them ---- */
+
+.dayLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 48px;
+  align-items: start;
+}
+
+.dayMonth {
+  max-width: 560px;
+}
+
+.dayMonth .calDay {
+  min-height: 44px;
+  padding: 6px;
+}
+
+.logTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 40px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ln);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 24px;
+}
+
+.logTitle .mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.log {
+  display: grid;
+}
+
+.logDay + .logDay {
+  margin-top: 8px;
+}
+
+.logDate {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 16px 0 8px;
+  border-bottom: 1px solid var(--ln);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.logDate .mono {
+  font-size: 11px;
+  color: var(--mu);
+  font-weight: 400;
+}
+
+.logList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.play {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--ln2);
+}
+
+.playTime {
+  font-size: 12px;
+  color: var(--fg2);
+}
+
+.playWhat {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  min-width: 0;
+}
+
+.playTrack {
+  color: var(--fg);
+}
+
+.playArtist {
+  color: var(--fg2);
+}
+
+.playAlbum {
+  color: var(--mu);
+  font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sameSecond {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+  white-space: nowrap;
+}
+
+.logFooter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--mu);
+}
+
+.moreButton {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.moreButton:hover:not(:disabled) {
+  background: var(--s1);
+}
+
+.logError {
+  color: var(--err);
+}
+
+.onThisDay {
+  border-top: 1px solid var(--ln);
+  padding-top: 16px;
+}
+
+.asideTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+}
+
+.asideIntro {
+  margin-top: 6px;
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.otdList {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.otdYear {
+  border-bottom: 1px solid var(--ln2);
+}
+
+.otdLink {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.otdLink:hover .otdYearNum {
+  color: var(--ac);
+}
+
+.otdHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.otdHead .mono {
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.otdYearNum {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.otdCount {
+  margin-left: auto;
+}
+
+.otdArtists {
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.otdTrack {
+  color: var(--mu);
+  font-size: 12px;
+}
+
+.otdMissing .otdYearNum {
+  color: var(--mu);
+}
+
+.wideOnly {
+  display: inline;
+}
+
+/* ---- Narrower screens ---- */
+
+@media (max-width: 1279px) {
+  .yearGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dayLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1023px) {
+  .main {
+    padding: 32px 24px 72px;
+  }
+}
+
+@media (max-width: 767px) {
+  .main {
+    padding: 24px 16px 48px;
+  }
+
+  .title {
+    font-size: 32px;
+  }
+
+  .titleRow {
+    align-items: flex-start;
+  }
+
+  .timeline {
+    margin-top: 20px;
+  }
+
+  .stripItem {
+    flex-basis: 26px;
+  }
+
+  .yearGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 16px;
+  }
+
+  .historyRow {
+    grid-template-columns: 36px repeat(12, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .heatCell {
+    height: 16px;
+  }
+
+  .wideOnly {
+    display: none;
+  }
+
+  .calRow {
+    grid-template-columns: 24px repeat(7, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .calDay {
+    min-height: 48px;
+    padding: 5px;
+  }
+
+  .calCount {
+    font-size: 10px;
+  }
+
+  .weekDays {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weekDay {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .weekBar {
+    grid-column: 1 / -1;
+  }
+
+  .play {
+    grid-template-columns: 64px minmax(0, 1fr);
+    row-gap: 2px;
+  }
+
+  .playAlbum {
+    grid-column: 2;
+  }
+
+  .sameSecond {
+    grid-column: 2;
+  }
+}

@@ -184,6 +184,71 @@ export interface LocalDays {
   partialTo: boolean;
 }
 
+// ---------- Time Machine (server/app/services/analytics/calendar.rb, plays.rb, on_this_day.rb) ----------
+
+/** The whole history at a glance. `lastDay` is the latest local day with a play, not today. */
+export interface HistoryCalendar {
+  firstDay: string | null;
+  lastDay: string | null;
+  years: Array<{ key: string; scrobbles: number }>;
+  months: Array<{ key: string; scrobbles: number }>;
+  coverage: OverviewCoverage;
+}
+
+/** Plays per local day from `from` to `to` (inclusive). Days without plays are left out. */
+export interface CalendarDays {
+  from: string;
+  to: string;
+  days: Array<{ date: string; scrobbles: number }>;
+  coverage: OverviewCoverage;
+}
+
+/** Identity keys as in the Overview; names exactly as scrobbled. */
+export interface PlayRef {
+  id: string;
+  name: string;
+}
+
+export interface Play {
+  /** Stable per play: same-second plays differ. */
+  id: string;
+  /** UTC instant, ISO 8601. */
+  playedAt: string;
+  /** Local date and time in the reporting timezone. */
+  date: string;
+  time: string;
+  artist: PlayRef;
+  track: PlayRef;
+  album: PlayRef | null;
+}
+
+export interface PlaysPage {
+  period: string;
+  /** Plays in the whole period, not just this page. */
+  total: number;
+  plays: Play[];
+  /** Pass back for the next page; null on the last one. */
+  nextCursor: string | null;
+  coverage: OverviewCoverage;
+}
+
+export interface OnThisDayYear {
+  date: string;
+  scrobbles: number;
+  /** complete: a zero is a day without listening; none: nothing is known about it. */
+  coverage: OverviewCoverage['status'];
+  topArtists: Array<{ id: string; name: string; scrobbles: number }>;
+  topTrack: { id: string; name: string; artist: string; scrobbles: number } | null;
+}
+
+export interface OnThisDay {
+  date: string;
+  /** 29 February: only leap years are listed. */
+  leapDay: boolean;
+  /** Every other year of the history, newest first. */
+  years: OnThisDayYear[];
+}
+
 export interface SearchResults {
   artists: ArtistRef[];
   albums: Array<{ id: string; name: string; artist: string }>;

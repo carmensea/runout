@@ -61,3 +61,6 @@ export function spreadLabels(positions: number[], minGap: number): number[] {
   order.forEach((item, k) => (out[item.i] = placed[k]!));
   return out;
 }
+
+/** Accent opacity per quantile step (HANDOFF.md: 5 steps, zero = --s1). */
+export const HEAT_RAMP = [0.12, 0.3, 0.5, 0.75, 1];

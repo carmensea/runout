@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/shell/AppShell';
+import { TimeMachinePage } from '../pages/time-machine/TimeMachinePage';
 import { OverviewPage } from '../pages/overview/OverviewPage';
 import { PendingScreen } from '../pages/PendingScreen';
 import { SettingsScreen } from '../pages/settings/SettingsScreen';
@@ -12,10 +13,7 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<Navigate to="/overview" replace />} />
           <Route path="/overview" element={<OverviewPage />} />
-          <Route
-            path="/time-machine"
-            element={<PendingScreen eyebrow="02 / Time Machine" title="Time Machine" description="Year, month, week and day navigator for your history, with a focused period and comparison. Selections here set the same period the Overview uses." />}
-          />
+          <Route path="/time-machine" element={<TimeMachinePage />} />
           <Route path="/artists" element={<PendingScreen eyebrow="03 / Artists" title="Artists" description="Every artist in your history, ranked for the selected period." />} />
           <Route path="/artists/:artistId" element={<PendingScreen eyebrow="03 / Artists" title="Artist" description="Listening history for one artist: monthly scrobbles, rotation periods and first scrobble." />} />
           <Route path="/albums/:albumId" element={<PendingScreen eyebrow="03 / Artists" title="Album" description="Listening history for one album." />} />

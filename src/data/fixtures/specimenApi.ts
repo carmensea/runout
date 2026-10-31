@@ -9,7 +9,8 @@
  */
 import { serializePeriod, type Period } from '../../lib/period';
 import type { HistoryApi, RunoutApi } from '../api';
-import type { ActivityBucket, GenreBreakdown, ImportStatus, OverviewData, TopEntry } from '../types';
+import { addDays, daysBetween } from '../../lib/dates';
+import type { ActivityBucket, CalendarDays, GenreBreakdown, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, TopEntry } from '../types';
 
 function rng(seed: number) {
   let s = seed;
@@ -209,6 +210,71 @@ const specimenHistory: HistoryApi = {
   decide: async () => ({ result: 'specimen', item: null }),
 };
 
+// ---------- Time Machine: structural shapes only, placeholder names ----------
+
+const SPECIMEN_LAST_DAY = '2025-12-31';
+
+function specimenDayCount(date: string): number {
+  const r = rng(Number(date.replace(/-/g, '')));
+  return r() < 0.12 ? 0 : Math.round(8 + r() * 60);
+}
+
+function specimenCalendar(): HistoryCalendar {
+  const months: HistoryCalendar['months'] = [];
+  const years: HistoryCalendar['years'] = [];
+  for (let y = 2008; y <= 2025; y++) {
+    let total = 0;
+    for (let m = 1; m <= 12; m++) {
+      const n = Math.round(400 + rng(y * 100 + m)() * 1400);
+      months.push({ key: `${y}-${pad(m)}`, scrobbles: n });
+      total += n;
+    }
+    years.push({ key: String(y), scrobbles: total });
+  }
+  return { firstDay: '2008-01-03', lastDay: SPECIMEN_LAST_DAY, years, months, coverage: { status: 'complete', missing: [] } };
+}
+
+function specimenDays(from: string, to: string): CalendarDays {
+  const days: CalendarDays['days'] = [];
+  for (let i = 0; i <= daysBetween(from, to); i++) {
+    const date = addDays(from, i);
+    if (date > SPECIMEN_LAST_DAY) break;
+    const n = specimenDayCount(date);
+    if (n > 0) days.push({ date, scrobbles: n });
+  }
+  return { from, to, days, coverage: { status: 'complete', missing: [] } };
+}
+
+function specimenPlays(period: Period, cursor: string | null): PlaysPage {
+  const start = cursor ? Number(cursor) : 0;
+  const plays = Array.from({ length: 40 }, (_, i) => {
+    const n = start + i;
+    const minutes = 7 * 60 + n * 4;
+    const time = `${pad(Math.floor(minutes / 60) % 24)}:${pad(minutes % 60)}:00`;
+    return {
+      id: `specimen-${n}`, playedAt: '2025-12-31T00:00:00Z', date: SPECIMEN_LAST_DAY, time,
+      artist: { id: `artists-${(n % 9) + 1}`, name: placeholder('Artist', (n % 9) + 1) },
+      track: { id: `tracks-${n + 1}`, name: placeholder('Track title', (n % 40) + 1) },
+      album: n % 5 === 4 ? null : { id: `albums-${(n % 7) + 1}`, name: placeholder('Album title', (n % 7) + 1) },
+    };
+  });
+  return { period: serializePeriod(period), total: 120, plays, nextCursor: start + 40 < 120 ? String(start + 40) : null, coverage: { status: 'complete', missing: [] } };
+}
+
+function specimenOnThisDay(date: string): OnThisDay {
+  const years = [];
+  for (let y = Number(date.slice(0, 4)) - 1; y >= 2008; y--) {
+    const d = `${y}${date.slice(4)}`;
+    const n = specimenDayCount(d);
+    years.push({
+      date: d, scrobbles: n, coverage: 'complete' as const,
+      topArtists: n ? [1, 2, 3].map((i) => ({ id: `artists-${i}`, name: placeholder('Artist', i), scrobbles: n })) : [],
+      topTrack: n ? { id: 'tracks-1', name: placeholder('Track title', 1), artist: placeholder('Artist', 1), scrobbles: n } : null,
+    });
+  }
+  return { date, leapDay: date.endsWith('-02-29'), years };
+}
+
 export const specimenApi: RunoutApi = {
   getConnection: async () => ({ status: 'synced', username: 'lastfm-username', timezone: 'Europe/London', lastSyncedAt: '2026-01-01T00:00:00Z' }),
   getOverview: async (period) => buildOverview(period, 7 + serializePeriod(period).length),
@@ -217,6 +283,10 @@ export const specimenApi: RunoutApi = {
     albums: [1, 2].map((i) => ({ id: `albums-${i}`, name: placeholder('Album title', i), artist: placeholder('Artist', i) })),
     tracks: [1, 2].map((i) => ({ id: `tracks-${i}`, name: placeholder('Track title', i), artist: placeholder('Artist', i) })),
   }),
+  getCalendar: async () => specimenCalendar(),
+  getCalendarDays: async (from, to) => specimenDays(from, to),
+  getPlays: async (period, cursor) => specimenPlays(period, cursor),
+  getOnThisDay: async (date) => specimenOnThisDay(date),
   signInUrl: () => null,
   signOut: async () => {},
   deleteAccount: async () => {
