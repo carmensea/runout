@@ -231,7 +231,11 @@ plays between requests, so May to July 2026 never validated. The import was paus
 committed history was unchanged (same fingerprint), and the three months then validated at once. Two
 songs have disputed recording IDs.
 
-**Open:** 860 artist names exist both as an identified artist and a name-only one (Last.fm sends no
-artist ID with some plays), so such an artist ranks twice (10,102 plays, 4.8%); 1,929 possible-match
-reviews are open. This comes from the existing matching rule, which never joins a name to an
-identified artist; a correction needs the owner's decision.
+**Artist duplicates (resolved 2026-10-31, owner-approved).** 860 artist names existed both as an
+identified artist and a name-only one (Last.fm sends no artist ID with some plays), so such an
+artist ranked twice. A dry run (`catalogue:infer_artists`) found 859 to join and one to keep apart
+(Foster the People: a release among its plays belongs to Classixx). After a backup
+(`~/runout-development-before-artist-inference.dump`) they were applied: 859 inferences, 10,060
+plays now counted under their identified artist, 211 name-only albums joined same-titled ones,
+1,924 possible-match reviews resolved by the inferences. Plays, strings, IDs, import windows and
+monthly totals unchanged.
