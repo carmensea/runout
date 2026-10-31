@@ -14,11 +14,12 @@ module Analytics
     MIN_LENGTH = 2
 
     NORMALIZE = Overview::NORMALIZE
-    ARTIST_KEY = "COALESCE('a' || COALESCE(ar.merged_into_id, ar.id), 'n' || md5(#{NORMALIZE.call('v.artist_name')}))".freeze
+    ARTIST_KEY = "COALESCE('a' || COALESCE(arm.id, ar.id), 'n' || md5(#{NORMALIZE.call('v.artist_name')}))".freeze
     ARTIST_NAME = "COALESCE(arm.name, ar.name, v.artist_name)".freeze
     JOINS = <<~SQL.freeze
       JOIN scrobbles s ON s.name_variant_id = v.id AND s.user_id = :user AND s.removed_at IS NULL
-      LEFT JOIN artists ar ON ar.id = v.artist_id LEFT JOIN artists arm ON arm.id = ar.merged_into_id
+      LEFT JOIN artists ar ON ar.id = v.artist_id
+      LEFT JOIN #{Catalogue::Roots.sql('artists')} ar_root ON ar_root.id = ar.id LEFT JOIN artists arm ON arm.id = ar_root.root_id
     SQL
 
     def initialize(user:, query:)
@@ -63,14 +64,17 @@ module Analytics
     # Name-matching variants: through the catalogue's names where matched, the raw strings otherwise.
     # A broad query matches thousands of names; only the CANDIDATES closest entities (by
     # similarity, so an exact name always stays) go on to the play counts (Milestone 3 benchmark).
+    # A matching entity that was merged brings the end of its chain: its plays are linked there.
     CANDIDATES = 200
 
     def matching(catalogue_table, catalogue_column, variant_fk, variant_column)
       <<~SQL
         SELECT v2.id FROM name_variants v2
-         WHERE v2.#{variant_fk} IN (SELECT c.id FROM #{catalogue_table} c
-                                     WHERE c.#{catalogue_column} LIKE :contains OR c.#{catalogue_column} % :q
-                                     ORDER BY similarity(c.#{catalogue_column}, :q) DESC LIMIT #{CANDIDATES})
+         WHERE v2.#{variant_fk} IN (SELECT unnest(ARRAY[m.id, root.root_id])
+                                      FROM (SELECT c.id FROM #{catalogue_table} c
+                                             WHERE c.#{catalogue_column} LIKE :contains OR c.#{catalogue_column} % :q
+                                             ORDER BY similarity(c.#{catalogue_column}, :q) DESC LIMIT #{CANDIDATES}) m
+                                      LEFT JOIN #{Catalogue::Roots.sql(catalogue_table)} root ON root.id = m.id)
         UNION
         (SELECT v3.id FROM name_variants v3
           WHERE v3.#{variant_fk} IS NULL
@@ -84,13 +88,13 @@ module Analytics
     end
 
     def tracks
-      key = "COALESCE('t' || COALESCE(tr.merged_into_id, tr.id), 'm' || md5(#{ARTIST_KEY} || '|' || #{NORMALIZE.call('v.track_name')}))"
+      key = "COALESCE('t' || COALESCE(trm.id, tr.id), 'm' || md5(#{ARTIST_KEY} || '|' || #{NORMALIZE.call('v.track_name')}))"
       name = "COALESCE(trm.title, tr.title, v.track_name)"
       rows(entity_sql("tracks", "tr", "trm", "track_id", key, name, matching("tracks", "normalized_title", "track_id", "track_name")))
     end
 
     def albums
-      key = "CASE WHEN al.id IS NOT NULL THEN 'l' || COALESCE(al.merged_into_id, al.id) " \
+      key = "CASE WHEN al.id IS NOT NULL THEN 'l' || COALESCE(alm.id, al.id) " \
             "ELSE 'o' || md5(#{ARTIST_KEY} || '|' || #{NORMALIZE.call('v.album_name')}) END"
       name = "COALESCE(alm.title, al.title, NULLIF(btrim(v.album_name), ''))"
       rows(entity_sql("albums", "al", "alm", "album_id", key, name, matching("albums", "normalized_title", "album_id", "album_name"),
@@ -99,7 +103,8 @@ module Analytics
 
     def rows(sql) = ActiveRecord::Base.connection.select_rows(ActiveRecord::Base.sanitize_sql_array([ sql, binds ]))
 
-    # Tracks and albums: as `search`, with the entity's own (merged) row joined for its title.
+    # Tracks and albums: as `search`, with the entity's own row, and the one at the end of its merge
+    # chain, joined for its title.
     def entity_sql(table, alias_name, merged_alias, fk, key, name, match_sql, where: "TRUE")
       <<~SQL
         SELECT key, name, artist FROM (
@@ -108,7 +113,8 @@ module Analytics
             FROM name_variants v
             #{JOINS}
             LEFT JOIN #{table} #{alias_name} ON #{alias_name}.id = v.#{fk}
-            LEFT JOIN #{table} #{merged_alias} ON #{merged_alias}.id = #{alias_name}.merged_into_id
+            LEFT JOIN #{Catalogue::Roots.sql(table)} #{alias_name}_root ON #{alias_name}_root.id = #{alias_name}.id
+            LEFT JOIN #{table} #{merged_alias} ON #{merged_alias}.id = #{alias_name}_root.root_id
            WHERE v.id IN (#{match_sql}) AND (#{where})
            GROUP BY 1) hits
          ORDER BY (norm = :q) DESC, (norm LIKE :prefix) DESC, (norm LIKE :contains) DESC,

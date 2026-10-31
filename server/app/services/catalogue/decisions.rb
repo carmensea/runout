@@ -30,16 +30,22 @@ module Catalogue
     # Records that `from` and `into` are one entity: `from` points at `into` from now on, and every
     # variant linked to `from` is re-matched onto `into`. Nothing is deleted, so the decision can be
     # traced (and undone by clearing merged_into and re-matching).
+    #
+    # Merges chain: entities merged into `from` earlier keep pointing at it, and so stand for the
+    # target too (Mergeable). Merges of one kind take turns, so two at once can't make a cycle.
     def merge!(from, into, by:, clock: Time.current)
       raise ArgumentError, "can only merge entities of the same kind" unless from.instance_of?(into.class)
-
-      target = into.resolved
-      raise ArgumentError, "can't merge an entity into itself" if target == from || target.resolved == from
 
       HistoryImport.ensure_enabled!
       level = Matcher::MODELS.key(from.class)
       variants = NameVariant.where(Matcher::LINK_COLUMNS.fetch(level) => from.id)
+      target = nil
       from.transaction do
+        from.class.connection.execute(from.class.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", "catalogue:merge:#{level}" ]))
+        from.reload
+        target = into.class.find(into.id).resolved
+        raise ArgumentError, "can't merge an entity into itself" if target == from || target.resolved == from
+
         from.update!(merged_into: target)
         reviews = CatalogueReview.open.where(level: level, name_variant_id: variants.select(:id)).where("? = ANY(candidate_ids)", target.id)
         resolve_reviews(reviews, chosen: target, by: by, at: clock)

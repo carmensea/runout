@@ -31,6 +31,10 @@ measured the same way.
 **Identity of artists, albums and tracks**
 - A play's names are matched to the catalogue (Stage 2.5). Where they are, the catalogue entity
   identifies it, following merges. Different spellings matched to one artist count as one artist.
+- Merges chain: A merged into B, and later B into C, makes A, B and C one entity, C, however long
+  the chain. Each merge's pointer is kept as decided, so the history of decisions stays. A merge
+  that would make a cycle is refused; were one written anyway, every entity on or leading into it
+  stands for itself, so no play is lost or counted twice (`Mergeable`, `Catalogue::Roots`).
 - Where they aren't (not matched yet, or matched ambiguously and waiting for review), the play is
   identified by its normalised names (Unicode NFKC, lower case, collapsed whitespace): the artist
   by its name, a track or album by its artist plus its own name. Such plays are always counted and
