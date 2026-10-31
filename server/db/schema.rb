@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000021) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -105,6 +105,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
     t.check_constraint "kind::text = ANY (ARRAY['ambiguous'::character varying, 'possible_match'::character varying]::text[])", name: "catalogue_reviews_kind"
     t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "catalogue_reviews_level"
     t.check_constraint "state::text = ANY (ARRAY['open'::character varying, 'resolved'::character varying, 'dismissed'::character varying, 'superseded'::character varying]::text[])", name: "catalogue_reviews_state"
+  end
+
+  create_table "genres", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "name", null: false
+    t.string "level", null: false
+    t.bigint "parent_id"
+    t.integer "position", default: 0, null: false
+    t.string "origin", default: "seed", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["parent_id"], name: "index_genres_on_parent_id"
+    t.index ["slug"], name: "index_genres_on_slug", unique: true
+    t.check_constraint "(level::text = 'broad'::text) = (parent_id IS NULL)", name: "genres_parent"
+    t.check_constraint "level::text = ANY (ARRAY['broad'::character varying, 'sub'::character varying]::text[])", name: "genres_level"
+    t.check_constraint "origin::text = ANY (ARRAY['seed'::character varying, 'manual'::character varying]::text[])", name: "genres_origin"
   end
 
   create_table "identities", force: :cascade do |t|
@@ -429,6 +445,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "tag_genre_mappings", force: :cascade do |t|
+    t.text "tag", null: false
+    t.bigint "genre_id", null: false
+    t.decimal "weight", precision: 4, scale: 3, null: false
+    t.string "origin", default: "seed", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["genre_id"], name: "index_tag_genre_mappings_on_genre_id"
+    t.index ["tag", "genre_id"], name: "index_tag_genre_mappings_on_tag_and_genre_id", unique: true
+    t.index ["tag"], name: "index_tag_genre_mappings_on_tag"
+    t.check_constraint "origin::text = ANY (ARRAY['seed'::character varying, 'manual'::character varying, 'musicbrainz'::character varying]::text[])", name: "tag_genre_mappings_origin"
+    t.check_constraint "weight > 0::numeric AND weight <= 1::numeric", name: "tag_genre_mappings_weight"
+  end
+
+  create_table "taxonomy_settings", primary_key: "key", id: :string, force: :cascade do |t|
+    t.decimal "value", precision: 8, scale: 3, null: false
+    t.string "origin", default: "seed", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "tracks", force: :cascade do |t|
     t.bigint "artist_id", null: false
     t.text "title", null: false
@@ -464,6 +501,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
   add_foreign_key "catalogue_reviews", "catalogue_inferences", column: "inference_id"
   add_foreign_key "catalogue_reviews", "name_variants", on_delete: :cascade
   add_foreign_key "catalogue_reviews", "users", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "genres", "genres", column: "parent_id"
   add_foreign_key "identities", "users", on_delete: :cascade
   add_foreign_key "import_runs", "users", on_delete: :cascade
   add_foreign_key "import_window_fetches", "import_windows", on_delete: :cascade
@@ -499,6 +537,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
   add_foreign_key "scrobbles", "name_variants"
   add_foreign_key "scrobbles", "users", on_delete: :cascade
   add_foreign_key "sessions", "users", on_delete: :cascade
+  add_foreign_key "tag_genre_mappings", "genres", on_delete: :cascade
   add_foreign_key "tracks", "artists"
   add_foreign_key "tracks", "catalogue_inferences", column: "inference_id"
   add_foreign_key "tracks", "tracks", column: "merged_into_id"
