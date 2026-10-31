@@ -18,10 +18,26 @@ const KINDS: ReadonlyArray<{ key: ArtistKindKey; label: string; color: string | 
 
 type Weighting = 'artists' | 'scrobbles';
 
-export function MetadataSection({ data, view }: SectionProps) {
+const DESCRIPTION = 'Uses the gender and artist-type fields published by MusicBrainz. Nothing is inferred from names, images or sound. Artists without a published value are counted as unknown.';
+
+/** Artist metadata arrives with Milestone 4; until then the section says so instead of showing figures. */
+export function MetadataSection(props: SectionProps) {
+  if (props.data.metadata === null) {
+    return (
+      <Section id="demographics" minor eyebrow="06 / Artist metadata" title="Artists by listed gender or type" description={DESCRIPTION}>
+        <p className="caption" role="status" style={{ padding: '16px 0' }}>
+          Artist metadata isn’t available yet. It comes from MusicBrainz, which Runout doesn’t query yet.
+        </p>
+      </Section>
+    );
+  }
+  return <MetadataContent {...props} metadata={props.data.metadata} />;
+}
+
+function MetadataContent({ view, metadata }: SectionProps & { metadata: NonNullable<SectionProps['data']['metadata']> }) {
   const { fmt } = view;
   const [weighting, setWeighting] = useState<Weighting>('artists');
-  const counts = weighting === 'artists' ? data.metadata.byArtists : data.metadata.byScrobbles;
+  const counts = weighting === 'artists' ? metadata.byArtists : metadata.byScrobbles;
   const total = KINDS.reduce((a, k) => a + counts[k.key], 0);
   const noun = weighting === 'artists' ? 'artists' : 'scrobbles';
 
@@ -31,7 +47,7 @@ export function MetadataSection({ data, view }: SectionProps) {
       minor
       eyebrow="06 / Artist metadata"
       title="Artists by listed gender or type"
-      description="Uses the gender and artist-type fields published by MusicBrainz. Nothing is inferred from names, images or sound. Artists without a published value are counted as unknown."
+      description={DESCRIPTION}
       actions={
         <SegmentedControl
           size="sm"
@@ -65,9 +81,9 @@ export function MetadataSection({ data, view }: SectionProps) {
             </li>
           ))}
         </ul>
-        {data.metadata.unmatchedArtists > 0 && (
+        {metadata.unmatchedArtists > 0 && (
           <p style={{ marginTop: 16, fontSize: 13, color: 'var(--fg2)' }}>
-            <Icon name="info" size={16} className={local.info} /> {fmt.count(data.metadata.unmatchedArtists)} artists have no MusicBrainz match yet.{' '}
+            <Icon name="info" size={16} className={local.info} /> {fmt.count(metadata.unmatchedArtists)} artists have no MusicBrainz match yet.{' '}
             <Link to={view.withPeriod('/settings#metadata')}>Review unmatched artists</Link>
           </p>
         )}

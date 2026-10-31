@@ -61,14 +61,21 @@ module Analytics
     end
 
     # Name-matching variants: through the catalogue's names where matched, the raw strings otherwise.
+    # A broad query matches thousands of names; only the CANDIDATES closest entities (by
+    # similarity, so an exact name always stays) go on to the play counts (Milestone 3 benchmark).
+    CANDIDATES = 200
+
     def matching(catalogue_table, catalogue_column, variant_fk, variant_column)
       <<~SQL
-        SELECT v2.id FROM name_variants v2 JOIN #{catalogue_table} c ON c.id = v2.#{variant_fk}
-         WHERE c.#{catalogue_column} LIKE :contains OR c.#{catalogue_column} % :q
+        SELECT v2.id FROM name_variants v2
+         WHERE v2.#{variant_fk} IN (SELECT c.id FROM #{catalogue_table} c
+                                     WHERE c.#{catalogue_column} LIKE :contains OR c.#{catalogue_column} % :q
+                                     ORDER BY similarity(c.#{catalogue_column}, :q) DESC LIMIT #{CANDIDATES})
         UNION
-        SELECT v3.id FROM name_variants v3
-         WHERE v3.#{variant_fk} IS NULL
-           AND (lower(v3.#{variant_column}) LIKE :contains OR lower(v3.#{variant_column}) % :q)
+        (SELECT v3.id FROM name_variants v3
+          WHERE v3.#{variant_fk} IS NULL
+            AND (lower(v3.#{variant_column}) LIKE :contains OR lower(v3.#{variant_column}) % :q)
+          ORDER BY similarity(lower(v3.#{variant_column}), :q) DESC LIMIT #{CANDIDATES})
       SQL
     end
 

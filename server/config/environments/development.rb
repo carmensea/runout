@@ -1,6 +1,13 @@
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
+  # A supervised local import (docs/real-import-runbook.md): Solid Queue, as in production, on its
+  # own database, only when QUEUE_DATABASE_URL is set. Otherwise Rails' default in-process adapter.
+  if ENV["QUEUE_DATABASE_URL"].present?
+    config.active_job.queue_adapter = :solid_queue
+    config.solid_queue.connects_to = { database: { writing: :queue } }
+  end
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # Make code changes take effect immediately without server restart.

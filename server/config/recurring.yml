@@ -32,3 +32,19 @@ production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+
+# The same entries for a supervised local import (docs/real-import-runbook.md). They run only while
+# bin/jobs runs in development with QUEUE_DATABASE_URL set, and do nothing while storage is off.
+development:
+  import_watchdog:
+    class: ImportWatchdogJob
+    queue: default
+    schedule: every 10 minutes
+  history_sync:
+    class: SyncScheduleJob
+    queue: default
+    schedule: <%= ENV.fetch("SYNC_SCHEDULE", "every 30 minutes") %>
+  history_count_check:
+    class: CountCheckJob
+    queue: default
+    schedule: every day at 4:15am

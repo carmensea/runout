@@ -59,7 +59,10 @@ function StatGrid({ stats, vs, view }: { stats: OverviewStats; vs: OverviewStats
     },
     { label: 'Unique artists', value: stats.uniqueArtists, cmp: vs?.uniqueArtists, note: `${fmt.count(stats.artistsPlayedOverTen)} played more than 10 times` },
     { label: 'Unique tracks', value: stats.uniqueTracks, cmp: vs?.uniqueTracks, note: `${fmt.count(stats.tracksPlayedOnce)} played only once` },
-    { label: 'Unique albums', value: stats.uniqueAlbums, cmp: vs?.uniqueAlbums, note: `${fmt.count(stats.albumsWithoutArtwork)} without artwork` },
+    {
+      label: 'Unique albums', value: stats.uniqueAlbums, cmp: vs?.uniqueAlbums,
+      note: stats.albumsWithoutArtwork === null ? 'Artwork arrives in a later version' : `${fmt.count(stats.albumsWithoutArtwork)} without artwork`,
+    },
   ];
   return (
     <dl className={styles.stats}>

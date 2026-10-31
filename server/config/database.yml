@@ -12,9 +12,21 @@ default: &default
   # forked processes on macOS (parallel tests).
   gssencmode: disable
 
+# A supervised local import (docs/real-import-runbook.md) runs Solid Queue on its own database:
+# set QUEUE_DATABASE_URL to use it. Without it, development is a single database, as before.
 development:
+<% if ENV["QUEUE_DATABASE_URL"].present? %>
+  primary:
+    <<: *default
+    database: runout_development
+  queue:
+    <<: *default
+    url: <%= ENV["QUEUE_DATABASE_URL"] %>
+    migrations_paths: db/queue_migrate
+<% else %>
   <<: *default
   database: runout_development
+<% end %>
 
 test:
   <<: *default

@@ -11,10 +11,26 @@ import { artistHref, type SectionProps } from '../view';
 type Level = 'broad' | 'sub';
 const SLOT = (i: number) => `var(--c${(i % 7) + 1})`;
 
-export function GenresSection({ data, view }: SectionProps) {
+const DESCRIPTION = 'Genres come from Last.fm artist tags, mapped to seven broad categories. Tags with very few votes are ignored.';
+
+/** Genres arrive with Milestone 4; until then the section says so instead of showing figures. */
+export function GenresSection(props: SectionProps) {
+  if (props.data.genres === null) {
+    return (
+      <Section id="genres" eyebrow="03 / Genres" title="What it sounds like" description={DESCRIPTION}>
+        <p className="caption" role="status" style={{ padding: '16px 0' }}>
+          Genres aren’t available yet. They need artist tags, which Runout doesn’t collect yet.
+        </p>
+      </Section>
+    );
+  }
+  return <GenresContent {...props} genres={props.data.genres} />;
+}
+
+function GenresContent({ view, genres: available }: SectionProps & { genres: NonNullable<SectionProps['data']['genres']> }) {
   const { fmt } = view;
   const [level, setLevel] = useState<Level>('broad');
-  const breakdown = (level === 'sub' ? data.genres.sub : null) ?? data.genres.broad;
+  const breakdown = (level === 'sub' ? available.sub : null) ?? available.broad;
   const genres = breakdown.categories.slice(0, 7).map((g, i) => ({ ...g, color: SLOT(i) }));
   const [chosen, setChosen] = useState<string | null | undefined>(undefined);
   // Default to the top genre until the person picks or clears.
@@ -31,7 +47,7 @@ export function GenresSection({ data, view }: SectionProps) {
       id="genres"
       eyebrow="03 / Genres"
       title="What it sounds like"
-      description="Genres come from Last.fm artist tags, mapped to seven broad categories. Tags with very few votes are ignored."
+      description={DESCRIPTION}
       actions={
         <SegmentedControl
           label="Genre level"
@@ -42,7 +58,7 @@ export function GenresSection({ data, view }: SectionProps) {
           }}
           options={[
             { value: 'broad', label: 'Broad categories' },
-            { value: 'sub', label: 'Subgenres', disabled: data.genres.sub === null, title: data.genres.sub === null ? 'Subgenre data is not available for this period yet' : undefined },
+            { value: 'sub', label: 'Subgenres', disabled: available.sub === null, title: available.sub === null ? 'Subgenre data is not available for this period yet' : undefined },
           ]}
         />
       }

@@ -134,6 +134,7 @@ function buildOverview(period: Period, seed: number): OverviewData {
       unmatchedArtists: 100,
     },
     nearestWithData: [],
+    coverage: { status: 'complete', missing: [] },
   };
 }
 

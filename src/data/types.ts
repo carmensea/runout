@@ -38,7 +38,8 @@ export interface OverviewStats {
   uniqueTracks: number;
   tracksPlayedOnce: number;
   uniqueAlbums: number;
-  albumsWithoutArtwork: number;
+  /** Null until artwork is tracked (Milestone 4). */
+  albumsWithoutArtwork: number | null;
 }
 
 export interface Habits {
@@ -146,15 +147,26 @@ export interface OverviewData {
   mostActiveDays: RankedPeriod[];
   mostActiveMonths: RankedPeriod[];
   habits: Habits;
-  genres: { broad: GenreBreakdown; sub: GenreBreakdown | null };
+  /** Null until genres are available (Milestone 4); never estimated. */
+  genres: { broad: GenreBreakdown; sub: GenreBreakdown | null } | null;
   top: TopLists;
   rankHistory: RankHistory;
   onRepeat: OnRepeatEntry[];
   backInRotation: ReturnEntry[];
   discovery: Discovery;
-  metadata: ArtistMetadata;
+  /** Null until artist metadata is available (Milestone 4); never estimated. */
+  metadata: ArtistMetadata | null;
   /** Nearest periods that do have scrobbles, offered when this one is empty. */
   nearestWithData: string[];
+  /** Whether the period lies within imported history (docs/milestone-3-plan.md §1). */
+  coverage: OverviewCoverage;
+}
+
+export interface OverviewCoverage {
+  /** complete: all of the period is imported; partial: some; none: none of it. */
+  status: 'complete' | 'partial' | 'none';
+  /** Inclusive local dates (YYYY-MM-DD) with no imported history. */
+  missing: Array<{ from: string; to: string }>;
 }
 
 export interface SearchResults {

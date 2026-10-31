@@ -231,6 +231,29 @@ describe('Overview, connected', () => {
     expect(screen.getByRole('link', { name: '2019' })).toBeInTheDocument();
   });
 
+  it('says what isn’t available yet instead of showing figures (genres, metadata, artwork)', async () => {
+    const real = makeOverview({ genres: null, metadata: null, stats: { ...makeOverview().stats, albumsWithoutArtwork: null } });
+    renderApp(connectedApi(() => real), '/overview?period=year:2020');
+    expect(await screen.findByText(/Genres aren’t available yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Artist metadata isn’t available yet/)).toBeInTheDocument();
+    expect(screen.getByText('Artwork arrives in a later version')).toBeInTheDocument();
+    expect(screen.queryByText(/without artwork/)).not.toBeInTheDocument();
+  });
+
+  it('lists the dates a period is missing, and says figures cover imported history only', async () => {
+    const partial = makeOverview({ coverage: { status: 'partial', missing: [{ from: '2020-06-01', to: '2020-06-30' }] } });
+    renderApp(connectedApi(() => partial), '/overview?period=year:2020');
+    expect(await screen.findByText(/Part of this period isn’t imported: 2020-06-01 to 2020-06-30\. Figures cover imported/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Import status' })).toHaveAttribute('href', expect.stringMatching(/^\/settings\?period=.*#history$/));
+  });
+
+  it('never calls an unimported period "no scrobbles"', async () => {
+    const unknown = makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, coverage: { status: 'none', missing: [{ from: '2003-01-01', to: '2003-12-31' }] } });
+    renderApp(connectedApi(() => unknown), '/overview?period=year:2003');
+    expect(await screen.findByText('Scrobbles for 2003 have not been imported.')).toBeInTheDocument();
+    expect(screen.queryByText('No scrobbles in 2003.')).not.toBeInTheDocument();
+  });
+
   it('shows an error with retry when the overview fails', async () => {
     const user = userEvent.setup();
     let calls = 0;

@@ -21,6 +21,9 @@ const H = 200;
 const MAX_RANK = 10;
 const y = (rank: number) => ((Math.min(rank, MAX_RANK) - 1) / (MAX_RANK - 1)) * 190 + 5;
 
+/** At most about eight year labels fit under the chart. */
+const yearStep = (n: number) => Math.max(1, Math.ceil(n / 8));
+
 /** Rank lines (1 at top), direct labels at the right end. Gaps where an artist left the top 10. */
 export function BumpChart({ years, series, summary }: { years: number[]; series: BumpSeries[]; summary: string }) {
   const n = years.length;
@@ -67,7 +70,8 @@ export function BumpChart({ years, series, summary }: { years: number[]; series:
         </div>
       </div>
       <div className={styles.bumpYears} aria-hidden="true">
-        {years.map((yr) => <span key={yr}>{yr}</span>)}
+        {/* A long history would run the years together: label every `step`th, keeping each slot. */}
+        {years.map((yr, i) => <span key={yr}>{i % yearStep(n) === 0 ? yr : ''}</span>)}
       </div>
     </div>
   );

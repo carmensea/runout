@@ -175,9 +175,20 @@ function DayAndTime({ values, format }: { values: number[][]; format(n: number):
 
 /** One 100% bar plus a list; tapping a genre shows its subgenres and artists. */
 function Genres({ data, view }: { data: OverviewData; view: OverviewView }) {
+  if (data.genres === null) {
+    return (
+      <section aria-labelledby="m-genres">
+        <h3 id="m-genres" className={styles.h3} style={{ marginBottom: 10 }}>Genres</h3>
+        <p className="caption" role="status">Genres aren’t available yet. They need artist tags, which Runout doesn’t collect yet.</p>
+      </section>
+    );
+  }
+  return <GenresContent breakdown={data.genres.broad} view={view} />;
+}
+
+function GenresContent({ breakdown, view }: { breakdown: NonNullable<OverviewData['genres']>['broad']; view: OverviewView }) {
   const { fmt } = view;
   const [open, setOpen] = useState<string | null>(null);
-  const breakdown = data.genres.broad;
   const genres = breakdown.categories.slice(0, 7).map((g, i) => ({ ...g, color: `var(--c${i + 1})` }));
   const selected = genres.find((g) => g.id === open);
   return (

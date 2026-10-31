@@ -8,10 +8,12 @@ module Api
     def show
       return render(json: { error: "not_connected" }, status: :conflict) unless Current.user.lastfm_connection
 
-      period = Analytics::Period.parse(params[:period].presence || "all", time_zone: Current.user.reporting_timezone)
+      period = begin
+        Analytics::Period.parse(params[:period].presence || "all", time_zone: Current.user.reporting_timezone)
+      rescue ArgumentError
+        return render(json: { error: "invalid_period" }, status: :bad_request)
+      end
       render json: Analytics::Overview.new(user: Current.user, period: period).call
-    rescue ArgumentError
-      render json: { error: "invalid_period" }, status: :bad_request
     end
   end
 end

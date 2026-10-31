@@ -60,6 +60,7 @@ export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewDat
       unmatchedArtists: 0,
     },
     nearestWithData: [],
+    coverage: { status: 'complete', missing: [] },
     ...overrides,
   };
 }

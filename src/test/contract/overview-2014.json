@@ -1,0 +1,1246 @@
+{
+  "period": "year:2014",
+  "stats": {
+    "scrobbles": 300,
+    "firstScrobbleDate": "2014-01-06",
+    "uniqueArtists": 4,
+    "artistsPlayedOverTen": 4,
+    "uniqueTracks": 13,
+    "tracksPlayedOnce": 0,
+    "uniqueAlbums": 3,
+    "albumsWithoutArtwork": null
+  },
+  "activity": {
+    "year": [
+      {
+        "key": "2014",
+        "scrobbles": 300,
+        "topArtist": "The Contract Band"
+      }
+    ],
+    "month": [
+      {
+        "key": "2014-01",
+        "scrobbles": 23,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-02",
+        "scrobbles": 24,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-03",
+        "scrobbles": 25,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-04",
+        "scrobbles": 25,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-05",
+        "scrobbles": 26,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-06",
+        "scrobbles": 24,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-07",
+        "scrobbles": 26,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-08",
+        "scrobbles": 26,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-09",
+        "scrobbles": 25,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-10",
+        "scrobbles": 25,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-11",
+        "scrobbles": 25,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-12",
+        "scrobbles": 26,
+        "topArtist": "Second Artist"
+      }
+    ],
+    "week": [
+      {
+        "key": "2014-W01",
+        "scrobbles": 0,
+        "topArtist": null
+      },
+      {
+        "key": "2014-W02",
+        "scrobbles": 7,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W03",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W04",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W05",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W06",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W07",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W08",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W09",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W10",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W11",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W12",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W13",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W14",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W15",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W16",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W17",
+        "scrobbles": 5,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-W18",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W19",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W20",
+        "scrobbles": 6,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-W21",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W22",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W23",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W24",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W25",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W26",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W27",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W28",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W29",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W30",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W31",
+        "scrobbles": 6,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-W32",
+        "scrobbles": 5,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W33",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W34",
+        "scrobbles": 6,
+        "topArtist": "Third Artist"
+      },
+      {
+        "key": "2014-W35",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W36",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W37",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W38",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W39",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W40",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W41",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W42",
+        "scrobbles": 5,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W43",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W44",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W45",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W46",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W47",
+        "scrobbles": 5,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W48",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W49",
+        "scrobbles": 6,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W50",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2014-W51",
+        "scrobbles": 5,
+        "topArtist": "The Contract Band"
+      },
+      {
+        "key": "2014-W52",
+        "scrobbles": 6,
+        "topArtist": "Second Artist"
+      },
+      {
+        "key": "2015-W01",
+        "scrobbles": 3,
+        "topArtist": "Second Artist"
+      }
+    ]
+  },
+  "mostActiveDays": [
+    {
+      "key": "2014-01-10",
+      "scrobbles": 2
+    },
+    {
+      "key": "2014-01-18",
+      "scrobbles": 2
+    },
+    {
+      "key": "2014-01-06",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-08",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-09",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-11",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-12",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-14",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-15",
+      "scrobbles": 1
+    },
+    {
+      "key": "2014-01-16",
+      "scrobbles": 1
+    }
+  ],
+  "mostActiveMonths": [
+    {
+      "key": "2014-05",
+      "scrobbles": 26
+    },
+    {
+      "key": "2014-07",
+      "scrobbles": 26
+    },
+    {
+      "key": "2014-08",
+      "scrobbles": 26
+    },
+    {
+      "key": "2014-12",
+      "scrobbles": 26
+    },
+    {
+      "key": "2014-03",
+      "scrobbles": 25
+    },
+    {
+      "key": "2014-04",
+      "scrobbles": 25
+    },
+    {
+      "key": "2014-09",
+      "scrobbles": 25
+    },
+    {
+      "key": "2014-10",
+      "scrobbles": 25
+    },
+    {
+      "key": "2014-11",
+      "scrobbles": 25
+    },
+    {
+      "key": "2014-02",
+      "scrobbles": 24
+    }
+  ],
+  "habits": {
+    "byHour": [
+      12,
+      14,
+      12,
+      12,
+      11,
+      14,
+      13,
+      12,
+      12,
+      11,
+      15,
+      13,
+      12,
+      12,
+      11,
+      14,
+      13,
+      12,
+      12,
+      12,
+      14,
+      12,
+      13,
+      12
+    ],
+    "byWeekday": [
+      43,
+      42,
+      43,
+      43,
+      44,
+      43,
+      42
+    ],
+    "byWeekdayHour": [
+      [
+        2,
+        1,
+        2,
+        2,
+        1,
+        3,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      [
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        1,
+        3,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1
+      ],
+      [
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        1,
+        3,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      [
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        1,
+        3,
+        1,
+        1,
+        2
+      ],
+      [
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        3,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2
+      ],
+      [
+        1,
+        3,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        3,
+        2
+      ],
+      [
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2
+      ]
+    ],
+    "avgPerDayByMonth": [
+      0.74,
+      0.86,
+      0.81,
+      0.83,
+      0.84,
+      0.8,
+      0.84,
+      0.84,
+      0.83,
+      0.81,
+      0.83,
+      0.84
+    ]
+  },
+  "genres": null,
+  "top": {
+    "artists": [
+      {
+        "id": "a#1",
+        "name": "The Contract Band",
+        "artist": null,
+        "tracksPlayed": 4,
+        "imageUrl": null,
+        "scrobbles": 97,
+        "firstScrobble": "2014-01-06",
+        "latestScrobble": "2014-12-29",
+        "trend": [
+          9,
+          9,
+          6,
+          7,
+          10,
+          9,
+          7,
+          6,
+          9,
+          10,
+          9,
+          6
+        ]
+      },
+      {
+        "id": "a#2",
+        "name": "Second Artist",
+        "artist": null,
+        "tracksPlayed": 4,
+        "imageUrl": null,
+        "scrobbles": 83,
+        "firstScrobble": "2014-01-08",
+        "latestScrobble": "2014-12-30",
+        "trend": [
+          6,
+          8,
+          8,
+          7,
+          4,
+          8,
+          8,
+          7,
+          5,
+          6,
+          8,
+          8
+        ]
+      },
+      {
+        "id": "a#3",
+        "name": "Third Artist",
+        "artist": null,
+        "tracksPlayed": 4,
+        "imageUrl": null,
+        "scrobbles": 78,
+        "firstScrobble": "2014-01-09",
+        "latestScrobble": "2014-12-31",
+        "trend": [
+          5,
+          5,
+          7,
+          8,
+          8,
+          4,
+          7,
+          8,
+          8,
+          5,
+          5,
+          8
+        ]
+      },
+      {
+        "id": "n76f0e376afb433ac4fb02fddb4df2fd7",
+        "name": "Not Matched Yet",
+        "artist": null,
+        "tracksPlayed": 1,
+        "imageUrl": null,
+        "scrobbles": 42,
+        "firstScrobble": "2014-01-14",
+        "latestScrobble": "2014-12-26",
+        "trend": [
+          3,
+          3,
+          4,
+          3,
+          4,
+          4,
+          3,
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      }
+    ],
+    "albums": [
+      {
+        "id": "l#1",
+        "name": "Second Artist Album",
+        "artist": "Second Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 50,
+        "firstScrobble": "2014-01-16",
+        "latestScrobble": "2014-12-30",
+        "trend": [
+          4,
+          5,
+          4,
+          5,
+          2,
+          5,
+          5,
+          4,
+          3,
+          3,
+          6,
+          4
+        ]
+      },
+      {
+        "id": "l#2",
+        "name": "The Contract Band Album",
+        "artist": "The Contract Band",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 49,
+        "firstScrobble": "2014-01-06",
+        "latestScrobble": "2014-12-29",
+        "trend": [
+          5,
+          5,
+          2,
+          4,
+          6,
+          4,
+          3,
+          3,
+          5,
+          5,
+          4,
+          3
+        ]
+      },
+      {
+        "id": "l#3",
+        "name": "Third Artist Album",
+        "artist": "Third Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 31,
+        "firstScrobble": "2014-01-09",
+        "latestScrobble": "2014-12-23",
+        "trend": [
+          2,
+          2,
+          3,
+          3,
+          3,
+          2,
+          2,
+          4,
+          3,
+          2,
+          2,
+          3
+        ]
+      }
+    ],
+    "tracks": [
+      {
+        "id": "mec63f1c9b0c2db736e3fbc7bf9c80345",
+        "name": "Untitled",
+        "artist": "Not Matched Yet",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 42,
+        "firstScrobble": "2014-01-14",
+        "latestScrobble": "2014-12-26",
+        "trend": [
+          3,
+          3,
+          4,
+          3,
+          4,
+          4,
+          3,
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      },
+      {
+        "id": "t#1",
+        "name": "Second Artist Track 3",
+        "artist": "Second Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 33,
+        "firstScrobble": "2014-01-16",
+        "latestScrobble": "2014-12-30",
+        "trend": [
+          2,
+          3,
+          3,
+          4,
+          1,
+          3,
+          3,
+          3,
+          2,
+          2,
+          4,
+          3
+        ]
+      },
+      {
+        "id": "t#2",
+        "name": "The Contract Band Track 1",
+        "artist": "The Contract Band",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 33,
+        "firstScrobble": "2014-01-06",
+        "latestScrobble": "2014-12-29",
+        "trend": [
+          4,
+          3,
+          1,
+          3,
+          4,
+          3,
+          1,
+          3,
+          3,
+          3,
+          3,
+          2
+        ]
+      },
+      {
+        "id": "t#3",
+        "name": "The Contract Band Track 4",
+        "artist": "The Contract Band",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 33,
+        "firstScrobble": "2014-01-10",
+        "latestScrobble": "2014-12-24",
+        "trend": [
+          3,
+          3,
+          3,
+          1,
+          3,
+          3,
+          3,
+          2,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      {
+        "id": "t#4",
+        "name": "Third Artist Track 2",
+        "artist": "Third Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 31,
+        "firstScrobble": "2014-01-11",
+        "latestScrobble": "2014-12-25",
+        "trend": [
+          2,
+          2,
+          3,
+          3,
+          3,
+          1,
+          4,
+          3,
+          3,
+          2,
+          2,
+          3
+        ]
+      },
+      {
+        "id": "t#5",
+        "name": "Second Artist Track 1",
+        "artist": "Second Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 17,
+        "firstScrobble": "2014-01-18",
+        "latestScrobble": "2014-12-13",
+        "trend": [
+          2,
+          2,
+          1,
+          1,
+          1,
+          2,
+          2,
+          1,
+          1,
+          1,
+          2,
+          1
+        ]
+      },
+      {
+        "id": "t#6",
+        "name": "Second Artist Track 2",
+        "artist": "Second Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 17,
+        "firstScrobble": "2014-01-08",
+        "latestScrobble": "2014-12-22",
+        "trend": [
+          2,
+          1,
+          2,
+          1,
+          1,
+          2,
+          1,
+          2,
+          0,
+          2,
+          1,
+          2
+        ]
+      },
+      {
+        "id": "t#7",
+        "name": "Second Artist Track 4",
+        "artist": "Second Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 16,
+        "firstScrobble": "2014-02-02",
+        "latestScrobble": "2014-12-28",
+        "trend": [
+          0,
+          2,
+          2,
+          1,
+          1,
+          1,
+          2,
+          1,
+          2,
+          1,
+          1,
+          2
+        ]
+      },
+      {
+        "id": "t#8",
+        "name": "The Contract Band Track 3",
+        "artist": "The Contract Band",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 16,
+        "firstScrobble": "2014-01-12",
+        "latestScrobble": "2014-12-07",
+        "trend": [
+          1,
+          2,
+          1,
+          1,
+          2,
+          1,
+          2,
+          0,
+          2,
+          2,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "t#9",
+        "name": "Third Artist Track 3",
+        "artist": "Third Artist",
+        "tracksPlayed": null,
+        "imageUrl": null,
+        "scrobbles": 16,
+        "firstScrobble": "2014-01-09",
+        "latestScrobble": "2014-12-23",
+        "trend": [
+          2,
+          0,
+          2,
+          1,
+          2,
+          1,
+          1,
+          2,
+          1,
+          2,
+          0,
+          2
+        ]
+      }
+    ],
+    "totals": {
+      "artists": 4,
+      "albums": 3,
+      "tracks": 13
+    }
+  },
+  "rankHistory": {
+    "years": [
+      2014
+    ],
+    "series": [
+      {
+        "id": "a#1",
+        "name": "The Contract Band",
+        "ranks": [
+          1
+        ]
+      },
+      {
+        "id": "a#2",
+        "name": "Second Artist",
+        "ranks": [
+          2
+        ]
+      },
+      {
+        "id": "a#3",
+        "name": "Third Artist",
+        "ranks": [
+          3
+        ]
+      },
+      {
+        "id": "n76f0e376afb433ac4fb02fddb4df2fd7",
+        "name": "Not Matched Yet",
+        "ranks": [
+          4
+        ]
+      }
+    ]
+  },
+  "onRepeat": [
+    {
+      "trackId": "t#5",
+      "name": "Second Artist Track 1",
+      "artist": "Second Artist",
+      "plays": 2,
+      "date": "2014-01-18"
+    }
+  ],
+  "backInRotation": [
+    {
+      "id": "a#2",
+      "name": "Second Artist",
+      "awayMonths": 34,
+      "backMonth": "2014-01"
+    }
+  ],
+  "discovery": {
+    "months": [
+      {
+        "key": "2014-01",
+        "newArtists": 3,
+        "explorationShare": 0.7391
+      },
+      {
+        "key": "2014-02",
+        "newArtists": 0,
+        "explorationShare": 0.6667
+      },
+      {
+        "key": "2014-03",
+        "newArtists": 0,
+        "explorationShare": 0.72
+      },
+      {
+        "key": "2014-04",
+        "newArtists": 0,
+        "explorationShare": 0.16
+      },
+      {
+        "key": "2014-05",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-06",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-07",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-08",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-09",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-10",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-11",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      },
+      {
+        "key": "2014-12",
+        "newArtists": 0,
+        "explorationShare": 0.0
+      }
+    ],
+    "firstHeard": [
+      {
+        "id": "a#1",
+        "name": "The Contract Band",
+        "firstScrobble": "2014-01-06",
+        "scrobbles": 97
+      },
+      {
+        "id": "a#3",
+        "name": "Third Artist",
+        "firstScrobble": "2014-01-09",
+        "scrobbles": 78
+      },
+      {
+        "id": "n76f0e376afb433ac4fb02fddb4df2fd7",
+        "name": "Not Matched Yet",
+        "firstScrobble": "2014-01-14",
+        "scrobbles": 42
+      }
+    ],
+    "rediscovered": [
+      {
+        "id": "a#2",
+        "name": "Second Artist",
+        "lastYearBefore": 2011
+      }
+    ]
+  },
+  "metadata": null,
+  "nearestWithData": [],
+  "coverage": {
+    "status": "partial",
+    "missing": [
+      {
+        "from": "2014-11-01",
+        "to": "2014-12-31"
+      }
+    ]
+  }
+}

@@ -194,6 +194,7 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
           Comparison figures for {view.compareLabel} could not be loaded. <button type="button" onClick={overview.compare.retry} style={{ border: 0, padding: 0, background: 'none', color: 'var(--fg)', textDecoration: 'underline', fontSize: 'inherit' }}>Try again</button>
         </p>
       )}
+      <CoverageNote coverage={main.data.coverage} view={view} />
       <ListeningSection {...props} />
       <HabitsSection {...props} />
       <GenresSection {...props} />
@@ -204,16 +205,40 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
   );
 }
 
+/**
+ * Part of the period isn't imported: the figures cover imported history only, and the missing
+ * dates are listed (docs/milestone-3-plan.md §1, coverage).
+ */
+function CoverageNote({ coverage, view }: { coverage: OverviewData['coverage']; view: OverviewView }) {
+  if (coverage.status === 'complete') return null;
+  const shown = coverage.missing.slice(0, 3).map((r) => (r.from === r.to ? view.fmt.date(r.from) : `${view.fmt.date(r.from)} to ${view.fmt.date(r.to)}`));
+  const more = coverage.missing.length - shown.length;
+  return (
+    <p className="caption" role="status" style={{ marginTop: 24 }}>
+      Part of this period isn’t imported{shown.length > 0 ? `: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}` : ''}. Figures cover imported
+      history only. <Link to={view.withPeriod('/settings#history')}>Import status</Link>
+    </p>
+  );
+}
+
 function EmptyPeriod({ data, view, importing }: { data: OverviewData; view: OverviewView; importing: boolean }) {
   const label = periodLabel(view.current, view.today);
   const nearest = data.nearestWithData.flatMap((raw) => {
     const p = parsePeriod(raw);
     return p ? [{ raw, p }] : [];
   });
+  // No scrobbles and nothing imported for the period: unknown, not "no listening".
+  const notImported = data.coverage.status === 'none';
+  const message = importing || notImported ? `Scrobbles for ${label} have not been imported${importing ? ' yet' : ''}.` : `No scrobbles in ${label}.`;
+  const partial = data.coverage.status === 'partial' ? ' Part of this period isn’t imported, so there may be scrobbles that aren’t shown.' : '';
   return (
     <MessageState
-      message={importing ? `Scrobbles for ${label} have not been imported yet.` : `No scrobbles in ${label}.`}
-      detail={importing ? 'The import is still running. This period fills in when its pages arrive.' : nearest.length > 0 ? 'Nearest periods with listening:' : undefined}
+      message={message}
+      detail={
+        importing ? 'The import is still running. This period fills in when its pages arrive.'
+          : nearest.length > 0 ? `${partial.trim()}${partial ? ' ' : ''}Nearest periods with listening:`
+            : partial.trim() || undefined
+      }
     >
       {!importing && nearest.length > 0 && (
         <div className={stateStyles.links}>

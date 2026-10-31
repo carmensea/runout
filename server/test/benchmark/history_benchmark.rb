@@ -7,7 +7,8 @@
 #   SCROBBLES=209000 bin/rails runner test/benchmark/history_benchmark.rb
 #
 # Options: SCROBBLES (default 209000), SEED, FAILURES=1 (transient 502s on 3% of requests and one
-# crash mid-commit, then recovery), OUT (JSON results file). Synthetic data only; refuses any
+# crash mid-commit, then recovery), OUT (JSON results file), STOP_AFTER=matching (keep the history
+# for test/benchmark/analytics_benchmark.rb). Synthetic data only; refuses any
 # database but the disposable ones. Truncates history tables in that database first.
 require "webmock"
 require "objspace"
@@ -335,6 +336,13 @@ end
 results[:matching] = { variants: matched, seconds: match_seconds, per_second: (matched / [ match_seconds, 0.001 ].max).round,
                        artists: Artist.count, albums: Album.count, tracks: Track.count }
 say "  #{matched} variants in #{match_seconds}s"
+
+# STOP_AFTER=matching keeps the imported, matched history for test/benchmark/analytics_benchmark.rb.
+if ENV["STOP_AFTER"] == "matching"
+  File.write(ENV.fetch("OUT", Rails.root.join("tmp/benchmark-#{Bench::SCROBBLES}.json").to_s), JSON.pretty_generate(results))
+  say "Stopped after matching; the history stays for analytics benchmarks"
+  exit 0
+end
 
 # --- 3. Storage -------------------------------------------------------------------------------
 staging_mb = -> { (ActiveRecord::Base.connection.select_value("SELECT pg_total_relation_size('import_window_rows')").to_i / 1_048_576.0).round(1) }

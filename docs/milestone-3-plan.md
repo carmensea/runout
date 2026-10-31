@@ -1,6 +1,6 @@
 # Milestone 3: Overview analytics and search
 
-Status: in progress (2026-11-01). The Overview and Search read Runout's own stored listening
+Status: implemented (2026-11-01). The Overview and Search read Runout's own stored listening
 history. Nothing calls Last.fm, and nothing depends on which service a play came from
 (`docs/long-term-architecture.md`).
 
@@ -88,3 +88,53 @@ measured the same way.
   can't read, and 409 when no listening account is connected.
 - `GET /api/search?q=` returns `SearchResults`. Queries under two characters return nothing.
 - Both require a signed-in user and act on that user's data only.
+
+## 4. Performance (measured)
+
+All data synthetic: histories imported through the real pipeline (`test/benchmark/history_benchmark.rb`
+with `STOP_AFTER=matching`), measured by `test/benchmark/analytics_benchmark.rb`. Medians of 3 runs on
+this Mac's local PostgreSQL 17, timezone Europe/London.
+
+| | 209,000 plays | 1,000,000 plays |
+|---|---|---|
+| A day | 119 ms | 393 ms |
+| A week | 136 ms | 519 ms |
+| A month | 160 ms | 669 ms |
+| A year | 212 ms | 761 ms |
+| The last 12 months | 215 ms | 769 ms |
+| Five years (custom) | 493 ms | 2.1 s |
+| All time | 1.9 s | 8.5 s |
+| A year with its comparison year (two requests) | 498 ms | 1.8 s |
+| Search (seven queries) | 18–186 ms | 51–513 ms |
+| Queries per Overview | 42–44 | 42–44 |
+| Queries per search | 3 | 3 |
+
+Process memory stayed under 100 MB.
+
+**Bottlenecks found and fixed:**
+
+| Problem | Fix | Before | After |
+|---|---|---|---|
+| "Back in rotation" named each candidate artist with a correlated subquery over the period's plays, which made the all-time Overview quadratic | Join to per-artist names instead | 693 s all time at 1M | 13 s |
+| Every aggregate scanned wide rows (text keys and names per play) | Plays become narrow rows of integers and local date parts, computed once; names are looked up only for rows returned | 13 s all time at 1M | 8.6 s |
+| A month table over all history was built for every request | Each artist's previous month is either in the period or its last play before it, both already known, so the table is gone | 1.8 s a year at 1M | 0.76 s |
+| Search counted plays for every loosely matching name | The 200 closest catalogue entities per kind go on to play counts | 1.7 s, broadest query at 1M | 0.5 s |
+| Ties fell back to catalogue ids, so equal counts could order differently between databases | Internal ids follow names, so ties are alphabetical | — | — |
+
+**Not added:** rollup tables or caching. At this history's size every view is under 0.5 s except all time
+(1.9 s). All time at 1M plays (8.5 s) is the one case that would justify a rollup; decide after real use.
+
+## 5. Contract
+
+`server/test/contract/overview_contract_test.rb` computes the Overview of a fixed synthetic history and
+compares it with `src/test/contract/overview-2014.json`. `src/test/contract/contract.test.tsx` renders
+that same file through the Overview page. Regenerate deliberately with `UPDATE_CONTRACT=1`.
+
+## 6. Visual review
+
+The Overview was rendered in native headless Chrome with real API responses computed from the 209,000-play
+synthetic history, at 1440 px and 390 px: all time, a year with comparison, a month, search and the phone
+layout.
+- No horizontal overflow, no NaN or undefined values, no console errors.
+- The search panel lists exact matches first.
+- One fix: the rank chart's year labels ran together over 23 years; it now labels every n-th year.
