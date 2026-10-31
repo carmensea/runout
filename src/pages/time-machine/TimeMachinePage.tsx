@@ -7,6 +7,7 @@ import { NotConnectedError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { HistoryCalendar } from '../../data/types';
 import { useAsync } from '../../data/useAsync';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { addDays, isoWeekStart } from '../../lib/dates';
 import { parsePeriod, periodRange, serializePeriod } from '../../lib/period';
 import { usePeriod } from '../../state/PeriodContext';
@@ -266,6 +267,7 @@ function Explorer({ history, focus, hrefFor }: { history: HistoryCalendar; focus
   const year = focusYear(focus);
   const common = { fmt, hrefFor };
   const daysReady = !range || days.status === 'success';
+  const compact = useMediaQuery('(max-width: 767px)');
 
   return (
     <>
@@ -302,6 +304,8 @@ function Explorer({ history, focus, hrefFor }: { history: HistoryCalendar; focus
           )}
           {range && !daysReady && days.status === 'loading' && <p className={styles.logStatus} role="status">Loading the calendar</p>}
 
+          {focus.kind === 'day' && compact && <OnThisDayPanel date={focus.date} hrefFor={hrefFor} compact />}
+
           {focus.kind === 'all'
             ? <p className={styles.hint}>Choose a year, or a month in the grid, to see what you played.</p>
             : (
@@ -314,7 +318,7 @@ function Explorer({ history, focus, hrefFor }: { history: HistoryCalendar; focus
               </>
             )}
         </section>
-        {focus.kind === 'day' && <OnThisDayPanel date={focus.date} hrefFor={hrefFor} />}
+        {focus.kind === 'day' && !compact && <OnThisDayPanel date={focus.date} hrefFor={hrefFor} />}
       </div>
     </>
   );

@@ -6,6 +6,7 @@ import type { CalendarDays, HistoryCalendar, OnThisDay, Play, PlaysPage } from '
 import { serializePeriod } from '../../lib/period';
 import { connectedApi, notConnectedApi } from '../../test/fixtures';
 import { location, renderApp } from '../../test/renderApp';
+import { viewport } from '../../test/setup';
 
 const history: HistoryCalendar = {
   firstDay: '2014-01-02',
@@ -65,7 +66,10 @@ function api(overrides: Partial<RunoutApi> = {}): RunoutApi & { requests: string
 }
 
 describe('Time Machine', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    viewport.width = 1440;
+  });
 
   it('opens the latest day with listening when there is no deep link, and lists every play in order', async () => {
     const user = userEvent.setup();
@@ -154,6 +158,23 @@ describe('Time Machine', () => {
     expect(within(aside).getByText('Hit by The Band, 9 plays')).toBeInTheDocument();
     await user.click(within(aside).getByRole('link', { name: '2014, Sat: 33 scrobbles' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Saturday 15 March 2014' })).toBeInTheDocument();
+  });
+
+  it('on a phone, puts "On this day" above the plays, closed, with real counts in its summary', async () => {
+    viewport.width = 390;
+    const user = userEvent.setup();
+    renderApp(api(), '/time-machine?at=2016-03-15&period=day%3A2016-03-15');
+    const summary = await screen.findByText('15 March: listening in 1 of 2 other years');
+    const details = summary.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.queryByRole('complementary', { name: 'On this day' })).not.toBeInTheDocument();
+    const plays = await screen.findByRole('heading', { level: 2, name: /Every scrobble/ });
+    expect(details.compareDocumentPosition(plays) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByRole('link', { name: '2014, Sat: 33 scrobbles' })).toBeInTheDocument();
+    expect(within(details).getByRole('link', { name: '2015, Sun: Not imported' })).toBeInTheDocument();
   });
 
   it('steps to neighbours, links to the Overview, and stops at the edges of the history', async () => {

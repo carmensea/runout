@@ -696,6 +696,57 @@
   color: var(--mu);
 }
 
+/* On phones: "On this day" as a closed disclosure above the day's plays. */
+.otdDetails {
+  margin-top: 24px;
+  border-top: 1px solid var(--ln);
+  border-bottom: 1px solid var(--ln);
+}
+
+.otdSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title icon' 'meta icon';
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.otdSummary::-webkit-details-marker {
+  display: none;
+}
+
+.otdSummary::after {
+  content: 'expand_more';
+  grid-area: icon;
+  font-family: var(--font-icon);
+  font-size: 20px;
+  color: var(--fg2);
+}
+
+.otdDetails[open] > .otdSummary::after {
+  content: 'expand_less';
+}
+
+.otdSummaryTitle {
+  grid-area: title;
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.otdSummaryMeta {
+  grid-area: meta;
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.otdDetails .otdList {
+  margin-top: 0;
+  padding-bottom: 8px;
+}
+
 .wideOnly {
   display: inline;
 }

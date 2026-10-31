@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../data/AppDataContext';
-import type { OnThisDayYear } from '../../data/types';
+import type { OnThisDay, OnThisDayYear } from '../../data/types';
 import { useAsync } from '../../data/useAsync';
 import { MONTH_NAMES, WEEKDAY_SHORT, parseIsoDate } from '../../lib/dates';
 import type { Focus } from './model';
@@ -8,18 +8,46 @@ import styles from './TimeMachine.module.css';
 
 /**
  * The same calendar date in the other years of the history (GET /api/on-this-day): real counts and
- * the most played artists, each linking to that day. Secondary to the day's own plays.
+ * the most played artists, each linking to that day. Secondary to the day's own plays: beside them on
+ * wide screens; on phones, `compact`, a closed disclosure above them, so it is found without
+ * scrolling past the whole day.
  */
-export function OnThisDayPanel({ date, hrefFor }: { date: string; hrefFor(f: Focus): string }) {
-  const { api } = useAppData();
+export function OnThisDayPanel({ date, hrefFor, compact = false }: { date: string; hrefFor(f: Focus): string; compact?: boolean }) {
+  const { api, fmt } = useAppData();
   const data = useAsync(`on-this-day:${date}`, (signal) => api.getOnThisDay(date, signal));
   const d = parseIsoDate(date);
   const day = `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`;
+
+  if (compact) {
+    const years = data.status === 'success' ? data.data.years : null;
+    const listening = years?.filter((y) => y.scrobbles > 0).length ?? 0;
+    return (
+      <details className={styles.otdDetails}>
+        <summary className={styles.otdSummary}>
+          <span className={styles.otdSummaryTitle}>On this day</span>
+          <span className={styles.otdSummaryMeta}>
+            {years === null ? day
+              : years.length === 0 ? `${day}: no other years yet`
+                : `${day}: listening in ${fmt.count(listening)} of ${fmt.count(years.length)} other ${years.length === 1 ? 'year' : 'years'}`}
+          </span>
+        </summary>
+        <Contents data={data} hrefFor={hrefFor} />
+      </details>
+    );
+  }
 
   return (
     <aside className={styles.onThisDay} aria-labelledby="on-this-day-title">
       <h2 id="on-this-day-title" className={styles.asideTitle}>On this day</h2>
       <p className={styles.asideIntro}>{day} in your other years.</p>
+      <Contents data={data} hrefFor={hrefFor} />
+    </aside>
+  );
+}
+
+function Contents({ data, hrefFor }: { data: ReturnType<typeof useAsync<OnThisDay>>; hrefFor(f: Focus): string }) {
+  return (
+    <>
       {data.status === 'loading' && <p className={styles.logStatus} role="status">Loading</p>}
       {data.status === 'error' && (
         <p className={styles.logStatus} role="alert">
@@ -38,7 +66,7 @@ export function OnThisDayPanel({ date, hrefFor }: { date: string; hrefFor(f: Foc
             )}
         </>
       )}
-    </aside>
+    </>
   );
 }
 
