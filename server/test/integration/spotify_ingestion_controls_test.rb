@@ -7,13 +7,17 @@ class SpotifyIngestionControlsTest < ActionDispatch::IntegrationTest
 
   setup do
     @flag = Rails.configuration.x.spotify_ingestion_enabled
+    @history_flag = Rails.configuration.x.history_import_enabled
     sign_in_via_lastfm(username: "listener")
     @user = User.sole
     @source = ListeningSource.create!(user: @user, provider: "spotify", external_account_id: "spotify-user", display_name: "Listener",
                                       connected_at: 1.day.ago, credentials: { "access_token" => "a", "refresh_token" => "r", "expires_at" => 1.year.from_now.to_i })
   end
 
-  teardown { Rails.configuration.x.spotify_ingestion_enabled = @flag }
+  teardown do
+    Rails.configuration.x.spotify_ingestion_enabled = @flag
+    Rails.configuration.x.history_import_enabled = @history_flag
+  end
 
   test "Sync now needs ingestion switched on, queues one poll, and refuses repeats within a minute" do
     post "/api/listening-sources/spotify/sync", headers: same_origin_headers
@@ -69,5 +73,34 @@ class SpotifyIngestionControlsTest < ActionDispatch::IntegrationTest
     assert_equal 0, s["pendingReview"]
     assert_not_includes response.body, "\"a\""
     assert_not_includes response.body, "refresh_token"
+  end
+
+  test "plays held for review are listed with their candidates and decided by the owner only" do
+    Rails.configuration.x.spotify_ingestion_enabled = "true"
+    t = Time.utc(2026, 11, 2, 12)
+    Rails.configuration.x.history_import_enabled = "true"
+    a = Scrobble.create!(user: @user, played_at: t, seq: 0, name_variant: NameVariant.for!(artist_name: "Band", track_name: "Song", album_name: "A"))
+    Scrobble.create!(user: @user, played_at: t + 20, seq: 0, name_variant: NameVariant.for!(artist_name: "Band", track_name: "Song", album_name: "A"))
+    event = Spotify::Mapping.event(spotify_item(t + 200, track: "Song", artist: "Band", album: "A"))
+    held = Listening::Recorder.new(@source).record!(event).observation
+
+    get "/api/listening-sources/reviews"
+    item = response.parsed_body["items"].sole
+    assert_equal [ held.id, "several_same_plays", { "artist" => "Band", "track" => "Song", "album" => "A" } ], item.values_at("id", "reason", "play")
+    assert_equal [ [ a.id, "lastfm", "same" ], [ a.id + 1, "lastfm", "same" ] ], item["candidates"].map { |c| c.values_at("scrobbleId", "source", "identity") }
+
+    post "/api/listening-sources/reviews/#{held.id}/link", params: { scrobble_id: 999_999 }.to_json,
+                                                          headers: same_origin_headers.merge("Content-Type" => "application/json")
+    assert_response :unprocessable_entity
+    post "/api/listening-sources/reviews/#{held.id}/link", params: { scrobble_id: a.id }.to_json,
+                                                          headers: same_origin_headers.merge("Content-Type" => "application/json")
+    assert_equal [ "linked", [] ], response.parsed_body.values_at("result", "items")
+    assert_equal [ a.id, "person" ], held.reload.values_at(:scrobble_id, :linked_by)
+
+    reset!
+    allow_lastfm_accounts("listener", "other")
+    sign_in_via_lastfm(username: "other")
+    post "/api/listening-sources/reviews/#{held.id}/separate", headers: same_origin_headers
+    assert_response :not_found
   end
 end

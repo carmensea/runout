@@ -282,6 +282,42 @@ the interval):
   the same track, and 1 went to review.
 - About 2 ms per decision. Recording is one indexed range query plus the insert.
 
+## 11. Settings and going live (stage 4)
+
+**Settings → Listening sources:**
+- Last.fm as the historical archive.
+- Spotify:
+  - status, account and whether scrobbling is on;
+  - the last successful check and the last new play, with plays added in all;
+  - where its record starts;
+  - the last problem and when Runout tries again;
+  - possible gaps, shown explicitly;
+  - Sync now, Pause and Resume, Disconnect;
+  - the recent checks.
+- **Spotify plays to check:** the plays held for review, each with its candidates, decided as the
+  same play or a separate one (audited).
+- This is provider sync status only: the Last.fm import's coverage stays under Listening history.
+- New plays reach the Overview, Time Machine, Search, rankings, streaks, comparisons and genres
+  through `scrobbles`, as a test checks with a poll. The analytics' coverage includes what Spotify
+  confirms.
+
+**Going live (needs the owner's approval; `CLAUDE.md`):**
+
+1. **Preparation:** connect Spotify, then run the read-only checks (§8, step 6) and fill in §9.
+   Check that `spotify:compare` matches plays as expected.
+2. **Backup:**
+   - take a fresh backup (`pg_dump -Fc runout_development` into `~/runout-backups/`);
+   - record the archive fingerprint.
+3. **One supervised poll**, with ingestion switched on for that command only:
+   `SPOTIFY_INGESTION_ENABLED=true bin/rails spotify:poll`.
+   - Check the plays it added in the Time Machine, today.
+   - Confirm the Last.fm fingerprint is unchanged.
+4. **Continuous scrobbling:**
+   - set `SPOTIFY_INGESTION_ENABLED=true` in `server/.env`;
+   - run Solid Queue (`bin/jobs`, with `QUEUE_DATABASE_URL` as in `docs/real-import-runbook.md`)
+     beside the Rails server;
+   - the tick polls every 5 minutes. Pause in Settings stops it at any time.
+
 ## 7. Future providers (not built)
 
 The pattern for each: a `listening_sources.provider` value, a client that turns the provider's

@@ -5,7 +5,7 @@ module Api
     SYNC_INTERVAL = 1.minute
 
     require_authentication
-    before_action :find_spotify, except: :index
+    before_action :find_spotify, except: %i[index reviews decide]
 
     def index
       render json: Listening::SourceStatus.for(Current.user)
@@ -38,6 +38,26 @@ module Api
     def resume
       @source.update!(paused_at: nil, next_poll_at: nil)
       render json: Listening::SourceStatus.for(Current.user)
+    end
+
+    # Plays a provider reported that might be plays already stored (Listening::CrossSource).
+    def reviews
+      render json: { items: Listening::ReviewQueue.for(Current.user) }
+    end
+
+    def decide
+      observation = Current.user.listening_observations.pending_review.find_by(id: params[:id])
+      return render(json: { error: "not_found" }, status: :not_found) unless observation
+
+      result = case params[:decision]
+      when "link" then Listening::Review.link!(observation, params[:scrobble_id].to_i, by: Current.user)
+      when "separate" then Listening::Review.separate!(observation, by: Current.user)
+      end
+      render json: { result: result, items: Listening::ReviewQueue.for(Current.user) }
+    rescue Listening::Review::Invalid => e
+      render json: { error: "invalid", message: e.message }, status: :unprocessable_entity
+    rescue ListeningStorage::DisabledError
+      render json: { error: "ingestion_disabled" }, status: :conflict
     end
 
     private

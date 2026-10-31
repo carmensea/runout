@@ -13,6 +13,9 @@ Rails.application.routes.draw do
     post "listening-sources/spotify/sync", to: "listening_sources#sync", as: :spotify_sync
     post "listening-sources/spotify/pause", to: "listening_sources#pause", as: :spotify_pause
     post "listening-sources/spotify/resume", to: "listening_sources#resume", as: :spotify_resume
+    get "listening-sources/reviews", to: "listening_sources#reviews", as: :listening_reviews
+    post "listening-sources/reviews/:id/:decision", to: "listening_sources#decide", as: :listening_review_decision,
+                                                    constraints: { id: /\d+/, decision: /link|separate/ }
     resource :session, only: :destroy
     resource :account, only: :destroy
     resource :connection, only: :show

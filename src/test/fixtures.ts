@@ -2,7 +2,7 @@
 import type { HistoryApi, RunoutApi, SourcesApi } from '../data/api';
 import { NotConnectedError, noHistoryApi, noSourcesApi } from '../data/api';
 import type {
-  ArtistKindKey, GenreDetail, ImportStatus, ListeningSources, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
+  ArtistKindKey, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
 } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
@@ -115,17 +115,31 @@ export function makeSources(spotify: Partial<SpotifySource> = {}): ListeningSour
   };
 }
 
-export function fakeSourcesApi(initial: ListeningSources = makeSources()): SourcesApi & { calls: string[] } {
+export function fakeSourcesApi(initial: ListeningSources = makeSources(), reviews: ListeningReviewItem[] = []): SourcesApi & { calls: string[] } {
   let current = initial;
+  let queue = reviews;
   const calls: string[] = [];
+  const set = (spotify: Partial<SpotifySource>) => {
+    current = { ...current, spotify: { ...current.spotify, ...spotify } };
+    return current;
+  };
   return {
     calls,
     status: async () => current,
     connectSpotifyUrl: () => '/api/auth/spotify',
     disconnectSpotify: async () => {
       calls.push('disconnect');
-      current = { ...current, spotify: { ...current.spotify, state: 'disconnected', disconnectedAt: '2026-10-31T12:00:00Z' } };
-      return current;
+      return set({ state: 'disconnected', disconnectedAt: '2026-10-31T12:00:00Z' });
+    },
+    syncSpotify: async () => { calls.push('sync'); },
+    pauseSpotify: async () => { calls.push('pause'); return set({ paused: true }); },
+    resumeSpotify: async () => { calls.push('resume'); return set({ paused: false }); },
+    reviews: async () => queue,
+    decide: async (id, decision) => {
+      calls.push(`decide:${id}:${decision === 'separate' ? 'separate' : decision.link}`);
+      queue = queue.filter((item) => item.id !== id);
+      set({ pendingReview: queue.length });
+      return queue;
     },
   };
 }

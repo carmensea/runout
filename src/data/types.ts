@@ -459,8 +459,50 @@ export interface SpotifySource {
   ingestionEnabled: boolean;
   state: 'not_connected' | 'connected' | 'needs_reauth' | 'disconnected';
   account: { id: string; displayName: string } | null;
+  /** The recurring schedule, as the server states it ("every 5 minutes"). */
+  pollSchedule?: string;
   connectedAt?: string;
   disconnectedAt?: string | null;
   lastError?: string | null;
   lastErrorAt?: string | null;
+  paused?: boolean;
+  lastPollAt?: string | null;
+  lastSuccessAt?: string | null;
+  /** When the next poll may run, after a failure or Spotify's Retry-After. */
+  nextPollAt?: string | null;
+  /** When a poll last recorded a new play. */
+  lastNewPlayAt?: string | null;
+  playsAdded?: number;
+  /** The newest play Spotify reported. */
+  newestPlayAt?: string | null;
+  coveredFrom?: string | null;
+  pendingReview?: number;
+  /** Intervals Spotify may no longer be able to return: plays in them may be missing. */
+  gaps?: Array<{ from: string; to: string; detectedAt: string }>;
+  recentPolls?: SpotifyPoll[];
+}
+
+export interface SpotifyPoll {
+  startedAt: string;
+  trigger: 'schedule' | 'manual' | 'task';
+  outcome: 'ok' | 'rate_limited' | 'unavailable' | 'forbidden' | 'needs_reauth' | 'failed' | 'running';
+  items: number;
+  added: number;
+  linked: number;
+  held: number;
+  error: string | null;
+}
+
+/** A play a source reported that might be one already stored (docs/spotify-plan.md §5). */
+export interface ListeningReviewItem {
+  id: number;
+  provider: 'spotify';
+  reportedAt: string;
+  durationMs: number | null;
+  reason: 'several_same_plays' | 'similar_play' | string;
+  play: { artist: string; track: string; album: string | null };
+  candidates: Array<{
+    scrobbleId: number; source: 'lastfm' | 'spotify'; playedAt: string; identity: 'same' | 'similar' | 'none'; present: boolean;
+    artist: string; track: string; album: string | null;
+  }>;
 }

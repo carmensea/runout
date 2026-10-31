@@ -1,7 +1,7 @@
 import { serializePeriod, type Period } from '../lib/period';
 import type {
   CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
-  ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
+  ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
 } from './types';
 
 /**
@@ -36,6 +36,13 @@ export interface SourcesApi {
   connectSpotifyUrl(): string | null;
   /** Forgets the Spotify credentials. Plays already stored stay. */
   disconnectSpotify(): Promise<ListeningSources>;
+  /** Queues a poll now. ApiError codes: ingestion_disabled, paused, not_connected, too_soon. */
+  syncSpotify(): Promise<void>;
+  pauseSpotify(): Promise<ListeningSources>;
+  resumeSpotify(): Promise<ListeningSources>;
+  reviews(signal?: AbortSignal): Promise<ListeningReviewItem[]>;
+  /** Same play as a stored one (`scrobbleId`), or a separate play. Returns what is left to review. */
+  decide(id: number, decision: { link: number } | 'separate'): Promise<ListeningReviewItem[]>;
 }
 
 export interface HistoryApi {
@@ -191,6 +198,15 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       status: (signal) => get<ListeningSources>('/listening-sources', {}, signal),
       connectSpotifyUrl: () => `${root}/auth/spotify`,
       disconnectSpotify: () => post<ListeningSources>('/listening-sources/spotify/disconnect'),
+      syncSpotify: async () => { await post('/listening-sources/spotify/sync'); },
+      pauseSpotify: () => post<ListeningSources>('/listening-sources/spotify/pause'),
+      resumeSpotify: () => post<ListeningSources>('/listening-sources/spotify/resume'),
+      reviews: async (signal) => (await get<{ items: ListeningReviewItem[] }>('/listening-sources/reviews', {}, signal)).items,
+      decide: async (id, decision) => {
+        const path = decision === 'separate' ? `/listening-sources/reviews/${id}/separate` : `/listening-sources/reviews/${id}/link`;
+        const body = decision === 'separate' ? {} : { scrobble_id: decision.link };
+        return (await post<{ items: ListeningReviewItem[] }>(path, body)).items;
+      },
     },
   };
 }
@@ -211,6 +227,11 @@ export const noSourcesApi: SourcesApi = {
   status: notConnected,
   connectSpotifyUrl: () => null,
   disconnectSpotify: notConnected,
+  syncSpotify: notConnected,
+  pauseSpotify: notConnected,
+  resumeSpotify: notConnected,
+  reviews: notConnected,
+  decide: notConnected,
 };
 
 /**

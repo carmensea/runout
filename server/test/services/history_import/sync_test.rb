@@ -460,5 +460,14 @@ class HistoryImport::SyncTest < ActiveSupport::TestCase
     assert_not_nil ::Fugit.parse(task["schedule"]), "Solid Queue parses schedules with Fugit"
     assert_equal SyncScheduleJob, task["class"].constantize
     assert_equal :discard, SyncScheduleJob.concurrency_on_conflict
+
+    %w[production development].each do |env|
+      spotify = config.dig(env, "spotify_poll")
+      assert_equal "SpotifyPollJob", spotify["class"]
+      assert_equal "every 5 minutes", spotify["schedule"]
+      assert_not_nil ::Fugit.parse(spotify["schedule"]), "Solid Queue parses schedules with Fugit"
+    end
+    assert_equal :discard, SpotifyPollJob.concurrency_on_conflict
+    assert_equal :discard, SpotifyPollSourceJob.concurrency_on_conflict
   end
 end

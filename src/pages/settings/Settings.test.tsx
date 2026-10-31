@@ -292,4 +292,49 @@ describe('Settings: listening sources', () => {
     expect(within(section).getByText(/Spotify stopped accepting Runout’s access \(Spotify refused the authorisation \(invalid_grant\)\)/)).toBeInTheDocument();
     expect(within(section).getByRole('link', { name: 'Connect Spotify again' })).toBeInTheDocument();
   });
+
+  it('shows ingestion status, syncs, pauses and resumes, and says when plays may be missing', async () => {
+    const user = userEvent.setup();
+    const sources = fakeSourcesApi(makeSources({
+      state: 'connected', ingestionEnabled: true, paused: false, pollSchedule: 'every 5 minutes',
+      account: { id: 'spotify-user', displayName: 'Listener' }, connectedAt: '2026-10-31T12:00:00Z',
+      lastPollAt: '2026-11-02T12:00:00Z', lastSuccessAt: '2026-11-02T12:00:00Z', lastNewPlayAt: '2026-11-02T11:55:00Z', playsAdded: 42,
+      coveredFrom: '2026-11-01T08:00:00Z', pendingReview: 0,
+      gaps: [{ from: '2026-11-01T20:00:00Z', to: '2026-11-02T09:00:00Z', detectedAt: '2026-11-02T09:05:00Z' }],
+      recentPolls: [{ startedAt: '2026-11-02T12:00:00Z', trigger: 'schedule', outcome: 'ok', items: 50, added: 3, linked: 1, held: 0, error: null }],
+    }));
+    renderApp({ ...connectedApi(), sources }, '/settings');
+    const section = await screen.findByRole('region', { name: 'Listening sources' });
+    expect(await within(section).findByText('On, every 5 minutes')).toBeInTheDocument();
+    expect(within(section).getByText(/42 added in all/)).toBeInTheDocument();
+    expect(within(section).getByText('Plays may be missing')).toBeInTheDocument();
+    expect(within(section).getByText(/50 recent plays read: 3 new, 1 already in your archive/)).toBeInTheDocument();
+
+    await user.click(within(section).getByRole('button', { name: 'Sync now' }));
+    expect(await within(section).findByText('Checking Spotify now. New plays appear within a minute.')).toBeInTheDocument();
+    await user.click(within(section).getByRole('button', { name: 'Pause' }));
+    expect(await within(section).findByText('Paused')).toBeInTheDocument();
+    await user.click(within(section).getByRole('button', { name: 'Resume' }));
+    await waitFor(() => expect(sources.calls).toEqual(['sync', 'pause', 'resume']));
+  });
+
+  it('lists plays held for review and records the owner’s decision', async () => {
+    const user = userEvent.setup();
+    const item = {
+      id: 5, provider: 'spotify' as const, reportedAt: '2026-11-02T12:03:20.000Z', durationMs: 200000, reason: 'several_same_plays',
+      play: { artist: 'Test Band', track: 'Test Song', album: null },
+      candidates: [
+        { scrobbleId: 11, source: 'lastfm' as const, playedAt: '2026-11-02T12:00:00Z', identity: 'same' as const, present: true, artist: 'Test Band', track: 'Test Song', album: null },
+        { scrobbleId: 12, source: 'lastfm' as const, playedAt: '2026-11-02T12:00:20Z', identity: 'same' as const, present: true, artist: 'Test Band', track: 'Test Song', album: null },
+      ],
+    };
+    const sources = fakeSourcesApi(makeSources({ state: 'connected', ingestionEnabled: true, account: { id: 'x', displayName: 'x' }, pendingReview: 1 }), [item]);
+    renderApp({ ...connectedApi(), sources }, '/settings');
+    const panel = await screen.findByRole('region', { name: 'Spotify plays to check' });
+    expect(await within(panel).findByText('Test Band – Test Song')).toBeInTheDocument();
+    expect(within(panel).getAllByRole('button', { name: 'Same play' })).toHaveLength(2);
+    await user.click(within(panel).getAllByRole('button', { name: 'Same play' })[0]!);
+    await waitFor(() => expect(sources.calls).toEqual(['decide:5:11']));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Spotify plays to check' })).not.toBeInTheDocument());
+  });
 });
