@@ -139,8 +139,8 @@ function buildOverview(period: Period, seed: number): OverviewData {
 
 /**
  * Settings layout review: the history panels' states, nothing real. `?specimen&history=` picks one:
- * `importing`, `paused`, `not_started`, `sync_paused`, `account`; default: imported, with a gap, a
- * stopped month and two review items.
+ * `importing`, `paused`, `not_started`, `sync_paused`, `account`, `loading` (never answers),
+ * `error` (every request fails); default: imported, with a gap, a stopped month and two review items.
  */
 const specimenState = () => new URLSearchParams(window.location.search).get('history') ?? 'imported';
 
@@ -163,9 +163,16 @@ const specimenImport = (): ImportStatus => {
   return imported;
 };
 
+/** `loading` and `error` states: the same for every history request. */
+async function specimenRequest<T>(value: () => T): Promise<T> {
+  if (specimenState() === 'loading') return new Promise<T>(() => {});
+  if (specimenState() === 'error') throw new Error('Specimen: the request failed.');
+  return value();
+}
+
 const specimenHistory: HistoryApi = {
-  importStatus: async () => specimenImport(),
-  syncHealth: async () => ({
+  importStatus: () => specimenRequest(specimenImport),
+  syncHealth: () => specimenRequest(() => ({
     importComplete: !['not_started', 'importing', 'paused'].includes(specimenState()),
     syncPaused: specimenState() === 'sync_paused',
     connectionState: specimenState() === 'account' ? 'failed' : 'imported',
@@ -184,8 +191,8 @@ const specimenHistory: HistoryApi = {
     periods: {}, awaitingRecheck: 0, stalePeriods: 0, reviews: { disputes: 1, suspectedRemovals: 1, pendingRemovals: 1, reappeared: 0 },
     attention: { reviews: 2, periods: 1, account: 0, total: 3 },
     nextDue: { reconcile: '2026-01-01T00:00:00Z', catch_up: '2026-01-01T00:00:00Z', sync: '2026-01-01T00:00:00Z' },
-  }),
-  reviews: async () => ({
+  })),
+  reviews: () => specimenRequest(() => ({
     total: 2, offset: 0, waiting: 1,
     items: [
       { kind: 'removal', id: 1, version: 'specimen', playedAt: '2014-03-15T20:00:00Z', history: [], removedAt: null,
@@ -195,7 +202,7 @@ const specimenHistory: HistoryApi = {
         lastSeenAt: '2026-01-01T00:00:00Z', stored: [{ id: 2, seq: 0, artist: placeholder('Artist', 2), track: placeholder('Track title', 2), album: null }],
         fetched: [{ index: 0, artist: placeholder('Artist', 2), track: placeholder('Track title', 3), album: null }] },
     ],
-  }),
+  })),
   startImport: async () => {}, pauseImport: async () => {}, resumeImport: async () => {}, cancelImport: async () => {},
   retryPeriod: async () => {}, refreshSync: async () => {}, pauseSync: async () => {}, resumeSync: async () => {},
   decide: async () => ({ result: 'specimen', item: null }),
