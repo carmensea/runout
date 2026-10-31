@@ -49,6 +49,10 @@ function api(overrides: Partial<RunoutApi> = {}): RunoutApi & { requests: string
         const page = cursor ? all.slice(2) : all.slice(0, 2);
         return { period: key, total: 4, plays: page, nextCursor: cursor ? null : 'c1', coverage: { status: 'complete', missing: [] } };
       }
+      if (key.startsWith('custom:2014-01-01')) {
+        const rows = [play(1, '2014-03-15', '10:00:00', 'Morning Song'), play(2, '2014-03-16', '11:00:00', 'Sunday Song')];
+        return { period: key, total: 40, plays: rows, nextCursor: null, coverage: { status: 'complete', missing: [] } };
+      }
       if (key === 'day:2015-06-01') return { period: key, total: 0, plays: [], nextCursor: null, coverage: { status: 'none', missing: [] } };
       return { period: key, total: 0, plays: [], nextCursor: null, coverage: { status: 'complete', missing: [] } };
     },
@@ -175,6 +179,22 @@ describe('Time Machine', () => {
     expect(details).toHaveAttribute('open');
     expect(within(details).getByRole('link', { name: '2014, Sat: 33 scrobbles' })).toBeInTheDocument();
     expect(within(details).getByRole('link', { name: '2015, Sun: Not imported' })).toBeInTheDocument();
+  });
+
+  it('gives every day heading its total in long custom ranges', async () => {
+    const fake = api();
+    renderApp(fake, '/time-machine?period=custom%3A2014-01-01..2014-12-31');
+    expect(await screen.findByRole('heading', { level: 3, name: /Saturday 15 March 2014\s*33/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Sunday 16 March 2014\s*7/ })).toBeInTheDocument();
+    expect(fake.requests).toContain('days:2014-01-01..2014-12-31');
+  });
+
+  it('counts each page of plays for itself when a range is longer than the calendar answers at once', async () => {
+    const fake = api();
+    renderApp(fake, '/time-machine?period=custom%3A2014-01-01..2016-03-31');
+    expect(await screen.findByRole('heading', { level: 3, name: /Saturday 15 March 2014\s*33/ })).toBeInTheDocument();
+    expect(fake.requests).toContain('days:2014-03-15..2014-03-16');
+    expect(fake.requests).not.toContain('days:2014-01-01..2016-03-31');
   });
 
   it('steps to neighbours, links to the Overview, and stops at the edges of the history', async () => {

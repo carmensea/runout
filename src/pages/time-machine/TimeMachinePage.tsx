@@ -225,7 +225,8 @@ function daysRange(focus: Focus): { from: string; to: string } | null {
       const from = isoWeekStart(focus.isoYear, focus.week);
       return { from, to: addDays(from, 6) };
     }
-    case 'custom': return focus.to < addDays(focus.from, 62) ? { from: focus.from, to: focus.to } : null;
+    // Up to the calendar's limit (Analytics::Calendar::MAX_DAYS); longer ranges count per page of plays.
+    case 'custom': return focus.to < addDays(focus.from, 400) ? { from: focus.from, to: focus.to } : null;
   }
 }
 
@@ -314,7 +315,7 @@ function Explorer({ history, focus, hrefFor }: { history: HistoryCalendar; focus
                   {focus.kind === 'day' ? 'Every scrobble' : `Every scrobble in this ${LEVEL_NOUN[focus.kind]}`}
                   {focus.kind === 'day' && dayCounts.has(focus.date) && <span className="mono">{fmt.count(dayCounts.get(focus.date)!)}</span>}
                 </h2>
-                <PlayLog focus={focus} label={focusTitle(focus)} dayCounts={dayCounts} />
+                <PlayLog focus={focus} label={focusTitle(focus)} dayCounts={dayCounts} countsPerPage={focus.kind === 'custom' && !range} />
               </>
             )}
         </section>

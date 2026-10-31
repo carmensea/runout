@@ -13,8 +13,11 @@ Nothing calls Last.fm or any other service, and nothing depends on where a play 
 - **Year:** twelve small months, each day shaded by plays.
 - **Month:** a calendar, Monday first, with ISO week numbers.
 - **Week:** seven days.
-- **Day:** every scrobble, in order, a page at a time, with "On this day" beside it.
-- **Custom range:** a bar per day (up to 62 days) or per month, then the plays.
+- **Day:** every scrobble, in order, a page at a time, with "On this day" beside it. On phones,
+  "On this day" is a closed disclosure above the plays, with a one-line summary of real counts.
+- **Custom range:** a bar per day (up to 62 days) or per month, then the plays. Every day heading
+  has its total: from one calendar request for ranges up to 400 days, and for longer ones from a
+  request per page of plays, covering that page's days.
 
 Every level lists its plays, except the whole history. Each cell, bar and heading links to its
 period, and "Open in Overview" opens the same period there.
