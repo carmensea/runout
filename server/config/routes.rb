@@ -22,7 +22,6 @@ Rails.application.routes.draw do
     resources :reviews, only: :index
     post "reviews/:kind/:id/:decision", to: "reviews#decide", as: :review_decision,
                                         constraints: { kind: /removal|reappeared|dispute/, id: /\d+/ }
-    get "overview", to: "unavailable#show"
-    get "search", to: "unavailable#show"
+    resource :overview, only: :show
   end
 end

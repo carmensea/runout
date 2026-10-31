@@ -1,7 +1,7 @@
 require "test_helper"
 
 # Stage 2.8 endpoints (docs/milestone-2-plan.md §15.1, §15.2): import and sync controls, the
-# review queue and decisions, 501 for unbuilt analytics. Signed-in user only, same-origin writes,
+# review queue and decisions. Signed-in user only, same-origin writes,
 # nothing that changes history while storage is off. Synthetic data only.
 class HistoryControlsApiTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
@@ -42,14 +42,6 @@ class HistoryControlsApiTest < ActionDispatch::IntegrationTest
     ReconciliationDispute.create!(user: @user, import_window: w, played_at: s.played_at, stored_scrobble_ids: [ s.id ],
                                   proposed_variant_ids: [ variant(track: "New name").id ], evidence_key: "k", first_seen_fetch: f,
                                   last_seen_fetch: f)
-  end
-
-  test "analytics endpoints answer 501 until Milestone 3" do
-    %w[/api/overview /api/search].each do |path|
-      get path
-      assert_response :not_implemented
-      assert_equal "not_available", body["error"]
-    end
   end
 
   test "writes need the app's origin; everything needs a signed-in user" do
