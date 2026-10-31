@@ -35,6 +35,8 @@ const ACTION_ERRORS: Record<string, string> = {
 const POLL_OUTCOMES: Record<SpotifyPoll['outcome'], string> = {
   ok: 'Checked',
   rate_limited: 'Spotify asked Runout to wait',
+  quota_exceeded: 'Spotify’s quota for the developer account is used up',
+  unauthorized: 'Spotify refused Runout’s access',
   unavailable: 'Spotify couldn’t be reached',
   forbidden: 'Spotify refused',
   needs_reauth: 'Spotify access ended',

@@ -1,5 +1,11 @@
 # Synthetic Spotify responses for WebMock (docs/spotify-plan.md). Nothing reaches Spotify.
 module SpotifyStubs
+  # A request pacer that never waits: unit tests read the database clock-free.
+  class NullPacer
+    def reserve! = 0.0
+    def cool_down!(_seconds) = nil
+  end
+
   TOKEN_URL = "https://accounts.spotify.com/api/token".freeze
   API = "https://api.spotify.com/v1".freeze
 

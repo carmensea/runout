@@ -36,6 +36,7 @@ module Spotify
         source ||= ListeningSource.new(user: user, provider: "spotify", external_account_id: account_id, connected_at: now)
         source.update!(display_name: profile["display_name"].presence || account_id, state: "connected", scopes: tokens.scope,
                        credentials: credentials(tokens), disconnected_at: nil, last_error: nil, last_error_at: nil,
+                       next_poll_at: nil, consecutive_failures: 0,
                        connected_at: source.state == "disconnected" ? now : source.connected_at)
         source
       end

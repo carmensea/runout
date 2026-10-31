@@ -64,8 +64,14 @@ module Spotify
       data
     end
 
+    # A pause the pacer is holding after an earlier 429 is Spotify's rate limit too.
     def call(method, url, headers, form)
-      @pacer.reserve!
+      begin
+        @pacer.reserve!
+      rescue Lastfm::Error::RateLimited => e
+        raise Error::RateLimited.new("Spotify requests are paused after a rate limit (#{e.retry_after.to_f.ceil} s left)",
+                                     retry_after: e.retry_after.to_f.ceil)
+      end
       @requests += 1
       @http.call(method, url, headers.merge("Accept" => "application/json"), form)
     end
@@ -80,7 +86,8 @@ module Spotify
       when 429
         wait = headers&.fetch("retry-after", nil).to_s.then { |v| v.match?(/\A\d+\z/) ? v.to_i : 30 }
         @pacer.cool_down!([ wait, MAX_RETRY_AFTER ].min)
-        raise Error::RateLimited.new(message, retry_after: wait, reason: error_object(data)["reason"] || data["reason"])
+        reason = error_object(data)["reason"] || data["reason"]
+        raise (reason == "QUOTA_EXCEEDED" ? Error::QuotaExceeded : Error::RateLimited).new(message, retry_after: wait, reason: reason)
       when 500..599 then raise Error::Unavailable.new(message, status: status)
       else raise Error::Rejected.new(message, status: status)
       end

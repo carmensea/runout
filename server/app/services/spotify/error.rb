@@ -23,5 +23,9 @@ module Spotify
         @reason = reason
       end
     end
+
+    # 429 with "reason": "QUOTA_EXCEEDED" (July 2026): the developer account's Development Mode
+    # quota is used up, shared by all its apps. Not a burst: retrying soon can't help.
+    class QuotaExceeded < RateLimited; end
   end
 end

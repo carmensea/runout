@@ -485,7 +485,7 @@ export interface SpotifySource {
 export interface SpotifyPoll {
   startedAt: string;
   trigger: 'schedule' | 'manual' | 'task';
-  outcome: 'ok' | 'rate_limited' | 'unavailable' | 'forbidden' | 'needs_reauth' | 'failed' | 'running';
+  outcome: 'ok' | 'rate_limited' | 'quota_exceeded' | 'unauthorized' | 'unavailable' | 'forbidden' | 'needs_reauth' | 'failed' | 'running';
   items: number;
   added: number;
   linked: number;

@@ -13,9 +13,15 @@ module Spotify
   #   and the oldest one returned may be lost (Spotify keeps only its most recent plays): that
   #   interval becomes a ListeningGap. If Spotify returns nothing at all although plays were
   #   recorded before, the gap runs to now. Nothing is invented for a gap.
-  # - Failures change nothing recorded. 429 waits for Retry-After; network and 5xx back off
-  #   (1, 2, 4… up to 60 minutes); 403 waits an hour; a refused refresh token stops polling until
-  #   the account is connected again. Times are kept on the source, so a restart resumes.
+  # - Failures change nothing recorded, and each kind waits differently:
+  #   - 429: Spotify's Retry-After;
+  #   - 429 with QUOTA_EXCEEDED (the developer account's quota is used up): Retry-After, and at
+  #     least QUOTA_WAIT, never the short outage backoff;
+  #   - 401 even with a freshly refreshed token, and 403: an hour, with Spotify's message;
+  #   - a refused refresh token: no more polls until the account is connected again;
+  #   - network errors and 5xx: 1, 2, 4… up to 60 minutes.
+  #   Sync now skips an outage backoff, never a rate limit or an exhausted quota. Times are kept on
+  #   the source, so a restart resumes.
   #
   # Plays are stored only while Spotify ingestion is switched on (ListeningStorage).
   class Poller
@@ -23,6 +29,9 @@ module Spotify
     MAX_PAGES = 4
     MAX_BACKOFF = 60.minutes
     FORBIDDEN_WAIT = 1.hour
+    QUOTA_WAIT = 1.hour
+    # Waits Sync now must respect: Spotify set them.
+    BINDING = %w[rate_limited quota_exceeded].freeze
     LOCK = "spotify-poll:%d".freeze
 
     Result = Data.define(:status, :poll) # status: :ok, :busy, :skipped, :waiting, or the failure outcome
@@ -53,7 +62,7 @@ module Spotify
     def waiting?(source, force)
       return false unless source.next_poll_at && source.next_poll_at > now
 
-      !force || source.last_error.to_s.start_with?("rate limited")
+      !force || BINDING.include?(source.polls.where.not(outcome: nil).order(:started_at).last&.outcome)
     end
 
     def with_lock(source)
@@ -87,9 +96,14 @@ module Spotify
       tally = @recorder.new(source, now: @clock).record_all!(events)
       finish_ok!(source, poll, tally, oldest, newest, reached, malformed, requests_before, items.size)
       Result.new(status: :ok, poll: poll)
+    rescue Error::QuotaExceeded => e
+      fail!(source, poll, "quota_exceeded", "Spotify's quota for this developer account is used up", wait: [ e.retry_after.seconds, QUOTA_WAIT ].max,
+                                                                                               retry_after: e.retry_after, requests_before: requests_before)
     rescue Error::RateLimited => e
-      fail!(source, poll, "rate_limited", "rate limited by Spotify#{" (#{e.reason})" if e.reason}", wait: e.retry_after.seconds, retry_after: e.retry_after,
-                                                                                             requests_before: requests_before)
+      fail!(source, poll, "rate_limited", "#{e.message}#{" (#{e.reason})" if e.reason}", wait: e.retry_after.seconds, retry_after: e.retry_after,
+                                                                                    requests_before: requests_before)
+    rescue Error::Unauthorized => e
+      fail!(source, poll, "unauthorized", "Spotify refused a freshly refreshed token: #{e.message}", wait: FORBIDDEN_WAIT, requests_before: requests_before)
     rescue Error::Forbidden => e
       fail!(source, poll, "forbidden", e.message, wait: FORBIDDEN_WAIT, requests_before: requests_before)
     rescue Account::NotConnected => e

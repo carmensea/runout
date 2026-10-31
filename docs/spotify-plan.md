@@ -229,7 +229,9 @@ the interval):
 
 | Failure | What happens |
 |---|---|
-| 429 | Waits for `Retry-After`. Sync now doesn't override it. |
+| 429 | Waits for `Retry-After`. Sync now doesn't override it. A pause the shared pacer still holds counts as the same rate limit. |
+| 429 with `QUOTA_EXCEEDED` | The developer account's Development Mode quota is used up. Waits for `Retry-After` and at least an hour, never the short outage backoff. Sync now doesn't override it. |
+| 401 with a freshly refreshed token | Waits an hour with Spotify's message, instead of retrying like an outage. |
 | Network errors and 5xx | Back off 1, 2, 4… minutes, up to 60. Sync now skips the backoff. |
 | 403 | Waits an hour and shows Spotify's message. |
 | 401 | Refreshes the token and retries once. |

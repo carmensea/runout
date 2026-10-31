@@ -30,7 +30,10 @@ class Spotify::PollerTest < ActiveSupport::TestCase
                             credentials: { "access_token" => "access-#{account}", "refresh_token" => "refresh-1", "expires_at" => (T + 1.year).to_i })
   end
 
-  def poller(recorder: Listening::Recorder) = Spotify::Poller.new(account: Spotify::Account.new(clock: -> { @now }), clock: -> { @now }, recorder: recorder)
+  def poller(recorder: Listening::Recorder)
+    account = Spotify::Account.new(client: Spotify::Client.new(pacer: SpotifyStubs::NullPacer.new), clock: -> { @now })
+    Spotify::Poller.new(account: account, clock: -> { @now }, recorder: recorder)
+  end
 
   def poll!(source = @source, **options) = poller(**options.slice(:recorder)).poll!(source, **options.except(:recorder))
 
@@ -134,6 +137,40 @@ class Spotify::PollerTest < ActiveSupport::TestCase
     assert_equal :ok, poll!(force: true).status, "Sync now skips an outage backoff"
     assert_equal [ 0, nil, nil ], @source.reload.values_at(:consecutive_failures, :next_poll_at, :last_error)
     assert_requested(:get, RECENT, query: hash_including({}), times: 3)
+  end
+
+  test "an exhausted developer quota waits at least an hour, whatever Retry-After says, and Sync now can't override it" do
+    stub_page([], status: 429, headers: { "Retry-After" => "30" })
+    stub_request(:get, RECENT).with(query: { "limit" => "50" }).to_return(
+      status: 429, headers: { "Retry-After" => "30", "Content-Type" => "application/json" },
+      body: { error: { status: 429, message: "Quota exceeded" }, reason: "QUOTA_EXCEEDED" }.to_json
+    )
+    result = poll!
+    assert_equal [ :quota_exceeded, 30 ], [ result.status, result.poll.retry_after ]
+    assert_equal [ T + 1.hour, "Spotify's quota for this developer account is used up" ], @source.reload.values_at(:next_poll_at, :last_error)
+    @now = T + 10.minutes
+    assert_equal :waiting, poll!(force: true).status
+    assert_requested(:get, RECENT, query: hash_including({}), times: 1)
+  end
+
+  test "a 401 even after refreshing waits an hour instead of retrying like an outage" do
+    stub_request(:post, SpotifyStubs::TOKEN_URL).to_return(status: 200, body: { access_token: "fresh", expires_in: 3600, scope: "user-read-recently-played" }.to_json)
+    stub_page([], status: 401)
+    assert_equal :unauthorized, poll!.status
+    assert_equal [ "connected", T + 1.hour ], @source.reload.values_at(:state, :next_poll_at)
+    assert_requested(:get, RECENT, query: hash_including({}), times: 2) # the stored token, then the refreshed one
+    assert_requested(:post, SpotifyStubs::TOKEN_URL, times: 1)
+  end
+
+  test "a pause the pacer still holds after a 429 counts as Spotify's rate limit, not a failure" do
+    pacer = Lastfm::RequestPacer.new(key: "spotify-test-#{SecureRandom.hex(3)}", interval: 0, max_wait: 0)
+    pacer.cool_down!(90)
+    account = Spotify::Account.new(client: Spotify::Client.new(pacer: pacer), clock: -> { @now })
+    result = Spotify::Poller.new(account: account, clock: -> { @now }).poll!(@source)
+    assert_equal :rate_limited, result.status
+    assert_match(/paused after a rate limit/, result.poll.error)
+    assert_operator @source.reload.next_poll_at, :>=, T + 80
+    assert_not_requested :get, RECENT, query: hash_including({})
   end
 
   test "an expired token is refreshed; a refused refresh stops polling until Spotify is connected again" do
