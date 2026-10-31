@@ -10,6 +10,9 @@ Rails.application.routes.draw do
     get "auth/spotify/callback", to: "spotify_auth#callback", as: :spotify_callback
     get "listening-sources", to: "listening_sources#index", as: :listening_sources
     post "listening-sources/spotify/disconnect", to: "listening_sources#disconnect", as: :spotify_disconnect
+    post "listening-sources/spotify/sync", to: "listening_sources#sync", as: :spotify_sync
+    post "listening-sources/spotify/pause", to: "listening_sources#pause", as: :spotify_pause
+    post "listening-sources/spotify/resume", to: "listening_sources#resume", as: :spotify_resume
     resource :session, only: :destroy
     resource :account, only: :destroy
     resource :connection, only: :show

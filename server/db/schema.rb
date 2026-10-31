@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000025) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -294,6 +294,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
     t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying, 'importing'::character varying, 'imported'::character varying, 'failed'::character varying]::text[])", name: "lastfm_connections_history_state_check"
   end
 
+  create_table "listening_gaps", force: :cascade do |t|
+    t.bigint "listening_source_id", null: false
+    t.uuid "user_id", null: false
+    t.datetime "gap_from", null: false
+    t.datetime "gap_to", null: false
+    t.bigint "listening_poll_id"
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.text "resolution"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["listening_poll_id"], name: "index_listening_gaps_on_listening_poll_id"
+    t.index ["listening_source_id"], name: "index_listening_gaps_on_listening_source_id"
+    t.index ["user_id", "gap_from"], name: "index_listening_gaps_on_user_id_and_gap_from"
+    t.check_constraint "gap_from < gap_to", name: "listening_gaps_order"
+  end
+
   create_table "listening_observations", force: :cascade do |t|
     t.uuid "user_id", null: false
     t.bigint "listening_source_id", null: false
@@ -332,6 +349,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
     t.check_constraint "provider::text = 'spotify'::text", name: "listening_observations_provider"
   end
 
+  create_table "listening_polls", force: :cascade do |t|
+    t.bigint "listening_source_id", null: false
+    t.uuid "user_id", null: false
+    t.string "trigger", null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.string "outcome"
+    t.integer "http_requests", default: 0, null: false
+    t.integer "pages", default: 0, null: false
+    t.integer "items", default: 0, null: false
+    t.integer "malformed", default: 0, null: false
+    t.jsonb "recorded", default: {}, null: false
+    t.datetime "oldest_reported_at"
+    t.datetime "newest_reported_at"
+    t.boolean "reached_known", default: false, null: false
+    t.integer "retry_after"
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["listening_source_id", "started_at"], name: "index_listening_polls_on_listening_source_id_and_started_at"
+    t.index ["listening_source_id"], name: "index_listening_polls_on_listening_source_id"
+    t.check_constraint "trigger::text = ANY (ARRAY['schedule'::character varying, 'manual'::character varying, 'task'::character varying]::text[])", name: "listening_polls_trigger"
+  end
+
   create_table "listening_sources", force: :cascade do |t|
     t.uuid "user_id", null: false
     t.string "provider", null: false
@@ -347,6 +388,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
     t.datetime "last_error_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "last_poll_at"
+    t.datetime "last_success_at"
+    t.datetime "next_poll_at"
+    t.integer "consecutive_failures", default: 0, null: false
+    t.datetime "high_water_at"
+    t.datetime "covered_from"
+    t.datetime "last_new_play_at"
+    t.integer "plays_added", default: 0, null: false
     t.index ["provider", "external_account_id"], name: "index_listening_sources_on_provider_and_external_account_id", unique: true
     t.index ["user_id", "provider"], name: "index_listening_sources_on_user_id_and_provider"
     t.index ["user_id"], name: "index_listening_sources_on_user_id"
@@ -688,10 +737,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
   add_foreign_key "import_windows", "users", on_delete: :cascade
   add_foreign_key "lastfm_connections", "identities", on_delete: :cascade
   add_foreign_key "lastfm_connections", "users", on_delete: :cascade
+  add_foreign_key "listening_gaps", "listening_polls", on_delete: :nullify
+  add_foreign_key "listening_gaps", "listening_sources", on_delete: :cascade
   add_foreign_key "listening_observations", "listening_sources", on_delete: :cascade
   add_foreign_key "listening_observations", "name_variants"
   add_foreign_key "listening_observations", "scrobbles"
   add_foreign_key "listening_observations", "users", on_delete: :cascade
+  add_foreign_key "listening_polls", "listening_sources", on_delete: :cascade
   add_foreign_key "listening_sources", "users", on_delete: :cascade
   add_foreign_key "mbid_disputes", "import_windows", column: "first_import_window_id", on_delete: :nullify
   add_foreign_key "name_variants", "albums"

@@ -82,4 +82,21 @@ namespace :spotify do
       end
     end
   end
+
+  desc "Poll the connected account once, now, in this process (needs SPOTIFY_INGESTION_ENABLED for this command)"
+  task poll: :environment do
+    abort "spotify: SPOTIFY_INGESTION_ENABLED is off; set it for this command only" unless ListeningStorage.enabled?("spotify")
+
+    source = spotify_source
+    result = Spotify::Poller.new.poll!(source, trigger: "task", force: ENV["FORCE"] == "1")
+    poll = result.poll
+    puts "Status: #{result.status}"
+    if poll
+      puts "Fetched #{poll.items} plays in #{poll.pages} page(s) (#{poll.http_requests} requests); recorded: #{poll.recorded.inspect}"
+      puts "Span: #{poll.oldest_reported_at&.iso8601(3)} to #{poll.newest_reported_at&.iso8601(3)}; reached plays recorded before: #{poll.reached_known}"
+      puts "Error: #{poll.error}" if poll.error
+    end
+    gaps = source.gaps.open.order(:gap_from)
+    puts "Possible gaps: #{gaps.map { |g| "#{g.gap_from.iso8601} to #{g.gap_to.iso8601}" }.join(', ').presence || 'none'}"
+  end
 end

@@ -1,12 +1,13 @@
 module Analytics
   # Whether stored history covers a UTC interval (docs/milestone-3-plan.md §1, coverage): `complete`,
-  # `partial` or `none`, with the missing ranges as local days (Period.local_days). Imported ranges
-  # come from ImportCoverage and are read once per instance, so one view can ask about many
+  # `partial` or `none`, with the missing ranges as local days (Period.local_days). Covered ranges
+  # are the Last.fm import's (ImportCoverage) together with what connected sources confirm
+  # (Listening::Coverage: never across a possible gap), read once per instance, so one view can ask about many
   # intervals (every day of a month, the same date in twenty years) at the cost of one query. The
   # part of an interval still in the future isn't missing.
   class Coverage
     def initialize(user, time_zone, now: Time.current)
-      @ranges = ImportCoverage.ranges(user)
+      @ranges = Listening::Coverage.merge(ImportCoverage.ranges(user) + Listening::Coverage.ranges(user))
       @tz = time_zone
       @now = now
     end

@@ -6,6 +6,8 @@ class ListeningSource < ApplicationRecord
 
   belongs_to :user
   has_many :observations, class_name: "ListeningObservation", dependent: :restrict_with_exception
+  has_many :polls, class_name: "ListeningPoll", dependent: :delete_all
+  has_many :gaps, class_name: "ListeningGap", dependent: :delete_all
 
   # { "access_token", "refresh_token", "expires_at" (epoch seconds) }. Non-deterministic encryption.
   serialize :credentials, coder: JSON

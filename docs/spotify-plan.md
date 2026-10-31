@@ -133,7 +133,7 @@ A play never waits for metadata.
    - offline catch-up and explicit gaps.
    - Off until approved.
 4. **Settings and the frontend:** Listening Sources, Sync now, pause, disconnect, errors and gaps;
-   coverage per source; end-to-end checks.
+   end-to-end checks.
 
 ## 8. Connecting Spotify (stage 2)
 
@@ -207,6 +207,80 @@ A play never waits for metadata.
 | Plays Recently Played returns, and whether `before` paging reaches further | |
 | Spotify `played_at` minus Last.fm start, minus duration | |
 | Recent plays already in the archive (dry run) | |
+
+## 10. Ingestion (stage 3)
+
+**Polling** (`Spotify::Poller`, `SpotifyPollJob` every 5 minutes; `SPOTIFY_POLL_SCHEDULE` changes
+the interval):
+- The recurring tick queues one `SpotifyPollSourceJob` per connected, unpaused account. It does
+  nothing while `SPOTIFY_INGESTION_ENABLED` is off.
+- **One poll per account at a time.** Solid Queue's concurrency key handles queued jobs, and a
+  session-level advisory lock, taken without waiting, covers anything else (Sync now, the rake
+  task, a second worker). A poll that can't take the lock does nothing.
+- **Deliberate overlap:** every poll reads the newest 50 plays.
+  - Plays already recorded come back and are recognised by event ID, never added twice.
+  - When the newest page doesn't reach the newest play already recorded, it pages back with
+    Spotify's `before` cursor, up to 4 pages.
+- **Order and crashes:** plays are recorded oldest first, one transaction each (§3). A crash leaves
+  every recorded play whole, and the next poll records the rest.
+- **State on the source:** the newest recorded play (`high_water_at`), the last poll and the last
+  success, the next allowed poll, and counters. Restarts resume from there.
+- **Failures change nothing recorded:**
+
+| Failure | What happens |
+|---|---|
+| 429 | Waits for `Retry-After`. Sync now doesn't override it. |
+| Network errors and 5xx | Back off 1, 2, 4… minutes, up to 60. Sync now skips the backoff. |
+| 403 | Waits an hour and shows Spotify's message. |
+| 401 | Refreshes the token and retries once. |
+| Refused refresh token | `needs_reauth`; polling stops until the account is connected again. |
+| Anything unexpected | Recorded on the poll, backed off, and raised so the job shows it. |
+
+- **Records:**
+  - every poll is a `listening_polls` row: pages, plays, what was recorded, the span, and the
+    error;
+  - `bin/rails spotify:poll` runs one poll now, in the foreground, for a supervised first run.
+
+**Offline catch-up and gaps:**
+- On the first poll after time away, Runout reads back as far as Spotify allows.
+- If it meets a play it already has, the interval is fully caught up.
+- If it doesn't, plays between the newest one recorded and the oldest one Spotify still returned
+  may be lost. That interval becomes a **possible gap** (`listening_gaps`), shown in Settings. If
+  Spotify returns nothing at all although plays were recorded before, the gap runs to now.
+- Nothing is invented for a gap. A later import, such as Spotify's extended streaming history,
+  could fill one.
+
+**Coverage:**
+- What Spotify confirms runs from the oldest play of its first successful poll to its latest
+  successful poll, minus unresolved gaps (`Listening::Coverage`).
+- The analytics' coverage (Overview, Time Machine) is the union of that and the Last.fm import's
+  windows. A period with a possible gap, or after the last successful poll, is never shown as
+  complete.
+- "Complete" means complete for the sources Runout records.
+
+**Practical limits** (while Runout runs on the Mac):
+- **Spotify keeps only the most recent plays.** If Runout is off, or the Mac sleeps, for longer
+  than about 50 tracks of listening (2.5–3 hours of continuous play), the oldest of those plays are
+  gone from the API. Runout says so as a possible gap, and can't recover them itself.
+- **Missed plays:**
+  - Spotify doesn't report plays in a private session;
+  - podcast episodes aren't returned;
+  - very short plays may not be counted as played (Spotify's rule, undocumented).
+- **Late arrivals:** a phone that played offline reports its plays when it reconnects, possibly
+  with older timestamps. They're recorded when they appear, if they appear before 50 newer plays
+  push them out.
+- **An always-on worker** (a deployed server) removes the main risk: polling every 5 minutes needs
+  only about 290 requests a day per account.
+
+**Read-only benchmark against the real archive** (2026-10-31, 209,383 plays, nothing written):
+- 400 stored Last.fm plays were reported back as Spotify would (ending 210 s after the start).
+  - 391 linked to their play.
+  - 9 were held for review. All were real ambiguities: the archive has duplicated scrobbles of
+    one track a second apart, or the same track played twice within one window.
+- The same 400 with a different track at that moment: none linked.
+- The same names reported 10 minutes later: 391 found no play to link, 8 linked to a later play of
+  the same track, and 1 went to review.
+- About 2 ms per decision. Recording is one indexed range query plus the insert.
 
 ## 7. Future providers (not built)
 
