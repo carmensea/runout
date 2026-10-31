@@ -73,6 +73,6 @@ cases = {
   "plays: a month, first page" => -> { Analytics::Plays.new(user: user, period: period.("month:2024-03")).call },
   "plays: a year, first page" => -> { Analytics::Plays.new(user: user, period: period.("year:2024")).call },
   "plays: a year, page after 2,500" => -> { Analytics::Plays.new(user: user, period: period.("year:2024"), cursor: deep[:nextCursor]).call },
-  "on this day (20 years)" => -> { Analytics::OnThisDay.new(user: user, date: Date.new(2025, 10, 31)).call },
+  "on this day (20 years)" => -> { Analytics::OnThisDay.new(user: user, date: Date.new(2025, 10, 31)).call }
 }
 cases.each { |name, run| puts format("%-46s %s", name, measure(&run).inspect) }
