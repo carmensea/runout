@@ -99,7 +99,8 @@ function ReviewItemView({ item, onDecided }: { item: ReviewItem; onDecided(messa
   }
 
   const when = fmt.dateTime(item.playedAt, timeZone);
-  const busy = pending !== null;
+  // While a confirmation is open, it is the only decision on offer.
+  const busy = pending !== null || confirming !== null;
 
   return (
     <article className={styles.item} aria-label={`${REVIEW_KIND[item.kind]}, ${when}`}>
@@ -162,7 +163,7 @@ function ReviewItemView({ item, onDecided }: { item: ReviewItem; onDecided(messa
       </div>
 
       {confirming && (
-        <div className={styles.confirm} role="group" aria-label="Confirm decision">
+        <div className={`${styles.confirm} ${confirming === 'resolve' ? styles.confirmChange : ''}`} role="group" aria-label="Confirm decision">
           <span>
             {confirming === 'approve' && 'Remove this scrobble from your history? It is hidden, not deleted, and can be restored later.'}
             {confirming === 'keep' && 'Keep this scrobble removed, even though Last.fm has it again?'}
@@ -172,7 +173,7 @@ function ReviewItemView({ item, onDecided }: { item: ReviewItem; onDecided(messa
             <button
               type="button"
               className={confirming === 'resolve' ? stateStyles.primary : styles.danger}
-              disabled={busy}
+              disabled={pending !== null}
               onClick={() => decide(confirming, {
                 confirm: true,
                 ...(confirming === 'resolve'
@@ -182,7 +183,7 @@ function ReviewItemView({ item, onDecided }: { item: ReviewItem; onDecided(messa
             >
               {pending ? 'Saving' : confirming === 'approve' ? 'Confirm removal' : confirming === 'keep' ? 'Confirm' : 'Confirm changes'}
             </button>
-            <button type="button" className={stateStyles.secondary} disabled={busy} onClick={() => setConfirming(null)}>Go back</button>
+            <button type="button" className={stateStyles.secondary} disabled={pending !== null} onClick={() => setConfirming(null)}>Go back</button>
           </div>
         </div>
       )}

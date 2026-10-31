@@ -63,7 +63,7 @@ export function SettingsScreen() {
       <section className={settings.section} aria-labelledby="account-title">
         <h2 id="account-title" className={settings.h2}>Account</h2>
       {deletedRevokeUrl && (
-        <div className={styles.panel} role="status">
+        <div className={settings.panel} role="status">
           <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>Your Runout account and its data were deleted.</strong>
           <span>
             Runout cannot remove its own access on Last.fm. To do that, open your{' '}
@@ -72,7 +72,7 @@ export function SettingsScreen() {
         </div>
       )}
       {signedIn && (
-        <div className={styles.panel} id="lastfm">
+        <div className={settings.panel} id="lastfm">
           <span>Signed in with Last.fm as <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>{signedIn.username}</strong>.</span>
           <span>Reporting timezone: {signedIn.timezone.replace(/_/g, ' ')}. Hour and weekday patterns assume this timezone for your whole history.</span>
           <div className={stateStyles.actions}>
@@ -117,7 +117,7 @@ function DeleteAccount({ username, onDeleted }: { username: string; onDeleted(re
   }
 
   return (
-    <section className={styles.panel} id="data" aria-labelledby={`${inputId}-title`}>
+    <section className={settings.panel} id="data" aria-labelledby={`${inputId}-title`}>
       <strong id={`${inputId}-title`} style={{ color: 'var(--fg)', fontWeight: 600 }}>Delete account</strong>
       <span>
         Deletes your Runout account and everything stored for it, including the Last.fm access key. This cannot be undone.

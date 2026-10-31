@@ -127,7 +127,7 @@ describe('Settings: sync', () => {
       }),
     });
     renderApp(api(history), '/settings');
-    expect(await screen.findByText(/One period has no imported scrobbles. Charts treat them as incomplete/)).toBeInTheDocument();
+    expect(await screen.findByText(/One period has no imported scrobbles. Charts treat it as incomplete/)).toBeInTheDocument();
     expect(screen.getByText('Last.fm returned plays without a date, so this period was not saved.')).toBeInTheDocument();
     expect(screen.getByText('Will try again automatically')).toBeInTheDocument();
     expect(screen.getByText('October 2026')).toBeInTheDocument();

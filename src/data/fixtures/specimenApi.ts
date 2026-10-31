@@ -9,7 +9,7 @@
  */
 import { serializePeriod, type Period } from '../../lib/period';
 import type { HistoryApi, RunoutApi } from '../api';
-import type { ActivityBucket, GenreBreakdown, OverviewData, TopEntry } from '../types';
+import type { ActivityBucket, GenreBreakdown, ImportStatus, OverviewData, TopEntry } from '../types';
 
 function rng(seed: number) {
   let s = seed;
@@ -137,16 +137,41 @@ function buildOverview(period: Period, seed: number): OverviewData {
   };
 }
 
-/** Settings layout review: one of each state the history panels can show. Nothing is real. */
-const specimenHistory: HistoryApi = {
-  importStatus: async () => ({
+/**
+ * Settings layout review: the history panels' states, nothing real. `?specimen&history=` picks one:
+ * `importing`, `paused`, `not_started`, `sync_paused`, `account`; default: imported, with a gap, a
+ * stopped month and two review items.
+ */
+const specimenState = () => new URLSearchParams(window.location.search).get('history') ?? 'imported';
+
+const specimenImport = (): ImportStatus => {
+  const state = specimenState();
+  const imported: ImportStatus = {
     enabled: true, state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 0,
     lastfmPlaycount: 0, historyFrom: '2006-01-01T00:00:00Z', cutoffAt: '2026-01-01T00:00:00Z', currentPeriod: null,
     periods: { pending: 0, processing: 0, committed: 0, failed: 0, review: 1 }, startedAt: null, finishedAt: null, lastImportedAt: null,
     error: null, failures: [], missingPeriods: [], attention: 2, canStart: false,
-  }),
+  };
+  if (state === 'not_started') return { ...imported, state: 'not_started', complete: false, percent: null, canStart: true };
+  if (state === 'importing' || state === 'paused') {
+    return {
+      ...imported, state: state === 'importing' ? 'running' : 'paused', complete: false, activity: state === 'importing' ? 'importing' : 'paused',
+      percent: 42, currentPeriod: { from: '2014-03-01T00:00:00Z', to: '2014-04-01T00:00:00Z' },
+      periods: { pending: 0, processing: 1, committed: 0, failed: 0, review: 0 },
+    };
+  }
+  return imported;
+};
+
+const specimenHistory: HistoryApi = {
+  importStatus: async () => specimenImport(),
   syncHealth: async () => ({
-    enabled: true, importComplete: true, connectionState: 'imported', syncPaused: false, activity: 'idle', message: null,
+    importComplete: !['not_started', 'importing', 'paused'].includes(specimenState()),
+    syncPaused: specimenState() === 'sync_paused',
+    connectionState: specimenState() === 'account' ? 'failed' : 'imported',
+    message: specimenState() === 'account' ? 'Your Last.fm username changed. Relink the account to resume syncing.' : null,
+    activity: specimenState() === 'sync_paused' ? 'sync_paused' : 'idle',
+    enabled: true,
     lastSuccessfulSyncAt: '2026-01-01T00:00:00Z', lastAttemptedSyncAt: '2026-01-01T00:00:00Z', syncedThrough: '2026-01-01T00:00:00Z',
     coveredThrough: '2014-03-05T10:00:00Z', coverage: [], activeRun: null, lastRun: null, newScrobbles: { lastRun: 0, last24Hours: 0 },
     missingPeriods: [{ from: '2014-03-05T10:00:00Z', to: '2014-03-05T11:00:00Z', state: 'needs_review', reason: 'undated_rows', message: null }],

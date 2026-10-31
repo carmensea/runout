@@ -118,7 +118,6 @@
 .facts dd {
   margin: 0;
   color: var(--fg);
-  font-variant-numeric: tabular-nums;
 }
 
 .progressHead {
@@ -174,6 +173,11 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* A confirmation that changes names rather than hiding anything. */
+.confirmChange {
+  border-left-color: var(--ac);
 }
 
 .error {
@@ -347,6 +351,12 @@ button:disabled {
 
   .compare {
     grid-template-columns: 1fr;
+  }
+
+  /* Touch targets, as States.module.css does for primary and secondary buttons. */
+  .danger,
+  .select {
+    height: 44px;
   }
 
   .facts {

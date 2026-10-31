@@ -73,6 +73,11 @@ function NowLine({ imp, health }: { imp: ImportStatus; health: SyncHealth }) {
   const busy = BUSY.has(activity);
   let text = ACTIVITY[activity];
   if (activity === 'idle' && !health.importComplete) text = imp.enabled ? 'Your history hasn’t been imported yet' : 'History storage is switched off';
+  // "Up to date" would contradict the alert dot: say what needs the owner instead.
+  const attention = health.attention.total;
+  if (activity === 'idle' && health.importComplete && attention > 0) {
+    text = attention === 1 ? '1 item needs your attention' : `${attention} items need your attention`;
+  }
   const tone = busy ? styles.dotBusy : health.attention.total > 0 || health.connectionState === 'failed' ? styles.dotErr : health.importComplete ? styles.dotOk : '';
   return (
     <p className={styles.now} role="status" aria-live="polite">
@@ -270,8 +275,8 @@ function PeriodsPanel({ problems, missing, onChanged }: { problems: ProblemPerio
       <span id="periods-title" className={styles.panelTitle}>Periods that are missing or stopped</span>
       {missing.length > 0 && (
         <span>
-          {missing.length === 1 ? 'One period has' : `${missing.length} periods have`} no imported scrobbles. Charts treat them as incomplete;
-          everything else carries on.
+          {missing.length === 1 ? 'One period has no imported scrobbles. Charts treat it' : `${missing.length} periods have no imported scrobbles. Charts treat them`}{' '}
+          as incomplete; everything else carries on.
         </span>
       )}
       <ul className={styles.list}>
