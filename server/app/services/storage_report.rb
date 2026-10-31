@@ -5,7 +5,7 @@ module StorageReport
   LASTFM_TABLES = %w[
     identities lastfm_connections
     scrobbles scrobble_corrections scrobble_removals
-    name_variants artists albums tracks artist_aliases catalogue_reviews mbid_disputes
+    name_variants artists albums tracks artist_aliases catalogue_reviews mbid_disputes catalogue_inferences
     reconciliation_disputes review_decisions
     import_runs import_windows import_window_fetches import_window_rows
   ].freeze

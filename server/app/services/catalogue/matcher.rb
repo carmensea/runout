@@ -11,7 +11,9 @@ module Catalogue
   # 2. Artists only: a curated alias naming exactly one artist links to it (`alias`).
   # 3. Otherwise the variant joins the name-only entity (no MBID) with that normalised name,
   #    created if needed (`name`). It never joins an identified entity on name alone: if one with
-  #    the same name exists, a `possible_match` review is opened instead.
+  #    the same name exists, a `possible_match` review is opened instead. Exception, artists only:
+  #    exactly one identified artist with the name and nothing contradicting it links to that
+  #    artist (`inferred`, Catalogue::ArtistInference).
   # 4. Several name-only entities with that name (after a person split them): `ambiguous`, linked
   #    to none, with a review listing the candidates.
   # 5. No usable name, or no resolved artist for an album or track: `unmatched`. No album: `none`.
@@ -73,6 +75,16 @@ module Catalogue
       true
     end
 
+    # The artist and every artist merged into it, directly or through others.
+    def family_ids(artist)
+      ids = [ artist.id ]
+      frontier = ids
+      while (frontier = Artist.where(merged_into_id: frontier).where.not(id: ids).pluck(:id)).any?
+        ids += frontier
+      end
+      ids
+    end
+
     private
 
     def now = @clock.call
@@ -88,6 +100,11 @@ module Catalogue
       aliased = ArtistAlias.where(normalized_name: norm).includes(:artist).map { |a| a.artist.resolved }.uniq.sort_by(&:id)
       return Result.linked(aliased.sole, "alias") if aliased.size == 1
       return Result.unlinked("ambiguous", [ [ "ambiguous", aliased.map(&:id) ] ]) if aliased.size > 1
+
+      lock!("artist:#{norm}")
+      if (inferred = ArtistInference.new(clock: @clock).infer_variant(v, norm))
+        return Result.linked(inferred, "inferred")
+      end
 
       by_name(Artist.where(normalized_name: norm), lock_key: "artist:#{norm}") { Artist.new(name: v.artist_name) }
     end
@@ -143,7 +160,7 @@ module Catalogue
       return Result.unlinked("ambiguous", [ [ "ambiguous", targets.map(&:id).sort ] ]) if targets.size > 1
 
       record = targets.first || yield.tap(&:save!)
-      status = name_only.any?(&:merged_into_id) ? "manual" : "name" # followed a person's merge
+      status = followed_merge_status(name_only.select(&:merged_into_id))
       reviews = record.mbid.nil? && identified.any? ? [ [ "possible_match", identified.map(&:id).sort ] ] : []
       Result.linked(record, status, reviews)
     end
@@ -174,14 +191,14 @@ module Catalogue
       end
     end
 
-    # The artist and every artist merged into it, directly or through others.
-    def family_ids(artist)
-      ids = [ artist.id ]
-      frontier = ids
-      while (frontier = Artist.where(merged_into_id: frontier).where.not(id: ids).pluck(:id)).any?
-        ids += frontier
-      end
-      ids
+    # `name` when no merge was followed. A merge made by an inference (Catalogue::ArtistInference)
+    # is `inferred` for artists and `name` for albums and tracks, joined as the name rule would;
+    # a person's merge is `manual`.
+    def followed_merge_status(merged)
+      return "name" if merged.empty?
+      return "manual" unless merged.all?(&:inference_id)
+
+      merged.first.is_a?(Artist) ? "inferred" : "name"
     end
 
     def usable_mbid(v, level)

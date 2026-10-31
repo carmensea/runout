@@ -10,7 +10,7 @@ require_relative "boot"
 
 module Smoke
   class Driver
-    APP_TABLES = %w[mbid_disputes scrobble_removals scrobble_corrections catalogue_reviews artist_aliases scrobbles import_window_rows
+    APP_TABLES = %w[catalogue_inferences mbid_disputes scrobble_removals scrobble_corrections catalogue_reviews artist_aliases scrobbles import_window_rows
                     import_window_fetches import_windows import_runs name_variants tracks albums artists
                     lastfm_connections sessions identities users api_request_slots].freeze
 

@@ -7,9 +7,11 @@ class NameVariant < ApplicationRecord
 
   MATCH_METHODS = %w[mbid normalized_name manual].freeze # legacy summary column; see the per-level *_match columns
   # How each link (artist, album, track) was made. Linked: `mbid`, `alias`, `name` (a name-only
-  # entity), `manual`. Not linked: `ambiguous`, `unmatched`, and for albums `none` (no album sent).
+  # entity), `manual`, and for artists `inferred` (an identified artist found by name,
+  # Catalogue::ArtistInference). Not linked: `ambiguous`, `unmatched`, and for albums `none` (no
+  # album sent).
   LINKED_MATCHES = %w[mbid alias name manual].freeze
-  MATCHES = { artist: LINKED_MATCHES + %w[ambiguous unmatched], album: LINKED_MATCHES + %w[ambiguous unmatched none],
+  MATCHES = { artist: LINKED_MATCHES + %w[inferred ambiguous unmatched], album: LINKED_MATCHES + %w[ambiguous unmatched none],
               track: LINKED_MATCHES + %w[ambiguous unmatched] }.freeze
   IDENTITY_FIELDS = %i[artist_name artist_mbid track_name track_mbid album_name album_mbid].freeze
 

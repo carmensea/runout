@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000020) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -24,8 +24,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
     t.bigint "merged_into_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inference_id"
     t.index ["artist_id", "normalized_title"], name: "index_albums_on_artist_id_and_normalized_title"
     t.index ["artist_id"], name: "index_albums_on_artist_id"
+    t.index ["inference_id"], name: "index_albums_on_inference_id"
     t.index ["mbid"], name: "index_albums_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_albums_on_merged_into_id"
     t.index ["normalized_title"], name: "index_albums_on_normalized_title_trgm", opclass: :gin_trgm_ops, using: :gin
@@ -55,10 +57,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
     t.bigint "merged_into_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inference_id"
+    t.index ["inference_id"], name: "index_artists_on_inference_id"
     t.index ["mbid"], name: "index_artists_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_artists_on_merged_into_id"
     t.index ["normalized_name"], name: "index_artists_on_normalized_name"
     t.index ["normalized_name"], name: "index_artists_on_normalized_name_trgm", opclass: :gin_trgm_ops, using: :gin
+  end
+
+  create_table "catalogue_inferences", force: :cascade do |t|
+    t.string "level", default: "artist", null: false
+    t.text "normalized_name", null: false
+    t.bigint "into_id", null: false
+    t.bigint "from_id"
+    t.string "state", default: "applied", null: false
+    t.integer "rule_version", null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.datetime "applied_at", null: false
+    t.datetime "reverted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["from_id"], name: "index_catalogue_inferences_on_from_id"
+    t.index ["into_id"], name: "index_catalogue_inferences_on_into_id"
+    t.index ["level", "normalized_name", "into_id"], name: "idx_on_level_normalized_name_into_id_58a09f59de", unique: true
+    t.check_constraint "(state::text = 'reverted'::text) = (reverted_at IS NOT NULL)", name: "catalogue_inferences_reverted"
+    t.check_constraint "level::text = 'artist'::text", name: "catalogue_inferences_level"
+    t.check_constraint "state::text = ANY (ARRAY['applied'::character varying, 'reverted'::character varying]::text[])", name: "catalogue_inferences_state"
   end
 
   create_table "catalogue_reviews", force: :cascade do |t|
@@ -72,7 +96,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
     t.datetime "decided_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inference_id"
     t.index ["decided_by_id"], name: "index_catalogue_reviews_on_decided_by_id"
+    t.index ["inference_id"], name: "index_catalogue_reviews_on_inference_id"
     t.index ["name_variant_id", "level", "kind"], name: "index_catalogue_reviews_one_open", unique: true, where: "((state)::text = 'open'::text)"
     t.index ["name_variant_id"], name: "index_catalogue_reviews_on_name_variant_id"
     t.index ["state"], name: "index_catalogue_reviews_on_state"
@@ -283,7 +309,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
     t.index ["track_id"], name: "index_name_variants_on_track_id"
     t.index ["variant_hash"], name: "index_name_variants_on_variant_hash", unique: true
     t.check_constraint "album_match IS NULL OR (album_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND album_id IS NOT NULL OR (album_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying, 'none'::character varying]::text[])) AND album_id IS NULL", name: "name_variants_album_match"
-    t.check_constraint "artist_match IS NULL OR (artist_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND artist_id IS NOT NULL OR (artist_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND artist_id IS NULL", name: "name_variants_artist_match"
+    t.check_constraint "artist_match IS NULL OR (artist_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying, 'inferred'::character varying]::text[])) AND artist_id IS NOT NULL OR (artist_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND artist_id IS NULL", name: "name_variants_artist_match"
     t.check_constraint "match_method IS NULL OR (match_method::text = ANY (ARRAY['mbid'::character varying, 'normalized_name'::character varying, 'manual'::character varying]::text[]))", name: "name_variants_match_method"
     t.check_constraint "octet_length(variant_hash) = 32", name: "name_variants_hash_length"
     t.check_constraint "track_match IS NULL OR (track_match::text = ANY (ARRAY['mbid'::character varying, 'alias'::character varying, 'name'::character varying, 'manual'::character varying]::text[])) AND track_id IS NOT NULL OR (track_match::text = ANY (ARRAY['ambiguous'::character varying, 'unmatched'::character varying]::text[])) AND track_id IS NULL", name: "name_variants_track_match"
@@ -411,8 +437,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
     t.bigint "merged_into_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inference_id"
     t.index ["artist_id", "normalized_title"], name: "index_tracks_on_artist_id_and_normalized_title"
     t.index ["artist_id"], name: "index_tracks_on_artist_id"
+    t.index ["inference_id"], name: "index_tracks_on_inference_id"
     t.index ["mbid"], name: "index_tracks_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_tracks_on_merged_into_id"
     t.index ["normalized_title"], name: "index_tracks_on_normalized_title_trgm", opclass: :gin_trgm_ops, using: :gin
@@ -427,8 +455,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
 
   add_foreign_key "albums", "albums", column: "merged_into_id"
   add_foreign_key "albums", "artists"
+  add_foreign_key "albums", "catalogue_inferences", column: "inference_id"
   add_foreign_key "artist_aliases", "artists", on_delete: :cascade
   add_foreign_key "artists", "artists", column: "merged_into_id"
+  add_foreign_key "artists", "catalogue_inferences", column: "inference_id"
+  add_foreign_key "catalogue_inferences", "artists", column: "from_id"
+  add_foreign_key "catalogue_inferences", "artists", column: "into_id"
+  add_foreign_key "catalogue_reviews", "catalogue_inferences", column: "inference_id"
   add_foreign_key "catalogue_reviews", "name_variants", on_delete: :cascade
   add_foreign_key "catalogue_reviews", "users", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "identities", "users", on_delete: :cascade
@@ -467,5 +500,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
   add_foreign_key "scrobbles", "users", on_delete: :cascade
   add_foreign_key "sessions", "users", on_delete: :cascade
   add_foreign_key "tracks", "artists"
+  add_foreign_key "tracks", "catalogue_inferences", column: "inference_id"
   add_foreign_key "tracks", "tracks", column: "merged_into_id"
 end

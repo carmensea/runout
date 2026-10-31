@@ -13,6 +13,7 @@ class CatalogueReview < ApplicationRecord
 
   belongs_to :name_variant
   belongs_to :decided_by, class_name: "User", optional: true
+  belongs_to :inference, class_name: "CatalogueInference", optional: true # resolved automatically by it
 
   validates :level, inclusion: { in: LEVELS }
   validates :kind, inclusion: { in: KINDS }

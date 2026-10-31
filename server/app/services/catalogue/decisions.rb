@@ -46,7 +46,7 @@ module Catalogue
         target = into.class.find(into.id).resolved
         raise ArgumentError, "can't merge an entity into itself" if target == from || target.resolved == from
 
-        from.update!(merged_into: target)
+        from.update!(merged_into: target, inference: nil) # a person's merge, even where an inference made one before
         reviews = CatalogueReview.open.where(level: level, name_variant_id: variants.select(:id)).where("? = ANY(candidate_ids)", target.id)
         resolve_reviews(reviews, chosen: target, by: by, at: clock)
       end

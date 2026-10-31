@@ -186,20 +186,23 @@ class Catalogue::MatcherTest < ActiveSupport::TestCase
 
   test "a dismissed review isn't reopened for the same candidates" do
     matched(artist: "Nirvana", artist_mbid: NIRVANA_US)
+    matched(artist: "Nirvana", artist_mbid: NIRVANA_UK) # two identified artists: nothing is inferred
     unknown = matched(artist: "nirvana")
     Catalogue::Decisions.dismiss!(unknown.catalogue_reviews.sole, by: @reviewer)
     NameVariant.update_all(match_version: nil)
     @matcher.match_pending!
     assert_equal [ "dismissed" ], unknown.catalogue_reviews.pluck(:state)
 
-    matched(artist: "Nirvana", artist_mbid: NIRVANA_UK) # a new candidate is a new question
+    matched(artist: "Nirvana", artist_mbid: "6b3f1c3e-1f6e-4d5a-9f5e-2c8b7a6d5e4f") # a new candidate is a new question
     @matcher.match!(unknown)
     assert_equal %w[dismissed open], unknown.catalogue_reviews.order(:id).pluck(:state)
   end
 
   test "merging a name-only artist into an identified one re-attributes it without duplicating its tracks" do
+    unknown = matched(artist: "nirvana", track: "Lithium") # before any identified Nirvana: a name-only artist
     us = matched(artist: "Nirvana", artist_mbid: NIRVANA_US).artist
-    unknown = matched(artist: "nirvana", track: "Lithium")
+    @matcher.match!(unknown)
+    unknown.reload
     name_only = unknown.artist
     track = unknown.track
     Catalogue::Decisions.merge!(name_only, us, by: @reviewer)

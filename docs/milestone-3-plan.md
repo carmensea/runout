@@ -35,6 +35,13 @@ measured the same way.
   the chain. Each merge's pointer is kept as decided, so the history of decisions stays. A merge
   that would make a cycle is refused; were one written anyway, every entity on or leading into it
   stands for itself, so no play is lost or counted twice (`Mergeable`, `Catalogue::Roots`).
+- Last.fm sends an artist's MusicBrainz ID with some plays and not others. A name without an ID
+  joins the one identified artist with that name when nothing contradicts it (`inferred`,
+  `Catalogue::ArtistInference`): exactly one identified candidate after merges, no other name-only
+  artist, alias, manual link, dismissed review or disputed ID, and no recording or release among
+  its plays by another identified artist. Existing name-only twins are merged into it, recorded
+  with their evidence, and can be reverted (`catalogue:revert_inference`); a reverted inference is
+  never made again. Recordings and releases with IDs are never merged.
 - Where they aren't (not matched yet, or matched ambiguously and waiting for review), the play is
   identified by its normalised names (Unicode NFKC, lower case, collapsed whitespace): the artist
   by its name, a track or album by its artist plus its own name. Such plays are always counted and

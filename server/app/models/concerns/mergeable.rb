@@ -11,6 +11,7 @@ module Mergeable
   included do
     belongs_to :merged_into, class_name: name, optional: true
     has_many :merged_from, class_name: name, foreign_key: :merged_into_id, inverse_of: :merged_into, dependent: :restrict_with_exception
+    belongs_to :inference, class_name: "CatalogueInference", optional: true # set when an inference made the merge, not a person
 
     validate :merge_chain_ends, if: :merged_into_id_changed?
   end
