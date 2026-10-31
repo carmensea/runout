@@ -17,6 +17,8 @@ module HistoryImport
   # lock workers take, so the cleaner and a worker never act on a window at the same time.
   class StagingCleaner
     STALE_AFTER = 7.days
+    # Below this, an empty staging table isn't worth compacting.
+    COMPACT_ABOVE = 8.megabytes
 
     def initialize(clock: -> { Time.current })
       @clock = clock
@@ -29,7 +31,34 @@ module HistoryImport
       ImportWindow.where(id: windows_with_unfinished_fetches).find_each { |window| deleted[:abandoned] += abandon_fetches(window) }
       ImportWindow.where(state: "validated").where(validated_at: ...(now - STALE_AFTER)).find_each { |window| deleted[:stale] += reset_stale(window) }
       ImportWindow.where(state: %w[pending failed], id: windows_with_staging).find_each { |window| deleted[:refetch] += drop_refetch_staging(window) }
+      compacted = compact!
+      deleted[:compacted_bytes] = compacted if compacted.positive?
       deleted
+    end
+
+    # Returns the space of an empty staging table to the system. Staged rows are deleted after
+    # every commit, but PostgreSQL reuses that space only after a vacuum and never shrinks the
+    # indexes, so a full import left about as much empty staging space as the history itself
+    # (Stage 2.9 benchmark). Staging is empty between periods, so the watchdog reclaims it often.
+    #
+    # Safe beside workers: the table's exclusive lock is taken first (a worker inserting waits; the
+    # attempt gives up after 2 s rather than queue behind one), emptiness is checked under the
+    # lock, and the TRUNCATE commits only if nothing was there. Returns the bytes reclaimed.
+    def compact!(above: COMPACT_ABOVE)
+      conn = ImportWindowRow.connection
+      size = conn.select_value("SELECT pg_total_relation_size('import_window_rows')").to_i
+      return 0 if size < above
+
+      ImportWindowRow.transaction do
+        conn.execute("SET LOCAL lock_timeout = '2s'")
+        conn.execute("LOCK TABLE import_window_rows IN ACCESS EXCLUSIVE MODE")
+        next 0 if conn.select_value("SELECT EXISTS (SELECT 1 FROM import_window_rows)")
+
+        conn.execute("TRUNCATE import_window_rows")
+        size
+      end
+    rescue ActiveRecord::LockWaitTimeout
+      0 # a worker is staging right now; the next run tries again
     end
 
     # Deletes the staging of one committed window. Does nothing for any other state.

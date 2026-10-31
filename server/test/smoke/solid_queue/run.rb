@@ -38,7 +38,8 @@ module Smoke
     def seed!
       @user = User.create!(display_name: "Smoke")
       identity = Identity.create!(user: @user, provider: Identity::LASTFM, uid: USERNAME, username: USERNAME,
-                                  registered_at: Smoke.registered_at, credentials: { "session_key" => "smoke-session" })
+                                  registered_at: Smoke.large? ? Smoke.large_registered_at : Smoke.registered_at,
+                                  credentials: { "session_key" => "smoke-session" })
       LastfmConnection.create!(user: @user, identity: identity)
     end
 
@@ -642,13 +643,18 @@ module Smoke
         wait_for("a run to meet the rate limit") { sync_runs.where("started_at > ?", sync_runs("sync").first.started_at).exists? }
         sleep 4
         Smoke.write_control(Smoke.control.except("rate_limited"))
+        # Periods that gave up during the outage are tried again only once rearm_after has passed
+        # since they stopped (and syncs carry on meanwhile, creating periods that may give up too).
+        # Move past it before asserting the catch-up; then let retries and due syncs run.
+        time_passes!(HistoryImport::Sync.config[:rearm_after] + 1.hour)
         6.times do
           time_passes!(2.hours)
           sleep 3
         end
         wait_until_quiet("catching up")
         stop_all
-        check("caught up once Last.fm answered: the play stored once", stored_count("Fresh") == 1)
+        periods = windows.map { |w| [ w.window_from.utc.iso8601, w.state, w.review_reason, w.retry_at&.utc&.iso8601 ] }
+        check("caught up once Last.fm answered: the play stored once", stored_count("Fresh") == 1, periods.reject { |p| p[1] == "committed" }.inspect)
         check_synced("history complete after the outage")
         check_runs_never_overlapped
       end
@@ -690,6 +696,69 @@ module Smoke
         check("coverage is reported as partial across the gap, never complete",
               ImportCoverage.status_for(@user, windows.first.window_from, windows.last.window_to) == :partial)
         check("no failed jobs", failed_jobs.empty?, failed_jobs.inspect)
+      end
+    end
+
+    # Stage 2.9: a complete import of a large synthetic history (SMOKE_PLAYS) through real Solid
+    # Queue workers, paused and resumed partway, then a worker killed outright and recovered by the
+    # watchdog. Not part of `all`: run it by name.
+    def large_import
+      scenario("large synthetic import through real Solid Queue: pause, resume, a killed worker, recovery") do
+        raise "set SMOKE_PLAYS (see test/benchmark/history_benchmark.rb)" unless Smoke.large?
+
+        reset!
+        expected = Smoke.large_plays.group_by { |row| Time.at(row.first).utc.strftime("%Y-%m") }.transform_values(&:size)
+        peak_connections = 0
+        peak_worker_mb = 0
+        sampler = Thread.new do
+          loop do
+            n = ActiveRecord::Base.connection_pool.with_connection do |c|
+              c.select_value("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()").to_i
+            end
+            peak_connections = [ peak_connections, n ].max
+            # Resident memory of the Solid Queue processes (supervisor, dispatcher, workers, scheduler).
+            rss = `ps -axo rss=,command=`.lines.select { |l| l.include?("solid-queue") }.sum { |l| l.to_i } / 1024
+            peak_worker_mb = [ peak_worker_mb, rss ].max
+            sleep 1
+          end
+        end
+        started = Time.now
+        start_workers(recurring: true)
+        orchestrator.start!(@user)
+        committed = -> { ImportWindow.where(user: @user, state: "committed").count }
+        wait_for("a fifth of the periods", 900) { committed.call >= 50 }
+        orchestrator.pause!(run)
+        wait_for("the run to pause", 60) { run.state == "paused" }
+        # The step already running finishes its period (commits are atomic); then nothing more.
+        quiet = (1..15).any? { idle?(4) }
+        check("paused: once the running step finished, nothing more is fetched", quiet)
+        orchestrator.resume!(run)
+        wait_for("half the periods", 900) { committed.call >= 130 }
+        stop_all(:KILL)
+        check("a worker killed mid-import", run.state == "running", run.state)
+        time_passes!(HistoryImport::Recovery::STALL_AFTER + ImportWindow::LEASE + 60)
+        start_workers(recurring: true)
+        wait_for_run("completed", timeout: 3600)
+        elapsed = (Time.now - started).round
+        wait_for("catalogue matching", 1800) { NameVariant.where(match_version: nil).none? }
+        matched_after = (Time.now - started).round - elapsed
+        stop_all
+        sampler.kill
+
+        stored = Scrobble.where(user: @user)
+        actual = stored.group(Arel.sql("to_char(played_at AT TIME ZONE 'UTC', 'YYYY-MM')")).count
+        requests = Smoke.requests
+        check("every play stored once (#{Smoke.large_plays.size})", stored.count == Smoke.large_plays.size, "#{stored.count} stored")
+        check("every month exact", actual == expected, (expected.keys | actual.keys).reject { |k| expected[k] == actual[k] }.first(3).inspect)
+        check("same-second plays kept in their own slots", stored.where("seq > 0").exists?)
+        check("coverage complete, progress 100%", HistoryImport::Progress.for(@user).then { |p| p.complete && p.percent == 100 })
+        check("no staging left", ImportWindowRow.none?)
+        killed = %w[SolidQueue::Processes::ProcessPrunedError SolidQueue::Processes::ProcessMissingError]
+        others = failed_jobs.reject { |_, error| killed.include?(error["exception_class"]) }
+        check("the only failed jobs are those of the killed worker", others.empty?, others.first(3).inspect)
+        check("measured", true, "#{elapsed}s import, #{matched_after}s more for matching, " \
+                                "#{requests.count { |r| r['method'] == 'user.getRecentTracks' }} recent-tracks requests, " \
+                                "peak #{peak_connections} database connections, peak #{peak_worker_mb} MB across Solid Queue processes")
       end
     end
 

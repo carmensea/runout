@@ -17,6 +17,34 @@ class HistoryImport::WindowConcurrencyTest < ActiveSupport::TestCase
     Rails.configuration.x.history_import_enabled = @flag
   end
 
+  test "compacting staging never truncates under a worker that is staging rows" do
+    fetch = @window.fetches.create!(attempt: 1, started_at: Time.current)
+    entries = Array.new(3) { |i| HistoryImport::Snapshot::Entry.new(played_at: Time.utc(2014, 3, 2) + i, artist: "A", artist_mbid: "", track: "T#{i}", track_mbid: "", album: "", album_mbid: "") }
+    rows = HistoryImport::Snapshot.new(entries: entries, reported_total: 3, total_pages: 1).staging_rows.map { |r| r.merge(import_window_fetch_id: fetch.id) }
+    staged = Queue.new
+    finish = Queue.new
+    worker = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        ImportWindowRow.transaction do
+          ImportWindowRow.insert_all!(rows) # not committed yet: invisible to others
+          staged << true
+          finish.pop
+        end
+      end
+    end
+    staged.pop
+    started = Time.now
+    assert_equal 0, HistoryImport::StagingCleaner.new.compact!(above: 0), "waits for the worker's lock, then gives up"
+    assert_operator Time.now - started, :>=, 1.5
+    finish << true
+    worker.join
+    assert_equal 3, ImportWindowRow.where(import_window_fetch_id: fetch.id).count, "the worker's rows survived"
+  ensure
+    finish&.push(true)
+    worker&.join
+    ImportWindowRow.where(import_window_fetch_id: fetch&.id).delete_all
+  end
+
   test "exactly one of several simultaneous workers claims a window" do
     start = Queue.new
     results = Queue.new

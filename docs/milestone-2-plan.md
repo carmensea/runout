@@ -1173,3 +1173,174 @@ disputes. That is about 750 queries for 20+ years.
 3. Should Cancel be offered for sync runs in the UI, or only for the full import?
 4. Is `attention` in `ConnectionState` wanted, or should the banner stay as it is?
 5. Should catalogue match reviews join the review panel in 2.8, or later?
+
+## 16. Stage 2.9: benchmarks and import readiness (2026-10-31)
+
+All data synthetic (`server/test/benchmark/history_benchmark.rb`, seed 2026), on this Mac's local
+PostgreSQL 17. Never the development database: the benchmark refuses any database but the
+disposable `runout_smoke`.
+
+**What kind of measurement each figure is:**
+
+- **In-process pipeline benchmark** (`history_benchmark.rb`): the real orchestrator, validator,
+  committer, reconciler, catalogue matcher, sync planner and recovery code, driven step by step in
+  one process with a controlled clock. Last.fm is an in-process fake (no network, no pacing), so
+  these times are Runout's own processing only. They are not direct database inserts. Solid Queue
+  dispatch is not involved.
+- **Real Solid Queue run** (`test/smoke/solid_queue/run.rb large_import`): real supervisor,
+  dispatcher, workers and scheduler in separate processes. Run at 209,000 plays only, with
+  pacing at 0.02 s, a pause, a resume, a worker killed outright, and time shifted for recovery.
+  **300,000 and 1,000,000 plays were not run through Solid Queue.**
+- **Estimates**: anything involving Last.fm's response time, which hasn't been measured.
+
+**Synthetic history.** A 20-year history from March 2004:
+- artists drawn Zipf-like;
+- MBID coverage and album names as measured on the real account (66% artist, 66% track, 57%
+  album MBIDs; 75% album names);
+- some non-ASCII names, 0.1% same-second duplicates, 3% back-to-back repeats, a few empty
+  months, and uneven years.
+
+### 16.1 Measured: in-process pipeline benchmark
+
+| | 209,000 | 300,000 | 1,000,000 |
+|---|---|---|---|
+| Periods (windows) | 272 | 272 | 396 live, 124 split (123 months over 4,000 plays) |
+| Recent-tracks requests (fake) | 2,352 | 3,280 | 10,518 |
+| Full import, processing time | 53.2 s | 75.9 s | 259.8 s |
+| Throughput | 3,929 plays/s | 3,953 plays/s | 3,849 plays/s |
+| Queries, import and full recheck together (steps, validation, commit) | 62,293 | 72,231 | 169,169 |
+| Catalogue matching | 14,506 variants, 62.5 s | 18,813 variants, 73.0 s | 44,202 variants, 165.3 s |
+| Matching queries | 237,423 (16 per variant) | 309,624 | 726,244 |
+| Full recheck of every month | 54.4 s | 78.2 s | 246.9 s |
+| Reconciliation within it | 11.5 s | 16.8 s | 55.4 s |
+| Of which verification reads (§4.4) | 5.2 s | 7.5 s | 25.0 s |
+| Sync / catch-up / weekly comparison | 0.1 s, 4 req / 0.1 s, 4 req / 0.8 s, 278 req | 0.1 s / 0.1 s / 0.9 s, 280 req | 0.1 s / 0.1 s / 1.6 s, 418 req |
+| `GET /api/sync`, `/api/import`, review queue | 26 / 30 / 4 ms | 24 / 30 / 7 ms | 31 / 57 / 8 ms |
+| Daily count check | 28 ms | 41 ms | 146 ms |
+| Queries over 100 ms | none in the pipeline | none in the pipeline | the daily count check (143 ms) |
+
+**Integrity at every size.**
+- Every play stored once per occurrence, and every month's count exact.
+- Same-second plays in their own slots (218, 335 and 1,051).
+- Coverage complete, and committed counts equal to the plays stored.
+- A recheck of every month changed nothing.
+
+**Scaling.**
+- Import, recheck and storage are linear in plays: throughput is flat at about 3,900 plays/s.
+- Matching grows with the number of distinct variants (about 250 per second), not with plays.
+
+**Memory.** The harness's peak resident memory was 288 MB, 309 MB and 750 MB. That is an upper
+bound for the pipeline, because the harness also holds the whole synthetic history and the fake's
+responses in memory. The real Solid Queue figure is in §16.3.
+
+**Connections.** The in-process benchmark uses one connection (pool 5; PostgreSQL allows 100).
+
+**Failures and recovery (209,000 plays).** About 3% of requests answered HTTP 502, and one worker
+crashed in the middle of a commit.
+- The watchdog reclaimed the expired lease and restarted the run.
+- The import completed with exact data, the same integrity results.
+- It needed 2,425 requests, 3.1% more than without failures.
+
+### 16.2 Storage
+
+| | 209,000 | 300,000 | 1,000,000 |
+|---|---|---|---|
+| Total, all history and catalogue tables with indexes, staging compacted | 54.9 MB | 76.9 MB | 239.3 MB |
+| Per scrobble | 275 B | 269 B | 251 B |
+| Of which: `scrobbles` | 42.1 MB | 60.8 MB | 204.1 MB |
+| `name_variants` | 6.6 MB | 8.5 MB | 19.3 MB |
+| artists, albums, tracks | 4.9 MB | 6.4 MB | 14.5 MB |
+| import bookkeeping (runs, windows, fetch records) | 0.7 MB | 0.7 MB | 0.8 MB |
+| Empty staging space left after the import, before compaction | 80.7 MB | 50.6 MB | 73.0 MB |
+| Same, after a full recheck | 80.7 MB | 96.8 MB | 122.1 MB |
+| After compaction (returned to the operating system) | 0.0 MB | 0.0 MB | 0.0 MB |
+
+**Reusable space versus returned space.**
+- Staged rows are deleted after each commit. A vacuum marks that space **reusable inside
+  PostgreSQL**, but the file doesn't shrink and the indexes never do.
+- Before the fix, a 209,000-play database measured 99.3 MB, of which 44.5 MB was an empty
+  staging table.
+- `StagingCleaner#compact!` now truncates the staging table when it is empty, which **returns the
+  space to the operating system**. The watchdog runs it every 10 minutes, so space stays bounded
+  during long imports too.
+- The leftover figures above vary with when autovacuum happened to run. The peak during an import
+  was sampled as row counts, not bytes, so the leftover is a lower bound for the peak.
+
+### 16.3 Measured: real Solid Queue run (209,000 plays)
+
+- **Scenario:** start, pause at 50 committed periods, resume, kill the worker process at 130,
+  shift time past the lease and stall limits, restart, complete.
+- **Outcome:** all 9 checks passed:
+  - every play stored once, every month exact, same-second slots kept;
+  - coverage complete, progress 100%, no staging left;
+  - the only failed jobs were those of the killed process (`ProcessPrunedError` /
+    `ProcessMissingError`, as Solid Queue reports a killed worker).
+- **Pause:** honoured once the running step finished its period.
+- **Measured:**
+  - 117 s wall time, at 0.02 s pacing and including the scripted pauses;
+  - 2,357 requests, 5 more than without the kill (the killed period was fetched again);
+  - matching finished alongside the import;
+  - peak **11** database connections and **435 MB** resident across all Solid Queue processes.
+
+### 16.4 Estimated: first real import of about 209,000 scrobbles
+
+Calculated, not measured: Last.fm's response time has never been measured.
+
+**Requests:**
+
+| Item | Requests |
+|---|---|
+| Account check | 1 per run |
+| Two complete reads per period at 200 plays per page: Σ max(1, ⌈plays/200⌉) × 2 over about 270 periods | at least 2,090 (209,000 / 200 × 2), at most 2,630 (one partial page per period); the synthetic history needed 2,352 |
+| Rereads | only for a period that changes while being read (in practice the current month) |
+| Splits | only months over 4,000 plays (20 pages): about 1 extra request each; none expected at this account's average of about 790 plays a month |
+| Transient failures | measured: about +3% requests at a 3% failure rate |
+| Catalogue matching | none: it uses stored strings only |
+| **Total** | **about 2,400** (range about 2,100 to 2,700) |
+
+**Time:**
+
+- **API waiting:**
+  - the global pacer starts requests at least 1 s apart, so at least 2,400 s, about **40
+    minutes**, if Last.fm answers within a second;
+  - slower answers stretch it proportionally: about 1 hour at an average of 1.5 s.
+- **Database processing:**
+  - measured at 53–60 s locally, for about 31,000 queries (half of the import-and-recheck total);
+  - a hosted database adds a network round trip per query (about 1–5 minutes more at 1–5 ms);
+  - catalogue matching (62 s locally, about 237,000 queries) runs alongside, in the background.
+- **Expected total: about 45 minutes to 1¼ hours**, if Last.fm is healthy. Outages stretch it:
+  failed periods retry after 5 min, 30 min, 2 h and 6 h, and rate limiting triggers the global
+  cool-down. Each period commits on its own, so nothing already imported is lost.
+
+### 16.5 Bottlenecks
+
+- **Fixed: empty staging space.**
+  - Kept indefinitely: about as large as the history itself after an import, and growing with
+    every full recheck.
+  - Fixed with the locked, empty-only TRUNCATE above.
+  - Tests: compaction leaves staged rows alone, and never truncates under a worker holding
+    uncommitted staging rows (the attempt gives up after 2 s).
+  - Before: 99.3 MB at 209,000 plays. After: 54.9 MB.
+- **Not changed: catalogue matching.** It costs about 16 queries per variant, by design (row and
+  per-name locks for safe concurrent matching).
+  - Locally, 14,506 variants take about 1 minute.
+  - It runs in the background, beside the import, and needs no Last.fm requests.
+  - On a hosted database the query count matters more (estimated several minutes for 209,000
+    plays). Worth revisiting only if it shows in production.
+- **Nothing else material.** No pipeline query over 100 ms at any size. Status endpoints stay
+  under 60 ms at 1,000,000 plays.
+
+### 16.6 Source-specific assumptions in today's pipeline
+
+For the move to direct scrobbling (`docs/long-term-architecture.md` §9). These hold for Last.fm and
+must not be assumed for other sources:
+
+- **Verifiable history:** a complete history can be read by time range, with a reliable total per
+  range. Validation and the weekly comparison depend on this. Spotify offers it for the last 50
+  plays only.
+- **Timestamps:** start-of-play, second precision; `seq` slots are built on that.
+- **No event IDs:** plays are identified by (second, slot), and corrections are inferred per
+  second.
+- **Missing upstream means "maybe deleted":** that drives the removal rules. A source that only
+  ever reports recent plays can't support it.
+- **Coverage is per Last.fm window.**

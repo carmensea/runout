@@ -15,6 +15,20 @@ class HistoryImport::StagingCleanerTest < ActiveSupport::TestCase
 
   def lease!(w, expires:) = w.update_columns(claim_token: SecureRandom.uuid, lease_expires_at: expires)
 
+  test "an empty staging table is compacted; one holding rows is left alone" do
+    w = month(3)
+    stage!(w, plays(w, 50))
+    cleaner = HistoryImport::StagingCleaner.new
+    assert_equal 0, cleaner.compact!(above: 0), "rows are staged: nothing is truncated"
+    assert_equal 50, staged(w).count
+
+    staged(w).delete_all
+    assert_operator cleaner.compact!(above: 0), :>, 0
+    assert_equal 0, ImportWindowRow.count
+    assert_equal 1, w.fetches.count, "fetch records are kept"
+    assert_equal 0, cleaner.compact!, "below the threshold: nothing to do"
+  end
+
   test "staging of a committed window is removed; fetch records are kept" do
     w = month(3)
     stage!(w, plays(w))

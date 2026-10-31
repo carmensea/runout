@@ -46,6 +46,35 @@ module Smoke
   def mark(name) = File.write(File.join(DIR, name), Process.pid.to_s)
   def marked?(name) = File.exist?(File.join(DIR, name))
 
+  # A large synthetic history (SMOKE_PLAYS: a file written by test/benchmark/history_benchmark.rb
+  # with DUMP_PLAYS), served by binary search instead of rebuilding the list per request.
+  def large? = ENV["SMOKE_PLAYS"].present?
+
+  def large_plays
+    @large_plays ||= Marshal.load(File.binread(ENV.fetch("SMOKE_PLAYS"))) # rubocop:disable Security/MarshalLoad -- a file this harness wrote
+                            .map { |at, artist, artist_mbid, track, track_mbid, album, album_mbid| [ at, artist, artist_mbid, track, track_mbid, album, album_mbid ] }
+                            .sort_by { |row| -row.first }
+  end
+
+  def large_registered_at = Time.at(large_plays.last.first).utc.beginning_of_month
+
+  # [from, to) of newest-first rows, as a contiguous slice.
+  def large_page(query)
+    rows = large_plays
+    first = query["to"] ? (rows.bsearch_index { |r| r.first < query["to"].to_i } || rows.size) : 0
+    last = query["from"] ? (rows.bsearch_index { |r| r.first < query["from"].to_i } || rows.size) : rows.size
+    selected = rows[first...last] || []
+    limit = Integer(query["limit"] || 50)
+    page = Integer(query["page"] || 1)
+    track = (selected.slice((page - 1) * limit, limit) || []).map do |at, artist, artist_mbid, name, track_mbid, album, album_mbid|
+      { artist: { mbid: artist_mbid, "#text" => artist }, mbid: track_mbid, name: name, album: { mbid: album_mbid, "#text" => album },
+        date: { uts: at.to_s, "#text" => "" } }
+    end
+    { status: 200, headers: { "Content-Type" => "application/json" },
+      body: { recenttracks: { track: track, "@attr" => { user: USERNAME, page: page.to_s, perPage: limit.to_s,
+                                                          totalPages: (selected.size / limit.to_f).ceil.to_s, total: selected.size.to_s } } }.to_json }
+  end
+
   def base = Time.now.utc.beginning_of_month - 4.months
   def registered_at = base + 2.days
 
@@ -94,7 +123,9 @@ stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.h
       control = Smoke.control
       Smoke.log(method: "user.getRecentTracks", from: query["from"].to_i, page: query["page"].to_i)
       sleep(control["delay"].to_f) if control["delay"]
-      if Array(control["fail_from"]).include?(query["from"].to_i) || control["fail_all"]
+      if Smoke.large?
+        Smoke.large_page(query)
+      elsif Array(control["fail_from"]).include?(query["from"].to_i) || control["fail_all"]
         { status: 502, body: "" }
       elsif (bad = control["undated_at"]) && query["from"] && (query["from"].to_i...query["to"].to_i).cover?(bad)
         # A row Last.fm can't date, in any range that holds that second.
@@ -109,6 +140,7 @@ stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.h
 stub.stub_request(:get, Lastfm::Client::API_URL.to_s).with(query: WebMock::API.hash_including("method" => "user.getInfo"))
     .to_return do |_request|
       Smoke.log(method: "user.getInfo")
-      { status: 200, body: { user: { name: Smoke::USERNAME, playcount: Smoke.plays.size.to_s,
-                                     registered: { unixtime: Smoke.registered_at.to_i.to_s } } }.to_json }
+      playcount = Smoke.large? ? Smoke.large_plays.size : Smoke.plays.size
+      registered = Smoke.large? ? Smoke.large_registered_at : Smoke.registered_at
+      { status: 200, body: { user: { name: Smoke::USERNAME, playcount: playcount.to_s, registered: { unixtime: registered.to_i.to_s } } }.to_json }
     end
