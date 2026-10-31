@@ -61,6 +61,7 @@ module Runout
     # Storing plays reported by Spotify (ListeningStorage, docs/spotify-plan.md). Off unless exactly
     # "true" or "1"; connecting an account and read-only checks don't need it.
     config.x.spotify_ingestion_enabled = ENV.fetch("SPOTIFY_INGESTION_ENABLED", "false")
+    # The Spotify app's credentials are read from the environment when used (Spotify::Config).
 
     # Ongoing synchronisation (HistoryImport::Sync, docs/milestone-2-plan.md §5.2). The recurring
     # tick (config/recurring.yml) starts whichever kind is due; these say how often each is due.

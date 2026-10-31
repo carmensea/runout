@@ -1,7 +1,9 @@
 /** Test-only data. Small, obviously synthetic values used to exercise rendering paths. */
-import type { HistoryApi, RunoutApi } from '../data/api';
-import { NotConnectedError, noHistoryApi } from '../data/api';
-import type { ArtistKindKey, GenreDetail, ImportStatus, OverviewData, ReviewQueue, SyncHealth } from '../data/types';
+import type { HistoryApi, RunoutApi, SourcesApi } from '../data/api';
+import { NotConnectedError, noHistoryApi, noSourcesApi } from '../data/api';
+import type {
+  ArtistKindKey, GenreDetail, ImportStatus, ListeningSources, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
+} from '../data/types';
 import { serializePeriod } from '../lib/period';
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0);
@@ -102,6 +104,29 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     signOut: async () => {},
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
     history: fakeHistoryApi(),
+    sources: fakeSourcesApi(),
+  };
+}
+
+export function makeSources(spotify: Partial<SpotifySource> = {}): ListeningSources {
+  return {
+    lastfm: { role: 'archive', connected: true, username: 'test-user' },
+    spotify: { configured: true, ingestionEnabled: false, state: 'not_connected', account: null, ...spotify },
+  };
+}
+
+export function fakeSourcesApi(initial: ListeningSources = makeSources()): SourcesApi & { calls: string[] } {
+  let current = initial;
+  const calls: string[] = [];
+  return {
+    calls,
+    status: async () => current,
+    connectSpotifyUrl: () => '/api/auth/spotify',
+    disconnectSpotify: async () => {
+      calls.push('disconnect');
+      current = { ...current, spotify: { ...current.spotify, state: 'disconnected', disconnectedAt: '2026-10-31T12:00:00Z' } };
+      return current;
+    },
   };
 }
 
@@ -186,4 +211,5 @@ export const notConnectedApi: RunoutApi = {
     throw new NotConnectedError();
   },
   history: noHistoryApi,
+  sources: noSourcesApi,
 };

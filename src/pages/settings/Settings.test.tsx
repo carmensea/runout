@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, NotAvailableError, ReviewChangedError, type RunoutApi } from '../../data/api';
 import type { ImportStatus, ReviewItem, ReviewQueue } from '../../data/types';
 import { usePolling } from '../../hooks/usePolling';
-import { connectedApi, fakeHistoryApi, makeImportStatus, makeSyncHealth } from '../../test/fixtures';
+import { connectedApi, fakeHistoryApi, fakeSourcesApi, makeImportStatus, makeSources, makeSyncHealth } from '../../test/fixtures';
 import { renderApp } from '../../test/renderApp';
 
 beforeEach(() => localStorage.clear());
@@ -255,5 +255,41 @@ describe('usePolling', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(loads).toBe(4); // at once when visible again
+  });
+});
+
+describe('Settings: listening sources', () => {
+  it('shows Last.fm as the archive and offers to connect Spotify', async () => {
+    renderApp(connectedApi(), '/settings');
+    const section = await screen.findByRole('region', { name: 'Listening sources' });
+    expect(await within(section).findByText('Historical archive')).toBeInTheDocument();
+    expect(within(section).getByText('test-user')).toBeInTheDocument();
+    expect(within(section).getByRole('link', { name: 'Connect Spotify' })).toHaveAttribute('href', '/api/auth/spotify');
+  });
+
+  it('shows the connected account, says scrobbling is off, and disconnects only after confirming', async () => {
+    const user = userEvent.setup();
+    const sources = fakeSourcesApi(makeSources({ state: 'connected', account: { id: 'spotify-user', displayName: 'Listener' }, connectedAt: '2026-10-31T12:00:00Z' }));
+    renderApp({ ...connectedApi(), sources }, '/settings?spotify=connected#sources');
+    const section = await screen.findByRole('region', { name: 'Listening sources' });
+    expect(await within(section).findByText('Listener (spotify-user)')).toBeInTheDocument();
+    expect(within(section).getByText('Spotify is connected.')).toBeInTheDocument();
+    expect(within(section).getByText('Off: Runout isn’t storing plays from Spotify yet')).toBeInTheDocument();
+    expect(within(section).queryByRole('link', { name: /Connect Spotify/ })).not.toBeInTheDocument();
+
+    await user.click(within(section).getByRole('button', { name: 'Disconnect Spotify' }));
+    expect(sources.calls).toEqual([]);
+    await user.click(within(section).getByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(sources.calls).toEqual(['disconnect']));
+    expect(await within(section).findByRole('link', { name: 'Connect Spotify again' })).toBeInTheDocument();
+  });
+
+  it('explains a failed connection and an account that must be connected again', async () => {
+    const sources = fakeSourcesApi(makeSources({ state: 'needs_reauth', account: { id: 'x', displayName: 'x' }, lastError: 'Spotify refused the authorisation (invalid_grant)' }));
+    renderApp({ ...connectedApi(), sources }, '/settings?spotify_error=denied#sources');
+    const section = await screen.findByRole('region', { name: 'Listening sources' });
+    expect(await within(section).findByRole('alert')).toHaveTextContent('Spotify access wasn’t granted, so nothing was connected.');
+    expect(within(section).getByText(/Spotify stopped accepting Runout’s access \(Spotify refused the authorisation \(invalid_grant\)\)/)).toBeInTheDocument();
+    expect(within(section).getByRole('link', { name: 'Connect Spotify again' })).toBeInTheDocument();
   });
 });

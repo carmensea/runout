@@ -135,6 +135,79 @@ A play never waits for metadata.
 4. **Settings and the frontend:** Listening Sources, Sync now, pause, disconnect, errors and gaps;
    coverage per source; end-to-end checks.
 
+## 8. Connecting Spotify (stage 2)
+
+**Flow** (`Api::SpotifyAuthController`):
+
+1. Settings links to `/api/auth/spotify` on the app's origin, where the session cookie is. The
+   signed-in user gets an encrypted, signed `state`:
+   - it names the user and a one-time nonce;
+   - it expires after 10 minutes.
+2. The browser goes to `/api/auth/spotify/begin` on the redirect URI's origin
+   (`http://127.0.0.1:3000` locally). The nonce goes into a short-lived encrypted cookie there,
+   then the browser goes on to Spotify.
+3. Spotify returns to `/api/auth/spotify/callback` on that same origin. The callback requires:
+   - a valid, unexpired `state`;
+   - the matching nonce cookie, which is single-use, so a state can't be completed in another
+     browser.
+
+   It then exchanges the code with the client secret, reads `GET /me`, stores the source, and
+   returns to Settings with `?spotify=connected` or `?spotify_error=<code>`.
+
+**Credentials and errors:**
+- Access and refresh tokens are encrypted at rest (Active Record encryption). They're never
+  serialised, inspected, logged (`code`, `access_token` and `refresh_token` are filtered) or sent to
+  the browser.
+- Refresh happens 2 minutes before expiry, or after a 401, under a row lock. A rotated refresh token
+  replaces the old one; otherwise the old one stays.
+- `invalid_grant` sets the source to `needs_reauth`, records the reason, and stops using it.
+- Disconnecting forgets the credentials and keeps the source and every play. Spotify has no
+  revocation endpoint, so Settings points to the Spotify account's Manage apps page. Reconnecting
+  the same account reuses its source; another Runout user's account is refused.
+
+### Setting up the Spotify app (owner)
+
+1. **Before starting:** sign in at <https://developer.spotify.com/dashboard> with the Spotify account
+   whose plays Runout should record. In Development Mode that account needs **active Premium**.
+   Don't change any other app on the dashboard.
+2. **Create app:**
+   - name `Runout (local)`; any short description;
+   - **Redirect URI** exactly `http://127.0.0.1:3000/api/auth/spotify/callback`;
+   - **Which API/SDKs are you planning to use:** Web API;
+   - accept the terms and save.
+3. **User Management:** if the app's owner and the listening account differ, add the listening
+   account (name and Spotify email). The owner's own account is allowed already. Development Mode
+   allows 5 users.
+4. **Credentials:** from Settings → Basic Information, put the **Client ID** and **Client secret**
+   in `server/.env`, never in the repo:
+   ```
+   SPOTIFY_CLIENT_ID=...
+   SPOTIFY_CLIENT_SECRET=...
+   SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/auth/spotify/callback
+   ```
+   `SPOTIFY_INGESTION_ENABLED` stays unset (off).
+5. **Connect:**
+   - restart the Rails server;
+   - open Runout at `http://localhost:5173/settings`, Listening sources → **Connect Spotify**;
+   - approve on Spotify. The browser returns to Settings via `127.0.0.1:3000`.
+   - Rails must be reachable on `127.0.0.1:3000`; `bin/rails server` on `localhost` is.
+6. **Read-only checks** (`server/`, with `.env` loaded); nothing is stored but the refreshed token:
+   - `bin/rails spotify:verify`: the account, the granted scope, and how many recent plays Spotify
+     returns, page by page;
+   - `bin/rails spotify:compare`: what ingestion would do with them against the archive (create,
+     link, review);
+   - `LASTFM=1 bin/rails spotify:compare`: the same, plus Spotify's `played_at` against the same
+     plays as Last.fm reports them (read-only, nothing stored), which measures what `played_at`
+     means (§4).
+
+## 9. Measurements (to fill in at stage 2 verification)
+
+| Question | Result |
+|---|---|
+| Plays Recently Played returns, and whether `before` paging reaches further | |
+| Spotify `played_at` minus Last.fm start, minus duration | |
+| Recent plays already in the archive (dry run) | |
+
 ## 7. Future providers (not built)
 
 The pattern for each: a `listening_sources.provider` value, a client that turns the provider's

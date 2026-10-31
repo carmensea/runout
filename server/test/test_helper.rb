@@ -4,6 +4,11 @@ ENV["LASTFM_API_KEY"] = "test-api-key"
 ENV["LASTFM_SHARED_SECRET"] = "test-shared-secret"
 ENV["APP_ORIGIN"] = "http://localhost:5173"
 ENV["LASTFM_MIN_REQUEST_INTERVAL"] = "0"
+# Fake Spotify app credentials; every Spotify request is stubbed.
+ENV["SPOTIFY_CLIENT_ID"] = "test-spotify-client"
+ENV["SPOTIFY_CLIENT_SECRET"] = "test-spotify-secret"
+ENV["SPOTIFY_REDIRECT_URI"] = "http://127.0.0.1:3000/api/auth/spotify/callback"
+ENV["SPOTIFY_MIN_REQUEST_INTERVAL"] = "0"
 
 require_relative "../config/environment"
 require "rails/test_help"

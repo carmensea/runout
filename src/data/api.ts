@@ -1,7 +1,7 @@
 import { serializePeriod, type Period } from '../lib/period';
 import type {
   CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
-  ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
+  ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
 } from './types';
 
 /**
@@ -26,6 +26,16 @@ export interface RunoutApi {
   deleteAccount(confirmUsername: string): Promise<{ revokeAccessUrl: string }>;
   /** Listening-history import, sync and review controls (Settings). */
   history: HistoryApi;
+  /** Listening sources: Last.fm as the archive, Spotify connected directly (Settings). */
+  sources: SourcesApi;
+}
+
+export interface SourcesApi {
+  status(signal?: AbortSignal): Promise<ListeningSources>;
+  /** Where to send the browser to connect Spotify, or null when no server is configured. */
+  connectSpotifyUrl(): string | null;
+  /** Forgets the Spotify credentials. Plays already stored stay. */
+  disconnectSpotify(): Promise<ListeningSources>;
 }
 
 export interface HistoryApi {
@@ -177,6 +187,11 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       return (await res.json()) as { revokeAccessUrl: string };
     },
     history,
+    sources: {
+      status: (signal) => get<ListeningSources>('/listening-sources', {}, signal),
+      connectSpotifyUrl: () => `${root}/auth/spotify`,
+      disconnectSpotify: () => post<ListeningSources>('/listening-sources/spotify/disconnect'),
+    },
   };
 }
 
@@ -189,6 +204,13 @@ export const noHistoryApi: HistoryApi = {
   importStatus: notConnected, startImport: notConnected, pauseImport: notConnected, resumeImport: notConnected,
   cancelImport: notConnected, retryPeriod: notConnected, syncHealth: notConnected, refreshSync: notConnected,
   pauseSync: notConnected, resumeSync: notConnected, reviews: notConnected, decide: notConnected,
+};
+
+/** Listening sources when there is no server or no account. */
+export const noSourcesApi: SourcesApi = {
+  status: notConnected,
+  connectSpotifyUrl: () => null,
+  disconnectSpotify: notConnected,
 };
 
 /**
@@ -212,4 +234,5 @@ export const disconnectedApi: RunoutApi = {
     throw new NotConnectedError();
   },
   history: noHistoryApi,
+  sources: noSourcesApi,
 };

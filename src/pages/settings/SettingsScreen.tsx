@@ -7,10 +7,12 @@ import { usePeriod } from '../../state/PeriodContext';
 import styles from '../PendingScreen.module.css';
 import { HistorySection } from './HistorySection';
 import { ReviewSection } from './ReviewSection';
+import { SourcesSection } from './SourcesSection';
 import settings from './Settings.module.css';
 
 /**
- * Settings: the listening-history import and sync, differences to review, and the account
+ * Settings: listening sources (Last.fm, Spotify), the listening-history import and sync,
+ * differences to review, and the account
  * (sign out, delete). Preferences, metadata coverage and export arrive later.
  */
 export function SettingsScreen() {
@@ -47,6 +49,12 @@ export function SettingsScreen() {
       <h1 className={settings.title}>Settings</h1>
       {!signedIn && !deletedRevokeUrl && (
         <p className={settings.lede}>Sign in with Last.fm to import your listening history and manage it here.</p>
+      )}
+      {signedIn && (
+        <section className={settings.section} id="sources" aria-labelledby="sources-title">
+          <h2 id="sources-title" className={settings.h2}>Listening sources</h2>
+          <SourcesSection />
+        </section>
       )}
       {signedIn && (
         <section className={settings.section} id="history" aria-labelledby="history-title">

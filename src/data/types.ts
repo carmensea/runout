@@ -444,3 +444,23 @@ export interface ReviewDecisionResult {
   /** The item as it is now, or null once it no longer needs review. */
   item: ReviewItem | null;
 }
+
+/** GET /api/listening-sources (docs/spotify-plan.md §7). Never contains credentials. */
+export interface ListeningSources {
+  /** Last.fm: the historical archive. */
+  lastfm: { role: 'archive'; connected: boolean; username: string | null };
+  spotify: SpotifySource;
+}
+
+export interface SpotifySource {
+  /** The server has a Spotify app configured. */
+  configured: boolean;
+  /** Storing plays from Spotify is switched on on this server. */
+  ingestionEnabled: boolean;
+  state: 'not_connected' | 'connected' | 'needs_reauth' | 'disconnected';
+  account: { id: string; displayName: string } | null;
+  connectedAt?: string;
+  disconnectedAt?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+}
