@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000021) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000022) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -105,6 +105,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000021) do
     t.check_constraint "kind::text = ANY (ARRAY['ambiguous'::character varying, 'possible_match'::character varying]::text[])", name: "catalogue_reviews_kind"
     t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "catalogue_reviews_level"
     t.check_constraint "state::text = ANY (ARRAY['open'::character varying, 'resolved'::character varying, 'dismissed'::character varying, 'superseded'::character varying]::text[])", name: "catalogue_reviews_state"
+  end
+
+  create_table "genre_classifications", force: :cascade do |t|
+    t.string "level", null: false
+    t.text "provider_id", null: false
+    t.string "basis", null: false
+    t.boolean "unclassified", null: false
+    t.jsonb "broad", default: {}, null: false
+    t.jsonb "sub", default: {}, null: false
+    t.text "present", default: [], null: false, array: true
+    t.text "signals_used", default: [], null: false, array: true
+    t.datetime "computed_at", null: false
+    t.index ["level", "provider_id"], name: "index_genre_classifications_on_level_and_provider_id", unique: true
+    t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'release_group'::character varying, 'recording'::character varying]::text[])", name: "genre_classifications_level"
   end
 
   create_table "genres", force: :cascade do |t|
@@ -296,6 +310,89 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000021) do
     t.index ["strings_hash"], name: "index_mbid_disputes_on_strings_hash", unique: true
     t.check_constraint "(level::text = 'artist'::text) = (title IS NULL)", name: "mbid_disputes_title"
     t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "mbid_disputes_level"
+  end
+
+  create_table "metadata_artists", force: :cascade do |t|
+    t.string "provider", null: false
+    t.text "provider_id", null: false
+    t.text "canonical_id"
+    t.text "name"
+    t.text "sort_name"
+    t.text "disambiguation"
+    t.string "artist_type"
+    t.string "gender"
+    t.text "area_name"
+    t.string "area_code"
+    t.string "begin_date"
+    t.string "end_date"
+    t.boolean "ended"
+    t.string "core_license", null: false
+    t.text "source_url", null: false
+    t.datetime "fetched_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "provider_id"], name: "index_metadata_artists_on_provider_and_provider_id", unique: true
+  end
+
+  create_table "metadata_fetches", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "entity_kind", null: false
+    t.text "provider_id", null: false
+    t.text "url", null: false
+    t.integer "http_status"
+    t.string "outcome", null: false
+    t.integer "duration_ms"
+    t.jsonb "changed_values", default: {}, null: false
+    t.text "error"
+    t.datetime "requested_at", null: false
+    t.index ["provider", "entity_kind", "provider_id"], name: "index_metadata_fetches_entity"
+  end
+
+  create_table "metadata_overrides", force: :cascade do |t|
+    t.string "entity_kind", null: false
+    t.text "provider_id", null: false
+    t.string "field", null: false
+    t.jsonb "value", null: false
+    t.text "note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["entity_kind", "provider_id", "field"], name: "index_metadata_overrides_identity", unique: true
+    t.check_constraint "field::text = ANY (ARRAY['genres'::character varying, 'artist_type'::character varying, 'gender'::character varying]::text[])", name: "metadata_overrides_field"
+  end
+
+  create_table "metadata_tags", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "entity_kind", null: false
+    t.text "provider_id", null: false
+    t.string "kind", null: false
+    t.text "name", null: false
+    t.integer "votes", null: false
+    t.string "license", null: false
+    t.datetime "fetched_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_metadata_tags_on_name"
+    t.index ["provider", "entity_kind", "provider_id", "kind", "name"], name: "index_metadata_tags_identity", unique: true
+    t.check_constraint "kind::text = ANY (ARRAY['genre'::character varying, 'tag'::character varying]::text[])", name: "metadata_tags_kind"
+  end
+
+  create_table "metadata_targets", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "entity_kind", null: false
+    t.text "provider_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "next_attempt_at", null: false
+    t.datetime "last_attempt_at"
+    t.datetime "last_success_at"
+    t.integer "last_http_status"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "entity_kind", "provider_id"], name: "index_metadata_targets_identity", unique: true
+    t.index ["status", "next_attempt_at", "priority"], name: "index_metadata_targets_due"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'ok'::character varying, 'not_found'::character varying, 'invalid'::character varying, 'failed'::character varying]::text[])", name: "metadata_targets_status"
   end
 
   create_table "name_variants", force: :cascade do |t|
