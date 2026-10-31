@@ -295,3 +295,28 @@ two periods side by side. Genres follow them.
   2. metadata models and enrichment, then the pilot;
   3. genre analytics and drill-down;
   4. artwork, with a small supervised sample.
+
+## 11. Pilot: the top 100 artists (2026-10-31)
+
+Supervised, with `METADATA_ENRICHMENT_ENABLED` set for the pilot commands only. Listening history,
+name variants, catalogue and import windows were byte-for-byte unchanged (fingerprints before and
+after).
+
+| | |
+|---|---|
+| Enriched | 99 of 100. One was still waiting out a 503 backoff, and retries on its own schedule |
+| Requests | 112 to MusicBrainz, 13 answered 503 (rate limited) and retried by the backoff; about 2½ minutes of requests |
+| With MusicBrainz genres | 85 of 99. The other 14 have no genres or tags at all, so they are Unclassified, not guessed |
+| Genre names retrieved | 548 (120 distinct). 24 weren't mapped at first; they were added to the seed, so all 548 now map |
+| Plays classified | 88.8% of the pilot artists' plays; 24.0% of all 209,383 plays |
+| Broad shares of the pilot artists' plays | Indie & alternative 33%, Rock 19%, Pop 18%, Unclassified 11%, Folk & country 9%, Electronic 6%, Punk & hardcore 2%, Experimental & ambient 1%, Hip hop 1% |
+| Reach (overlapping, not summed) | Indie & alternative 79%, Rock 74%, Pop 69%, Electronic 39%, Folk & country 32% |
+| Types | 73 groups, 26 people (12 listed female, 13 male, 1 without a listed gender) |
+
+**Unclassified (no MusicBrainz genres):** Owen, Elliott Smith, The Airborne Toxic Event, The
+Honorary Title, Mr Little Jeans, Beulah, Day Wave, The Format, Empires, The Colourist, Destructo,
+Tanlines, Tim Kasher, pr0files.
+
+**The 503s.** About 12% of requests were rate limited although Runout spaced them 1.1 s apart.
+MusicBrainz limits clients without contact details more strictly. Before the full run: set
+`MUSICBRAINZ_CONTACT`, and consider a 1.5 s interval.

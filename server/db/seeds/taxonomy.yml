@@ -37,8 +37,8 @@ subgenres:
   # Indie & alternative
   - { slug: indie-rock, name: Indie rock, parent: indie-alternative, tags: [indie rock], also: { rock: 0.5 } }
   - { slug: indie-pop, name: Indie pop, parent: indie-alternative, tags: [indie pop], also: { pop: 0.5 } }
-  - { slug: indie-folk, name: Indie folk, parent: indie-alternative, tags: [indie folk], also: { folk-country: 0.5 } }
-  - { slug: indie-electronic, name: Indie electronic, parent: indie-alternative, tags: [indietronica, indie electronic], also: { electronic: 0.5 } }
+  - { slug: indie-folk, name: Indie folk, parent: indie-alternative, tags: [indie folk, stomp and holler, alternative folk], also: { folk-country: 0.5 } }
+  - { slug: indie-electronic, name: Indie electronic, parent: indie-alternative, tags: [indietronica, indie electronic, dance-rock, alternative dance, new rave, electronic rock], also: { electronic: 0.5 } }
   - { slug: dream-pop, name: Dream pop, parent: indie-alternative, tags: [dream pop], also: { pop: 0.3 } }
   - { slug: shoegaze, name: Shoegaze, parent: indie-alternative, tags: [shoegaze, nu gaze], also: { rock: 0.3 } }
   - { slug: emo, name: Emo, parent: indie-alternative, tags: [emo, midwest emo, emo pop, emocore], also: { punk-hardcore: 0.3 } }
@@ -46,14 +46,14 @@ subgenres:
   - { slug: math-rock, name: Math rock, parent: indie-alternative, tags: [math rock], also: { rock: 0.3 } }
   - { slug: slowcore, name: Slowcore, parent: indie-alternative, tags: [slowcore, sadcore] }
   - { slug: lo-fi, name: Lo-fi, parent: indie-alternative, tags: [lo-fi, lo-fi indie, bedroom pop] }
-  - { slug: chamber-pop, name: Chamber pop, parent: indie-alternative, tags: [chamber pop, baroque pop], also: { pop: 0.5 } }
-  - { slug: art-rock, name: Art rock, parent: indie-alternative, tags: [art rock, art pop], also: { rock: 0.5 } }
+  - { slug: chamber-pop, name: Chamber pop, parent: indie-alternative, tags: [chamber pop, baroque pop, sunshine pop], also: { pop: 0.5 } }
+  - { slug: art-rock, name: Art rock, parent: indie-alternative, tags: [art rock, art pop, experimental rock], also: { rock: 0.5 } }
   - { slug: post-punk-revival, name: Post-punk revival, parent: indie-alternative, tags: [post-punk revival, garage rock revival], also: { rock: 0.5 } }
   - { slug: post-punk, name: Post-punk, parent: indie-alternative, tags: [post-punk, dark wave, darkwave, cold wave, coldwave], also: { punk-hardcore: 0.3 } }
   - { slug: new-wave, name: New wave, parent: indie-alternative, tags: [new wave], also: { pop: 0.3 } }
-  - { slug: gothic-rock, name: Gothic rock, parent: indie-alternative, tags: [gothic rock, goth rock], also: { rock: 0.5 } }
+  - { slug: gothic-rock, name: Gothic rock, parent: indie-alternative, tags: [gothic rock, goth rock, gothic], also: { rock: 0.5 } }
   - { slug: grunge, name: Grunge, parent: indie-alternative, tags: [grunge, post-grunge], also: { rock: 0.5 } }
-  - { slug: britpop, name: Britpop, parent: indie-alternative, tags: [britpop], also: { pop: 0.5 } }
+  - { slug: britpop, name: Britpop, parent: indie-alternative, tags: [britpop, post-britpop], also: { pop: 0.5 } }
   - { slug: noise-pop, name: Noise pop, parent: indie-alternative, tags: [noise pop, noise rock], also: { rock: 0.3 } }
   - { slug: jangle-pop, name: Jangle pop, parent: indie-alternative, tags: [jangle pop, twee pop, c86], also: { pop: 0.5 } }
   - { slug: slacker-rock, name: Slacker rock, parent: indie-alternative, tags: [slacker rock, college rock] }
@@ -62,12 +62,12 @@ subgenres:
   - { slug: classic-rock, name: Classic rock, parent: rock, tags: [classic rock, album rock, arena rock, aor] }
   - { slug: hard-rock, name: Hard rock, parent: rock, tags: [hard rock, glam rock, glam metal], also: { metal: 0.2 } }
   - { slug: soft-rock, name: Soft rock, parent: rock, tags: [soft rock, adult contemporary, yacht rock], also: { pop: 0.3 } }
-  - { slug: pop-rock, name: Pop rock, parent: rock, tags: [pop rock, power pop], also: { pop: 0.5 } }
+  - { slug: pop-rock, name: Pop rock, parent: rock, tags: [pop rock, power pop, piano rock], also: { pop: 0.5 } }
   - { slug: folk-rock, name: Folk rock, parent: rock, tags: [folk rock, country rock], also: { folk-country: 0.5 } }
-  - { slug: psychedelic-rock, name: Psychedelic rock, parent: rock, tags: [psychedelic rock, psychedelic, neo-psychedelia, acid rock, psychedelic pop] }
-  - { slug: progressive-rock, name: Progressive rock, parent: rock, tags: [progressive rock, art rock progressive, symphonic rock] }
+  - { slug: psychedelic-rock, name: Psychedelic rock, parent: rock, tags: [psychedelic rock, psychedelic, neo-psychedelia, acid rock, psychedelic pop, psychedelic folk, paisley underground] }
+  - { slug: progressive-rock, name: Progressive rock, parent: rock, tags: [progressive rock, art rock progressive, symphonic rock, crossover prog, progressive] }
   - { slug: garage-rock, name: Garage rock, parent: rock, tags: [garage rock, garage punk] }
-  - { slug: blues-rock, name: Blues rock, parent: rock, tags: [blues rock, southern rock], also: { jazz-blues: 0.3 } }
+  - { slug: blues-rock, name: Blues rock, parent: rock, tags: [blues rock, southern rock, punk blues], also: { jazz-blues: 0.3 } }
   - { slug: stoner-rock, name: Stoner rock, parent: rock, tags: [stoner rock, desert rock], also: { metal: 0.3 } }
   - { slug: surf-rock, name: Surf rock, parent: rock, tags: [surf rock, surf] }
   - { slug: rockabilly, name: Rockabilly, parent: rock, tags: [rockabilly, psychobilly] }
@@ -77,7 +77,7 @@ subgenres:
   - { slug: space-rock, name: Space rock, parent: rock, tags: [space rock] }
 
   # Pop
-  - { slug: synth-pop, name: Synth-pop, parent: pop, tags: [synth-pop, synthpop, electropop, futurepop], also: { electronic: 0.5 } }
+  - { slug: synth-pop, name: Synth-pop, parent: pop, tags: [synth-pop, synthpop, electropop, futurepop, glitch pop], also: { electronic: 0.5 } }
   - { slug: dance-pop, name: Dance-pop, parent: pop, tags: [dance-pop, dance pop, europop, eurodance], also: { electronic: 0.3 } }
   - { slug: teen-pop, name: Teen pop, parent: pop, tags: [teen pop, bubblegum pop] }
   - { slug: k-pop, name: K-pop, parent: pop, tags: [k-pop, j-pop, c-pop, mandopop, cantopop] }
@@ -92,17 +92,17 @@ subgenres:
   - { slug: alt-pop, name: Alt-pop, parent: pop, tags: [alt-pop, alternative pop, indie pop rock], also: { indie-alternative: 0.5 } }
 
   # Electronic
-  - { slug: house, name: House, parent: electronic, tags: [house, deep house, tech house, progressive house, electro house, future house, french house] }
-  - { slug: techno, name: Techno, parent: electronic, tags: [techno, minimal techno, detroit techno] }
+  - { slug: house, name: House, parent: electronic, tags: [house, deep house, tech house, progressive house, electro house, future house, french house, melodic house, festival progressive house] }
+  - { slug: techno, name: Techno, parent: electronic, tags: [techno, minimal techno, detroit techno, melodic techno] }
   - { slug: trance, name: Trance, parent: electronic, tags: [trance, progressive trance, uplifting trance] }
   - { slug: drum-and-bass, name: Drum and bass, parent: electronic, tags: [drum and bass, jungle, liquid funk] }
   - { slug: dubstep, name: Dubstep, parent: electronic, tags: [dubstep, brostep, riddim] }
   - { slug: uk-garage, name: UK garage, parent: electronic, tags: [uk garage, 2-step, future garage, bass music] }
-  - { slug: idm, name: IDM, parent: electronic, tags: [idm, intelligent dance music, glitch, braindance], also: { experimental-ambient: 0.3 } }
+  - { slug: idm, name: IDM, parent: electronic, tags: [idm, intelligent dance music, glitch, braindance, leftfield], also: { experimental-ambient: 0.3 } }
   - { slug: downtempo, name: Downtempo, parent: electronic, tags: [downtempo, trip hop, chillout, chill-out, lounge electronic, chillwave] }
   - { slug: synthwave, name: Synthwave, parent: electronic, tags: [synthwave, retrowave, outrun, vaporwave] }
   - { slug: edm, name: EDM, parent: electronic, tags: [edm, big room house, electro, electronic dance music] }
-  - { slug: electro-pop-dance, name: Nu-disco, parent: electronic, tags: [nu-disco, disco, italo disco, post-disco], also: { pop: 0.3 } }
+  - { slug: electro-pop-dance, name: Nu-disco, parent: electronic, tags: [nu-disco, disco, italo disco, post-disco, nu disco, funktronica], also: { pop: 0.3 } }
   - { slug: future-bass, name: Future bass, parent: electronic, tags: [future bass, melodic bass, wonky] }
   - { slug: breakbeat, name: Breakbeat, parent: electronic, tags: [breakbeat, big beat, breaks] }
   - { slug: electronic-folk, name: Folktronica, parent: electronic, tags: [folktronica], also: { folk-country: 0.5 } }
@@ -126,7 +126,7 @@ subgenres:
 
   # Folk & country
   - { slug: contemporary-folk, name: Contemporary folk, parent: folk-country, tags: [contemporary folk, folk pop, freak folk, anti-folk, chamber folk, new weird america] }
-  - { slug: americana, name: Americana, parent: folk-country, tags: [americana, alt-country, alternative country, roots, roots americana] }
+  - { slug: americana, name: Americana, parent: folk-country, tags: [americana, alt-country, alternative country, roots, roots americana, country folk] }
   - { slug: bluegrass, name: Bluegrass, parent: folk-country, tags: [bluegrass, progressive bluegrass, old-time, appalachian folk] }
   - { slug: country-pop, name: Country pop, parent: folk-country, tags: [country pop, contemporary country, bro-country], also: { pop: 0.3 } }
   - { slug: traditional-folk, name: Traditional folk, parent: folk-country, tags: [traditional folk, british folk, celtic, irish folk, scottish folk, sea shanty] }
