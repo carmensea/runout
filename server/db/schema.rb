@@ -10,10 +10,11 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000018) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "albums", force: :cascade do |t|
     t.bigint "artist_id", null: false
@@ -27,6 +28,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
     t.index ["artist_id"], name: "index_albums_on_artist_id"
     t.index ["mbid"], name: "index_albums_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_albums_on_merged_into_id"
+    t.index ["normalized_title"], name: "index_albums_on_normalized_title_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "api_request_slots", primary_key: "key", id: :string, force: :cascade do |t|
@@ -56,6 +58,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
     t.index ["mbid"], name: "index_artists_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_artists_on_merged_into_id"
     t.index ["normalized_name"], name: "index_artists_on_normalized_name"
+    t.index ["normalized_name"], name: "index_artists_on_normalized_name_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "catalogue_reviews", force: :cascade do |t|
@@ -253,6 +256,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
     t.string "album_match"
     t.string "track_match"
     t.integer "match_version"
+    t.index "lower(album_name) gin_trgm_ops", name: "index_name_variants_on_album_name_trgm", using: :gin
+    t.index "lower(artist_name) gin_trgm_ops", name: "index_name_variants_on_artist_name_trgm", using: :gin
+    t.index "lower(track_name) gin_trgm_ops", name: "index_name_variants_on_track_name_trgm", using: :gin
     t.index ["album_id"], name: "index_name_variants_on_album_id"
     t.index ["artist_id"], name: "index_name_variants_on_artist_id"
     t.index ["match_version"], name: "index_name_variants_on_match_version"
@@ -391,6 +397,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_31_000017) do
     t.index ["artist_id"], name: "index_tracks_on_artist_id"
     t.index ["mbid"], name: "index_tracks_on_mbid", unique: true, where: "(mbid IS NOT NULL)"
     t.index ["merged_into_id"], name: "index_tracks_on_merged_into_id"
+    t.index ["normalized_title"], name: "index_tracks_on_normalized_title_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

@@ -23,5 +23,6 @@ Rails.application.routes.draw do
     post "reviews/:kind/:id/:decision", to: "reviews#decide", as: :review_decision,
                                         constraints: { kind: /removal|reappeared|dispute/, id: /\d+/ }
     resource :overview, only: :show
+    resource :search, only: :show
   end
 end
