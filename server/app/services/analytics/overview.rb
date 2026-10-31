@@ -24,43 +24,11 @@ module Analytics
     TREND_POINTS = 12
     TWO_YEARS = 732 # days: week buckets are offered up to this (src/pages/overview/sections/ListeningSection.tsx)
 
-    NORMALIZE = ->(column) { "lower(normalize(btrim(regexp_replace(#{column}, '\\s+', ' ', 'g')), NFKC))" }
-
-    # Each variant's artist, track and album, and (`arm`, `trm`, `alm`) the entity each is merged
-    # into at the end of its chain, if any (Catalogue::Roots).
-    ROOT_JOINS = <<~SQL.squish.freeze
-      LEFT JOIN artists ar ON ar.id = v.artist_id
-      LEFT JOIN #{Catalogue::Roots.sql('artists')} ar_root ON ar_root.id = ar.id LEFT JOIN artists arm ON arm.id = ar_root.root_id
-      LEFT JOIN tracks tr ON tr.id = v.track_id
-      LEFT JOIN #{Catalogue::Roots.sql('tracks')} tr_root ON tr_root.id = tr.id LEFT JOIN tracks trm ON trm.id = tr_root.root_id
-      LEFT JOIN albums al ON al.id = v.album_id
-      LEFT JOIN #{Catalogue::Roots.sql('albums')} al_root ON al_root.id = al.id LEFT JOIN albums alm ON alm.id = al_root.root_id
-    SQL
+    NORMALIZE = Identity::NORMALIZE
 
     KEYS_SQL = <<~SQL.freeze
       CREATE TEMP TABLE ov_keys ON COMMIT DROP AS
-      WITH used AS (SELECT DISTINCT name_variant_id FROM scrobbles WHERE user_id = :user AND removed_at IS NULL),
-      named AS (
-        SELECT v.id,
-               COALESCE('a' || COALESCE(arm.id, ar.id), 'n' || md5(#{NORMALIZE.call('v.artist_name')})) AS artist_key,
-               COALESCE(arm.name, ar.name, v.artist_name) AS artist_name,
-               tr.id AS track_id, trm.id AS track_merged, COALESCE(trm.title, tr.title, v.track_name) AS track_name,
-               #{NORMALIZE.call('v.track_name')} AS track_norm,
-               al.id AS album_id, alm.id AS album_merged, COALESCE(alm.title, al.title, NULLIF(btrim(v.album_name), '')) AS album_name,
-               #{NORMALIZE.call('v.album_name')} AS album_norm
-          FROM used
-          JOIN name_variants v ON v.id = used.name_variant_id
-          #{ROOT_JOINS}
-      ),
-      keyed AS (
-        SELECT id, artist_key, artist_name,
-               COALESCE('t' || COALESCE(track_merged, track_id), 'm' || md5(artist_key || '|' || track_norm)) AS track_key, track_name,
-               CASE WHEN album_id IS NOT NULL THEN 'l' || COALESCE(album_merged, album_id)
-                    WHEN album_norm = '' THEN NULL
-                    ELSE 'o' || md5(artist_key || '|' || album_norm) END AS album_key,
-               album_name
-          FROM named
-      )
+      WITH #{Identity.ctes("SELECT DISTINCT name_variant_id FROM scrobbles WHERE user_id = :user AND removed_at IS NULL")}
       -- Integer ids in order of name (then artist), so every tie is broken alphabetically and the
       -- results never depend on catalogue ids.
       SELECT id, artist_key, artist_name, track_key, track_name, album_key, album_name,
@@ -395,26 +363,9 @@ module Analytics
       [ before, after ].compact.map { |m| "month:#{m}" }
     end
 
-    # Whether the period lies within imported history (ImportCoverage). `none`: nothing of it is
-    # imported; `partial`: some is; `complete`: all of it. Missing ranges in local dates.
+    # Whether the period lies within imported history (Analytics::Coverage).
     def coverage
-      covered = ImportCoverage.ranges(@user)
-      return { status: "none", missing: [] } if covered.empty?
-
-      from = @period.all? ? covered.first.begin : @from
-      to = @period.all? ? covered.last.end : [ @to, Time.current ].min
-      return { status: "complete", missing: [] } if to <= from
-
-      edges = [ from, *covered.flat_map { |r| [ r.begin.clamp(from, to), r.end.clamp(from, to) ] }, to ]
-      gaps = edges.each_slice(2).filter_map { |a, b| (a...b) if a < b }
-      missing = gaps.map { |g| Period.local_days(g, @tz) }
-      { status: coverage_status(gaps, to - from), missing: missing }
-    end
-
-    def coverage_status(gaps, span)
-      return "complete" if gaps.empty?
-
-      gaps.sum { |g| g.end - g.begin } >= span ? "none" : "partial"
+      @period.all? ? Coverage.new(@user, @tz).for(nil, nil) : Coverage.new(@user, @tz).for(@from, @to)
     end
   end
 end

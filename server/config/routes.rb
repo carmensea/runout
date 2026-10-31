@@ -24,5 +24,8 @@ Rails.application.routes.draw do
                                         constraints: { kind: /removal|reappeared|dispute/, id: /\d+/ }
     resource :overview, only: :show
     resource :search, only: :show
+    resource :calendar, only: :show
+    resources :plays, only: :index
+    resource :on_this_day, only: :show, path: "on-this-day"
   end
 end
