@@ -407,8 +407,7 @@ module Analytics
 
       edges = [ from, *covered.flat_map { |r| [ r.begin.clamp(from, to), r.end.clamp(from, to) ] }, to ]
       gaps = edges.each_slice(2).filter_map { |a, b| (a...b) if a < b }
-      tz = Period.zone(@tz)
-      missing = gaps.map { |g| { from: g.begin.in_time_zone(tz).to_date.iso8601, to: (g.end - 1).in_time_zone(tz).to_date.iso8601 } }
+      missing = gaps.map { |g| Period.local_days(g, @tz) }
       { status: coverage_status(gaps, to - from), missing: missing }
     end
 

@@ -20,6 +20,7 @@ import mobileStyles from './mobile/MobileOverview.module.css';
 import { useOverview } from './useOverview';
 import type { OverviewView } from './view';
 import styles from './OverviewPage.module.css';
+import { localDaysLabel } from '../../lib/ranges';
 
 const SECTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -211,7 +212,7 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
  */
 function CoverageNote({ coverage, view }: { coverage: OverviewData['coverage']; view: OverviewView }) {
   if (coverage.status === 'complete') return null;
-  const shown = coverage.missing.slice(0, 3).map((r) => (r.from === r.to ? view.fmt.date(r.from) : `${view.fmt.date(r.from)} to ${view.fmt.date(r.to)}`));
+  const shown = coverage.missing.slice(0, 3).map((r) => localDaysLabel(r, view.fmt, view.timeZone));
   const more = coverage.missing.length - shown.length;
   return (
     <p className="caption" role="status" style={{ marginTop: 24 }}>

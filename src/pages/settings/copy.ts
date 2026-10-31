@@ -1,4 +1,5 @@
 import type { Formatter } from '../../lib/format';
+import { localDays, localDaysLabel } from '../../lib/ranges';
 import type { HistoryActivity, PeriodRange, StopReason } from '../../data/types';
 
 /**
@@ -40,15 +41,14 @@ export function reasonText(reason: StopReason | null | undefined): string {
   return reason ? REASON[reason] : 'This period stopped.';
 }
 
-/** "March 2014" for a whole UTC calendar month, otherwise the exact range in the user's timezone. */
+/**
+ * An import period (UTC, end exclusive) in the user's timezone, by the same rule as the Overview's
+ * missing ranges: "March 2014" for a whole local month, local dates for whole days, and the time
+ * where a day is only partly inside. Import periods are UTC months, so outside UTC they rarely
+ * line up with local months.
+ */
 export function periodLabel(range: PeriodRange, fmt: Formatter, timeZone: string): string {
-  const from = new Date(range.from);
-  const to = new Date(range.to);
-  const wholeMonth = from.getUTCDate() === 1 && from.getUTCHours() === 0 && from.getUTCMinutes() === 0 && from.getUTCSeconds() === 0 &&
-    to.getUTCDate() === 1 && to.getUTCHours() === 0 && to.getUTCMinutes() === 0 &&
-    (to.getUTCFullYear() * 12 + to.getUTCMonth()) - (from.getUTCFullYear() * 12 + from.getUTCMonth()) === 1;
-  if (wholeMonth) return fmt.monthLong(range.from.slice(0, 7));
-  return `${fmt.dateTime(range.from, timeZone)} to ${fmt.dateTime(range.to, timeZone)}`;
+  return localDaysLabel(localDays(range.from, range.to, timeZone), fmt, timeZone, { months: true });
 }
 
 export const REVIEW_KIND = {

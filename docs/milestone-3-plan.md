@@ -48,8 +48,13 @@ measured the same way.
   - `complete`: all of it;
   - `partial`: some of it;
   - `none`: none of it.
-- Missing ranges are listed in local dates. The part of a period still in the future is not
-  "missing".
+- Missing ranges are kept as UTC instants (import windows are UTC) and shown as the local
+  calendar days they touch. The end is exclusive, so a range ending at local midnight doesn't touch
+  the next day. A first or last day only partly missing is marked, and shown with its local time
+  (a UTC month in Pacific time: "2014-05-31 17:00 to 2014-06-30 17:00"). A day starts at local
+  midnight, or at the first moment after it where daylight saving time skips midnight. Settings
+  labels import periods by the same rule (`Analytics::Period.local_days`, `src/lib/ranges.ts`).
+- The part of a period still in the future is not "missing".
 - A period with no plays and complete coverage means there was no listening. A period with no
   plays and no coverage means nothing is known about it. The UI keeps the two apart.
 

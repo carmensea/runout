@@ -165,8 +165,23 @@ export interface OverviewData {
 export interface OverviewCoverage {
   /** complete: all of the period is imported; partial: some; none: none of it. */
   status: 'complete' | 'partial' | 'none';
-  /** Inclusive local dates (YYYY-MM-DD) with no imported history. */
-  missing: Array<{ from: string; to: string }>;
+  /** Ranges with no imported history, as local days. */
+  missing: LocalDays[];
+}
+
+/**
+ * A UTC interval [startsAt, endsAt) as the local calendar days it touches, inclusive
+ * (Analytics::Period.local_days on the server, src/lib/ranges.ts here). The end is exclusive: an
+ * interval ending at local midnight doesn't touch the next day.
+ */
+export interface LocalDays {
+  from: string;
+  to: string;
+  startsAt: string;
+  endsAt: string;
+  /** The first or last day is only partly inside the interval. */
+  partialFrom: boolean;
+  partialTo: boolean;
 }
 
 export interface SearchResults {

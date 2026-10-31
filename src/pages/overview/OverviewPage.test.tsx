@@ -241,14 +241,19 @@ describe('Overview, connected', () => {
   });
 
   it('lists the dates a period is missing, and says figures cover imported history only', async () => {
-    const partial = makeOverview({ coverage: { status: 'partial', missing: [{ from: '2020-06-01', to: '2020-06-30' }] } });
+    const missing = [
+      { from: '2020-06-01', to: '2020-06-30', startsAt: '2020-05-31T23:00:00Z', endsAt: '2020-06-30T23:00:00Z', partialFrom: false, partialTo: false },
+      // The UTC month of August in London time: from 01:00 BST on 1 August to 01:00 on 1 September.
+      { from: '2020-08-01', to: '2020-09-01', startsAt: '2020-08-01T00:00:00Z', endsAt: '2020-09-01T00:00:00Z', partialFrom: true, partialTo: true },
+    ];
+    const partial = makeOverview({ coverage: { status: 'partial', missing } });
     renderApp(connectedApi(() => partial), '/overview?period=year:2020');
-    expect(await screen.findByText(/Part of this period isn’t imported: 2020-06-01 to 2020-06-30\. Figures cover imported/)).toBeInTheDocument();
+    expect(await screen.findByText(/Part of this period isn’t imported: 2020-06-01 to 2020-06-30, 2020-08-01 01:00 to 2020-09-01 01:00\. Figures cover imported/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Import status' })).toHaveAttribute('href', expect.stringMatching(/^\/settings\?period=.*#history$/));
   });
 
   it('never calls an unimported period "no scrobbles"', async () => {
-    const unknown = makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, coverage: { status: 'none', missing: [{ from: '2003-01-01', to: '2003-12-31' }] } });
+    const unknown = makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, coverage: { status: 'none', missing: [{ from: '2003-01-01', to: '2003-12-31', startsAt: '2003-01-01T00:00:00Z', endsAt: '2004-01-01T00:00:00Z', partialFrom: false, partialTo: false }] } });
     renderApp(connectedApi(() => unknown), '/overview?period=year:2003');
     expect(await screen.findByText('Scrobbles for 2003 have not been imported.')).toBeInTheDocument();
     expect(screen.queryByText('No scrobbles in 2003.')).not.toBeInTheDocument();

@@ -1239,7 +1239,11 @@
     "missing": [
       {
         "from": "2014-11-01",
-        "to": "2014-12-31"
+        "to": "2014-12-31",
+        "startsAt": "2014-11-01T00:00:00Z",
+        "endsAt": "2015-01-01T00:00:00Z",
+        "partialFrom": false,
+        "partialTo": false
       }
     ]
   }

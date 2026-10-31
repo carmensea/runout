@@ -168,7 +168,8 @@ class Analytics::OverviewTest < ActiveSupport::TestCase
     assert_equal({ status: "complete", missing: [] }, overview("month:2014-03")[:coverage])
     year = overview("year:2014")[:coverage]
     assert_equal "partial", year[:status]
-    assert_equal [ { from: "2014-06-01", to: "2014-06-30" } ], year[:missing]
+    assert_equal [ { from: "2014-06-01", to: "2014-06-30", startsAt: "2014-06-01T00:00:00Z", endsAt: "2014-07-01T00:00:00Z",
+                     partialFrom: false, partialTo: false } ], year[:missing]
     assert_equal "partial", overview("all")[:coverage][:status]
     assert_equal "none", overview("month:2014-06")[:coverage][:status]
   end

@@ -48,6 +48,23 @@ module Analytics
 
     def self.zone(name) = ActiveSupport::TimeZone[name.to_s] || ActiveSupport::TimeZone["UTC"]
 
+    # A UTC interval [begin, end) as the local calendar days it touches, inclusive. The end is
+    # exclusive: an interval ending at local midnight doesn't touch the day after. `partialFrom`
+    # and `partialTo` say the first or last day is only partly inside it. A day starts at local
+    # midnight, or the first moment after it where daylight saving time skips midnight.
+    def self.local_days(range, time_zone)
+      tz = zone(time_zone)
+      start = range.begin.in_time_zone(tz)
+      finish = range.end.in_time_zone(tz)
+      first = start.to_date
+      last = finish.to_date
+      last -= 1 if finish <= day_start(tz, last)
+      { from: first.iso8601, to: last.iso8601, startsAt: start.utc.iso8601, endsAt: finish.utc.iso8601,
+        partialFrom: start > day_start(tz, first), partialTo: finish < day_start(tz, last + 1) }
+    end
+
+    def self.day_start(tz, date) = tz.local(date.year, date.month, date.day)
+
     def all? = kind == "all"
 
     # [from, to) in UTC; nil ends for `all`.

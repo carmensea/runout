@@ -54,7 +54,8 @@ describe('Settings: import', () => {
     expect(history.calls.filter((c) => c === 'startImport')).toHaveLength(1);
     expect(screen.getByRole('progressbar', { name: 'Import progress' })).toHaveAttribute('aria-valuenow', '42');
     expect(screen.getByText(/1,234 scrobbles of about 3,000 on Last.fm/)).toBeInTheDocument();
-    expect(screen.getByText('March 2014')).toBeInTheDocument();
+    // A UTC month in London time: March ends at 01:00 BST on 1 April.
+    expect(screen.getByText('2014-03-01 to 2014-04-01 01:00')).toBeInTheDocument();
   });
 
   it('explains that storage is off, and offers no start', async () => {
@@ -130,7 +131,8 @@ describe('Settings: sync', () => {
     expect(await screen.findByText(/One period has no imported scrobbles. Charts treat it as incomplete/)).toBeInTheDocument();
     expect(screen.getByText('Last.fm returned plays without a date, so this period was not saved.')).toBeInTheDocument();
     expect(screen.getByText('Will try again automatically')).toBeInTheDocument();
-    expect(screen.getByText('October 2026')).toBeInTheDocument();
+    // The UTC month in London time: from 01:00 BST on 1 October to midnight GMT, after the clocks go back.
+    expect(screen.getByText('2026-10-01 01:00 to 2026-10-31')).toBeInTheDocument();
     expect(screen.getByText('Its scrobbles imported earlier are kept and still count.')).toBeInTheDocument();
     const retries = screen.getAllByRole('button', { name: 'Try again' });
     expect(retries).toHaveLength(1);
