@@ -2,9 +2,11 @@ module HistoryImport
   # Fetches and validates one window (docs/milestone-2-plan.md §4.3). Doesn't commit anything to
   # `scrobbles`; that's Stage 2.4.
   #
-  # Validated means two consecutive complete snapshots have identical multisets: same plays, same
-  # exact strings, same occurrence counts, in any order. Up to MAX_SNAPSHOTS snapshots are taken; a
-  # window that never settles goes to `needs_review`, never to `validated`.
+  # Validated means two consecutive complete snapshots have the same plays: the same multiset of
+  # seconds and exact strings, with the same occurrence counts, in any order (Snapshot#equivalent?).
+  # MusicBrainz IDs aren't part of a play: where the two reads disagree on one, the play is staged
+  # without it and the candidates are recorded (MbidDispute). Up to MAX_SNAPSHOTS snapshots are
+  # taken; a window that never settles goes to `needs_review`, never to `validated`.
   #
   # Transaction safety:
   # - Network requests happen only outside transactions.
@@ -78,8 +80,9 @@ module HistoryImport
         end
 
         record_snapshot(fetch, snapshot)
-        if previous && previous[:snapshot].same_contents?(snapshot)
-          return validated(fetch, previous[:fetch], snapshot)
+        if previous && previous[:snapshot].equivalent?(snapshot)
+          settled, conflicts = previous[:snapshot].settle_ids(snapshot)
+          return validated(fetch, previous[:fetch], settled, conflicts)
         end
 
         if previous
@@ -172,19 +175,21 @@ module HistoryImport
       nil
     end
 
-    # Stages the validated snapshot and marks the window validated, in one short transaction.
-    def validated(fetch, matching_fetch, snapshot)
+    # Stages the validated snapshot, records any ID conflicts, and marks the window validated, in
+    # one short transaction.
+    def validated(fetch, matching_fetch, snapshot, conflicts = [])
       lease do |window|
         HistoryImport.ensure_enabled! # staging is history data too; insert_all bypasses model callbacks
         rows = snapshot.staging_rows.map { |row| row.merge(import_window_fetch_id: fetch.id) }
         rows.each_slice(1000) { |batch| ImportWindowRow.insert_all!(batch) }
+        MbidDispute.record!(conflicts, window: window, now: now) if conflicts.any?
         matching_fetch.update!(outcome: "validated", finished_at: matching_fetch.finished_at || now)
         fetch.update!(outcome: "validated", finished_at: now)
         window.assign_attributes(state: "validated", validated_at: now, expected_total: snapshot.reported_total,
                                  fetched_count: snapshot.size, malformed_count: 0, claim_token: nil, lease_expires_at: nil, retry_at: nil,
                                  last_error_message: nil, last_http_status: nil, last_lastfm_error: nil)
       end
-      outcome(:validated, "#{snapshot.size} plays")
+      outcome(:validated, "#{snapshot.size} plays#{", #{conflicts.size} with a disputed ID" if conflicts.any?}")
     end
 
     # `reason`: a code (ImportWindow::REVIEW_REASONS) that decides whether the stop is retried

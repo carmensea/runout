@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000018) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000019) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -238,6 +238,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000018) do
     t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying, 'importing'::character varying, 'imported'::character varying, 'failed'::character varying]::text[])", name: "lastfm_connections_history_state_check"
   end
 
+  create_table "mbid_disputes", force: :cascade do |t|
+    t.binary "strings_hash", null: false
+    t.string "level", null: false
+    t.text "artist_name", null: false
+    t.text "title"
+    t.text "candidate_mbids", default: [], null: false, array: true
+    t.integer "occurrences", default: 0, null: false
+    t.bigint "first_import_window_id"
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["first_import_window_id"], name: "index_mbid_disputes_on_first_import_window_id"
+    t.index ["strings_hash"], name: "index_mbid_disputes_on_strings_hash", unique: true
+    t.check_constraint "(level::text = 'artist'::text) = (title IS NULL)", name: "mbid_disputes_title"
+    t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "mbid_disputes_level"
+  end
+
   create_table "name_variants", force: :cascade do |t|
     t.binary "variant_hash", null: false
     t.text "artist_name", null: false
@@ -422,6 +440,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000018) do
   add_foreign_key "import_windows", "users", on_delete: :cascade
   add_foreign_key "lastfm_connections", "identities", on_delete: :cascade
   add_foreign_key "lastfm_connections", "users", on_delete: :cascade
+  add_foreign_key "mbid_disputes", "import_windows", column: "first_import_window_id", on_delete: :nullify
   add_foreign_key "name_variants", "albums"
   add_foreign_key "name_variants", "artists"
   add_foreign_key "name_variants", "tracks"

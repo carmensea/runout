@@ -16,6 +16,10 @@ module Catalogue
   #    to none, with a review listing the candidates.
   # 5. No usable name, or no resolved artist for an album or track: `unmatched`. No album: `none`.
   #
+  # An ID Last.fm reported inconsistently for these exact strings (MbidDispute) isn't used: rule 1 is
+  # skipped at that level, so every play of the song falls back to the same name rule, whatever ID
+  # it was stored with, and one song doesn't become two tracks. The variant keeps its ID.
+  #
   # Manual decisions (Catalogue::Decisions) are never overridden. Entities merged by a decision
   # are followed to the entity they were merged into. Re-running is idempotent: candidates are
   # found before anything is created, under a lock per name, so no duplicates appear.
@@ -60,6 +64,7 @@ module Catalogue
       HistoryImport.ensure_enabled!
       NameVariant.transaction do
         v = NameVariant.lock.find(variant.id)
+        @disputed = MbidDispute.levels_for(v)
         artist = v.artist_match == "manual" ? Result.linked(v.artist.resolved, "manual") : resolve_artist(v)
         album = v.album_match == "manual" ? Result.linked(v.album.resolved, "manual") : resolve_album(v, artist.record)
         track = v.track_match == "manual" ? Result.linked(v.track.resolved, "manual") : resolve_track(v, artist.record)
@@ -73,7 +78,7 @@ module Catalogue
     def now = @clock.call
 
     def resolve_artist(v)
-      if (mbid = valid_mbid(v.artist_mbid))
+      if (mbid = usable_mbid(v, "artist"))
         return by_mbid(Artist, mbid) { Artist.new(name: v.artist_name, mbid: mbid) }
       end
 
@@ -88,7 +93,7 @@ module Catalogue
     end
 
     def resolve_album(v, artist)
-      mbid = valid_mbid(v.album_mbid)
+      mbid = usable_mbid(v, "album")
       norm = CatalogName.normalize(v.album_name)
       return Result.unlinked("none") if mbid.nil? && norm.empty?
 
@@ -96,7 +101,7 @@ module Catalogue
     end
 
     def resolve_track(v, artist)
-      mbid = valid_mbid(v.track_mbid)
+      mbid = usable_mbid(v, "track")
       norm = CatalogName.normalize(v.track_name)
       resolve_scoped(Track, :normalized_title, mbid: mbid, norm: norm, artist: artist) { Track.new(artist: artist, title: v.track_name, mbid: mbid) }
     end
@@ -177,6 +182,10 @@ module Catalogue
         ids += frontier
       end
       ids
+    end
+
+    def usable_mbid(v, level)
+      @disputed.include?(level) ? nil : valid_mbid(v.public_send(:"#{level}_mbid"))
     end
 
     def valid_mbid(value)

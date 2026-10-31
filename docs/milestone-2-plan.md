@@ -165,7 +165,8 @@ same second in a different order, or with changed metadata, between fetches. So 
 treats a stored `seq` (or a staged `position`) as identifying the same logical play. Matching uses
 the multiset of plays in that second:
 
-1. Pair the staged and stored rows whose variant is identical. Identical plays in one second are
+1. Pair the staged and stored rows with identical artist, track and album strings (MusicBrainz IDs
+   aren't compared; see the Stage 2.3 validation decisions). Identical plays in one second are
    indistinguishable, so any one-to-one pairing between them loses nothing. The staged
    `occurrence` numbers only make the counts explicit, so identical plays stay separate.
 2. **A second with unmatched plays on both sides is always reviewed, never applied
@@ -866,6 +867,14 @@ Depending on the answer, these fall-backs keep the architecture intact:
     so 3 comparisons) instead of re-reading page 1. A window is validated only when two
     consecutive reads have identical multisets: exact strings, occurrence counts, any order. A
     window that never settles goes to `needs_review`.
+  - **MusicBrainz IDs are enrichment, not identity** (added 2026-10-30, after the first real
+    import). Last.fm returned different recording IDs for the same play between requests, so
+    months never settled. A play is now its second plus its exact artist, track and album
+    strings. Where two reads with the same plays disagree on an ID (for the identical plays at a
+    second, compared as a multiset), the play is stored without that ID and the candidates are
+    recorded in `mbid_disputes`. Matching ignores a disputed ID for those exact strings, so all
+    the song's plays fall back to the name rule together and it stays one track. Names, times,
+    counts and missing plays are compared exactly as before.
   - **Within one read,** every page must report the same total and page count, and the rows must
     add up to the total. Otherwise the read is inconsistent (plays added or removed mid-paging) and
     another read is taken.

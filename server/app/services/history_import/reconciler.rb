@@ -3,8 +3,10 @@ module HistoryImport
   # §4.4). Runs inside WindowCommitter's transaction, under the worker's lease and the per-user lock,
   # so every change below is applied together or not at all. No Last.fm requests.
   #
-  # Each second is compared as a multiset: identical plays (same exact strings) are paired first,
-  # in any order, duplicates included. Then, per second:
+  # Each second is compared as a multiset: identical plays (same exact artist, track and album
+  # strings) are paired first, in any order, duplicates included. MusicBrainz IDs aren't part of a
+  # play (Snapshot#play_key): a stored play and a fetched one that differ only in IDs are the same
+  # play, and the stored one is kept as it is. Then, per second:
   # - Only fetched plays left over: new plays, inserted after the second's highest `seq` (existing
   #   slots are never reused or renumbered).
   # - Only stored plays left over: missing upstream. The first independent observation records a
@@ -70,14 +72,17 @@ module HistoryImport
 
     private
 
-    # Every play in the month, removed ones included, with its variant's hash. Read from the
+    # Every play in the month, removed ones included, with its variant's strings. Read from the
     # database, never from the query cache: writes by other processes don't clear it.
     def stored_plays
       Scrobble.uncached do
-        Scrobble.where(user_id: @window.user_id).played_between(@range.begin, @range.end)
-                .joins(:name_variant).select("scrobbles.*, name_variants.variant_hash AS stored_hash").to_a
+        Scrobble.where(user_id: @window.user_id).played_between(@range.begin, @range.end).joins(:name_variant)
+                .select("scrobbles.*, name_variants.artist_name, name_variants.track_name, name_variants.album_name").to_a
       end
     end
+
+    # A play within its second: its exact strings, without IDs. Stored plays and staged rows alike.
+    def play(record) = [ record.artist_name, record.track_name, record.album_name.to_s ]
 
     # The month as stored now must be exactly what the rules above produce from the snapshot:
     # - every play stored before is still there, unchanged (same slot, variant and removal state);
@@ -101,14 +106,14 @@ module HistoryImport
       had = before.group_by { |s| s.played_at.to_i }
       has = after.group_by { |s| s.played_at.to_i }
       (staged.keys | has.keys).each do |t|
-        was = had.fetch(t, []).map(&:stored_hash).tally
-        now = has.fetch(t, []).map(&:stored_hash).tally
+        was = had.fetch(t, []).map { |s| play(s) }.tally
+        now = has.fetch(t, []).map { |s| play(s) }.tally
         if @disputed.include?(t)
           fail!("a disputed second changed") unless now == was
           next
         end
 
-        fetched = staged.fetch(t, []).map(&:variant_hash).tally
+        fetched = staged.fetch(t, []).map { |row| play(row) }.tally
         (fetched.keys | now.keys).each do |h|
           fail!("a second's plays don't match the snapshot") unless now.fetch(h, 0) == [ was.fetch(h, 0), fetched.fetch(h, 0) ].max
         end
@@ -128,8 +133,8 @@ module HistoryImport
       return if present < MASS_DISAPPEARANCE_MIN
 
       missing = stored_by_second.sum do |t, plays|
-        fetched = staged.fetch(t, []).map(&:variant_hash).tally
-        plays.select { |s| s.removed_at.nil? }.map(&:stored_hash).tally.sum { |h, n| [ n - fetched.fetch(h, 0), 0 ].max }
+        fetched = staged.fetch(t, []).map { |row| play(row) }.tally
+        plays.select { |s| s.removed_at.nil? }.map { |s| play(s) }.tally.sum { |h, n| [ n - fetched.fetch(h, 0), 0 ].max }
       end
       return unless missing * 2 > present
 
@@ -140,10 +145,10 @@ module HistoryImport
     def reconcile_second(t, staged, stored)
       pools = Hash.new { |h, k| h[k] = [] }
       # Present plays are matched before removed ones, each in slot order.
-      stored.sort_by { |s| [ s.removed_at ? 1 : 0, s.seq ] }.each { |s| pools[s.stored_hash] << s }
+      stored.sort_by { |s| [ s.removed_at ? 1 : 0, s.seq ] }.each { |s| pools[play(s)] << s }
       matched = []
       unmatched_staged = []
-      staged.each { |row| (s = pools[row.variant_hash].shift) ? matched << s : unmatched_staged << row }
+      staged.each { |row| (s = pools[play(row)].shift) ? matched << s : unmatched_staged << row }
       unmatched_present = pools.values.flatten.select { |s| s.removed_at.nil? }
       open = @disputes.fetch(t, []).find { |d| d.state == "open" }
 

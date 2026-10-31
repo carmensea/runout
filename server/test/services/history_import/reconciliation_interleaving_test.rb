@@ -92,7 +92,7 @@ class HistoryImport::ReconciliationInterleavingTest < ActiveSupport::TestCase
 
     private
 
-    def validated(fetch, matching_fetch, snapshot)
+    def validated(fetch, matching_fetch, snapshot, conflicts = [])
       @trace.record(@name, :validated_snapshot, snapshot.entries.map { |e| [ e.played_at.to_i, e.track ] }.sort)
       @points.reach("#{@name}:validated")
       super
