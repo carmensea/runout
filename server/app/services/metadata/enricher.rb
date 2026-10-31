@@ -25,7 +25,7 @@ module Metadata
     def run!(limit: 50)
       Enrichment.ensure_enabled!
       counts = Hash.new(0)
-      MetadataTarget.due(now).where(entity_kind: "artist").limit(limit).to_a.each do |target|
+      MetadataTarget.due(now).where(provider: Enrichment::PROVIDER, entity_kind: "artist").limit(limit).to_a.each do |target|
         counts[process(target)] += 1
       end
       Summary.new(processed: counts.values.sum, ok: counts[:ok], not_found: counts[:not_found], invalid: counts[:invalid],

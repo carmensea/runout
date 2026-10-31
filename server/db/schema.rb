@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000022) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000023) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -332,6 +332,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000022) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["provider", "provider_id"], name: "index_metadata_artists_on_provider_and_provider_id", unique: true
+  end
+
+  create_table "metadata_artworks", force: :cascade do |t|
+    t.string "provider", null: false
+    t.text "release_id", null: false
+    t.text "release_group_id"
+    t.string "found_on"
+    t.text "image_id"
+    t.text "thumbnail_250"
+    t.text "thumbnail_500"
+    t.text "thumbnail_1200"
+    t.text "source_url", null: false
+    t.datetime "fetched_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "release_id"], name: "index_metadata_artworks_on_provider_and_release_id", unique: true
+    t.check_constraint "(found_on::text = 'release_group'::text) <= (release_group_id IS NOT NULL)", name: "metadata_artworks_group"
+    t.check_constraint "found_on IS NULL OR (found_on::text = ANY (ARRAY['release'::character varying, 'release_group'::character varying]::text[]))", name: "metadata_artworks_found_on"
   end
 
   create_table "metadata_fetches", force: :cascade do |t|

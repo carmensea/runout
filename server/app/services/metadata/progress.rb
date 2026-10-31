@@ -4,7 +4,7 @@ module Metadata
     module_function
 
     def report
-      targets = MetadataTarget.where(entity_kind: "artist")
+      targets = MetadataTarget.where(provider: Enrichment::PROVIDER, entity_kind: "artist")
       by_status = targets.group(:status).count
       by_plays = targets.group(:status).sum(:priority)
       played = Planner.played_artists
@@ -21,8 +21,17 @@ module Metadata
         plays_of_identified_artists: total_plays,
         plays_enriched: by_plays["ok"].to_i,
         plays_classified: played.sum { |mbid, n| classified.include?(mbid) ? n : 0 },
-        next_due: targets.where.not(status: "ok").minimum(:next_attempt_at)
+        next_due: targets.where.not(status: "ok").minimum(:next_attempt_at),
+        artwork: artwork
       }
+    end
+
+    def artwork
+      targets = MetadataTarget.where(provider: Artwork::PROVIDER)
+      found = MetadataArtwork.where(provider: Artwork::PROVIDER).where.not(found_on: nil)
+      { queued: targets.count, with_cover: found.count, on_release: found.where(found_on: "release").count,
+        on_release_group: found.where(found_on: "release_group").count, without_cover: targets.where(status: "not_found").count,
+        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count }
     end
   end
 end

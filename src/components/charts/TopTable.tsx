@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import type { TopEntry, TopKind } from '../../data/types';
 import type { Formatter } from '../../lib/format';
+import { approvedImage } from '../../lib/artwork';
 import { Artwork } from '../ui/Artwork';
 import { Sparkline } from './Sparkline';
 import styles from './TopTable.module.css';
@@ -60,7 +61,12 @@ export function TopTable({ kind, entries, total, fmt, hrefFor, viewAllHref, pane
         </table>
       </div>
       <div className={styles.foot}>
-        <span>Showing 1 to {entries.length} of {fmt.count(total)}</span>
+        <span>
+          Showing 1 to {entries.length} of {fmt.count(total)}
+          {entries.some((e) => approvedImage(e.imageUrl)) && (
+            <> · Artwork from the <a href="https://coverartarchive.org" target="_blank" rel="noreferrer">Cover Art Archive</a></>
+          )}
+        </span>
         <Link to={viewAllHref}>View all {kind}</Link>
       </div>
     </div>

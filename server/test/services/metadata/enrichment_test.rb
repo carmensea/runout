@@ -194,6 +194,6 @@ class Metadata::EnrichmentTest < ActiveSupport::TestCase
     enricher.run!
     r = Metadata::Progress.report
     assert_equal({ identified_artists: 3, queued: 3, completed: 1, unavailable: 1, failed: 0, remaining: 1, retrying: 1,
-                   plays_of_identified_artists: 10, plays_enriched: 6, plays_classified: 6 }, r.except(:next_due))
+                   plays_of_identified_artists: 10, plays_enriched: 6, plays_classified: 6 }, r.except(:next_due, :artwork))
   end
 end

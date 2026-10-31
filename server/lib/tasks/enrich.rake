@@ -15,6 +15,19 @@ namespace :enrich do
     puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ") + format(" elapsed=%.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
   end
 
+  desc "Queue played releases for artwork, most played first: LIMIT=50 (all when unset)"
+  task plan_artwork: :environment do
+    limit = ENV["LIMIT"].presence&.to_i
+    puts "Queued: #{Metadata::Artwork.plan!(limit: limit)} releases in all#{" (the #{limit} most played requested)" if limit}."
+  end
+
+  desc "Fetch due artwork now, in this process: LIMIT=50"
+  task run_artwork: :environment do
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    summary = Metadata::Artwork::Enricher.new.run!(limit: ENV.fetch("LIMIT", "50").to_i)
+    puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ") + format(" elapsed=%.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+  end
+
   desc "Enrichment progress"
   task status: :environment do
     Metadata::Progress.report.each { |k, v| puts format("%-28s %s", k, v.inspect) }

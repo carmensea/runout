@@ -33,7 +33,7 @@ module Metadata
       rows.each_slice(1000) do |batch|
         MetadataTarget.upsert_all(batch, unique_by: :index_metadata_targets_identity, update_only: %i[priority])
       end
-      MetadataTarget.where(entity_kind: "artist").count
+      MetadataTarget.where(provider: Enrichment::PROVIDER, entity_kind: "artist").count
     end
   end
 end

@@ -12,8 +12,9 @@ class MetadataEnrichJob < ApplicationJob
     return unless Metadata::Enrichment.enabled?
     return unless MetadataTarget.due.exists?
 
-    summary = Metadata::Enricher.new.run!(limit: BATCH)
-    Rails.logger.info("MetadataEnrichJob: #{summary.to_h.to_json}")
-    self.class.perform_later if summary.processed == BATCH && MetadataTarget.due.exists?
+    artists = Metadata::Enricher.new.run!(limit: BATCH)
+    artwork = Metadata::Artwork::Enricher.new.run!(limit: BATCH)
+    Rails.logger.info("MetadataEnrichJob: artists #{artists.to_h.to_json}, artwork #{artwork.to_h.to_json}")
+    self.class.perform_later if (artists.processed == BATCH || artwork.processed == BATCH) && MetadataTarget.due.exists?
   end
 end

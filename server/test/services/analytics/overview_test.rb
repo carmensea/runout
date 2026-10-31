@@ -155,7 +155,7 @@ class Analytics::OverviewTest < ActiveSupport::TestCase
     assert_equal [ "month:2014-01", "month:2014-06" ], o[:nearestWithData]
     assert_nil o[:genres], "not available yet (Milestone 4), never estimated"
     assert_nil o[:metadata]
-    assert_nil o[:stats][:albumsWithoutArtwork]
+    assert_equal 0, o[:stats][:albumsWithoutArtwork], "no albums, so none without artwork"
   end
 
   test "coverage says when a period isn't fully imported, and which dates are missing" do

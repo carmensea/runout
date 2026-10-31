@@ -150,8 +150,13 @@ module Analytics
                (SELECT count(*) FROM by_track), (SELECT count(*) FROM by_track WHERE n = 1),
                (SELECT count(DISTINCT l) FROM ov)
       SQL
+      covered = rows(<<~SQL).first.first
+        SELECT count(DISTINCT ov.l) FROM ov JOIN ov_keys k ON k.id = ov.v
+          JOIN albums al ON k.album_key = 'l' || al.id
+          JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+      SQL
       { scrobbles: total.to_i, firstScrobbleDate: first_lt&.to_date&.iso8601, uniqueArtists: artists, artistsPlayedOverTen: over_ten,
-        uniqueTracks: tracks, tracksPlayedOnce: once, uniqueAlbums: albums, albumsWithoutArtwork: nil }
+        uniqueTracks: tracks, tracksPlayedOnce: once, uniqueAlbums: albums, albumsWithoutArtwork: albums - covered }
     end
 
     # Buckets in order, every bucket of the period present (zero when nothing was played), each
@@ -244,6 +249,7 @@ module Analytics
       return [] if list.empty?
 
       names = labels(kind, list.map(&:first))
+      covers = kind == :a ? {} : artwork(kind, list.map(&:first))
       span = trend_span
       trends = Hash.new { |h, k| h[k] = Array.new(TREND_POINTS, 0) }
       rows(<<~SQL, ids: list.map(&:first), from: span.begin, to: span.end, points: TREND_POINTS).each do |id, b, n|
@@ -255,9 +261,22 @@ module Analytics
       # Ties in play count by name, so the order doesn't depend on internal ids.
       list.sort_by { |id, n| [ -n, names.dig(id, 1).to_s ] }.map do |id, n, first, last, distinct_tracks|
         key, title, by = names.fetch(id)
-        { id: key, name: title, artist: kind == :a ? nil : by, tracksPlayed: distinct_tracks, imageUrl: nil, scrobbles: n,
+        { id: key, name: title, artist: kind == :a ? nil : by, tracksPlayed: distinct_tracks, imageUrl: covers[id], scrobbles: n,
           firstScrobble: first.to_date.iso8601, latestScrobble: last.to_date.iso8601, trend: trends[id].first(TREND_POINTS) }
       end
+    end
+
+    # Front covers from the Cover Art Archive (docs/milestone-4-plan.md §10.4), by album or track id:
+    # an album's own, a track's that of the album it was most played from. Only catalogue albums
+    # (release IDs), never matched by name; only URLs on approved hosts. Artists have none yet.
+    def artwork(kind, ids)
+      rows(<<~SQL, ids: ids).to_h { |id, url| [ id, CoverArt::Client.approved(url) ] }.compact
+        SELECT p.id, COALESCE(art.thumbnail_250, art.thumbnail_500)
+          FROM (SELECT #{kind} AS id, mode() WITHIN GROUP (ORDER BY l) AS l FROM ov WHERE #{kind} IN (:ids) AND l IS NOT NULL GROUP BY 1) p
+          JOIN (SELECT DISTINCT l, album_key FROM ov_keys WHERE l IS NOT NULL) k ON k.l = p.l
+          JOIN albums al ON k.album_key = 'l' || al.id
+          JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+      SQL
     end
 
     # The interval the trend points divide evenly: the period, or the history for `all`.

@@ -46,6 +46,11 @@ module MusicBrainz
       get("#{BASE}/artist/#{mbid}?inc=genres+tags&fmt=json")
     end
 
+    # GET release/{mbid} with its release group: the link from a release to its release group.
+    def release(mbid)
+      get("#{BASE}/release/#{mbid}?inc=release-groups&fmt=json")
+    end
+
     private
 
     def get(url)

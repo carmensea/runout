@@ -240,6 +240,27 @@ describe('Overview, connected', () => {
     expect(screen.queryByText(/without artwork/)).not.toBeInTheDocument();
   });
 
+  it('shows album artwork only from the Cover Art Archive, credits it, and counts albums without artwork', async () => {
+    const user = userEvent.setup();
+    const base = makeOverview();
+    const album = { ...base.top.artists[0]!, artist: 'Test Artist A', tracksPlayed: null };
+    const real = makeOverview({
+      top: {
+        ...base.top,
+        albums: [
+          { ...album, id: 'l1', name: 'Covered', imageUrl: 'https://coverartarchive.org/release/r1/1-250.jpg' },
+          { ...album, id: 'l2', name: 'Elsewhere', imageUrl: 'https://example.com/cover.jpg' },
+        ],
+      },
+    });
+    const { container } = renderApp(connectedApi(() => real), '/overview?period=year:2020');
+    await user.click(await screen.findByRole('tab', { name: 'Albums' }));
+    const images = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(images).toEqual(['https://coverartarchive.org/release/r1/1-250.jpg']);
+    expect(screen.getByRole('link', { name: 'Cover Art Archive' })).toHaveAttribute('href', 'https://coverartarchive.org');
+    expect(screen.getByText('2 without artwork')).toBeInTheDocument();
+  });
+
   it('shows genres as whole percentages that add up to 100, explains Unclassified, credits MusicBrainz and opens a genre', async () => {
     const user = userEvent.setup();
     renderApp(connectedApi(), '/overview?period=year:2020');

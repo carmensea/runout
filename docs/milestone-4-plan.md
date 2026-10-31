@@ -356,3 +356,48 @@ artists with genres; real figures from the owner's history with the pilot's 100 
 **Found in the browser:** per-year shares reached the page as JSON strings. PostgreSQL's `sum()` of
 integers is `numeric`, and the stacked chart drew only its first band. They are now numbers, and a
 test checks the JSON types.
+
+## 13. Stage 4: album artwork (2026-10-31)
+
+- **`metadata_artworks`** keeps, per catalogue release, where its front cover was found (`release`
+  or `release_group`), the image ID, the 250/500/1200 px thumbnail URLs and the archive URL it came
+  from. References only: no image is downloaded, cached or proxied.
+  - Release and release-group IDs have their own columns; a check constraint requires a release
+    group ID whenever the cover was found on one.
+  - The release group comes from MusicBrainz's own link (`/ws/2/release/{id}?inc=release-groups`),
+    never from the album's name.
+- **Queue and fetch** (`Metadata::Artwork`) work like artist enrichment:
+  - played releases, most played first, at the end of their merge chains;
+  - albums without a release ID are never queued;
+  - the same flag, negative caching (180 days), backoff and seven-day give-up, and a
+    `metadata_fetches` row per lookup;
+  - `MetadataEnrichJob` runs artists and artwork in each batch;
+  - `enrich:plan_artwork` and `enrich:run_artwork`, with progress in `enrich:status`.
+- **Approved hosts only**, checked three times:
+  - the client follows redirects only to `coverartarchive.org`, `archive.org` and their subdomains,
+    and upgrades `http` to `https`;
+  - the Overview drops any stored URL that fails the same check;
+  - the frontend loads only HTTPS images on those hosts, and treats anything else as missing.
+- **Display:** `imageUrl` on top albums, and on top tracks (from the album the track was most
+  played from). Artists have none: artist images are deferred.
+  - Images load lazily, with no referrer, and are shown whole (`object-fit: contain`) on the neutral
+    `--s2` square. Without one, the lettered placeholder stays.
+  - Top tables credit the Cover Art Archive whenever a cover is shown.
+  - `stats.albumsWithoutArtwork` counts the period's albums with no cover on file, whatever the
+    reason (no release ID, not looked up yet, or none in the archive).
+
+**Supervised sample: the 50 most played releases.** The flag was on only for those commands.
+
+| | |
+|---|---|
+| Front cover found | 50 of 50: 39 on the release, 11 only on its release group |
+| Requests | 207 (a lookup is usually three: the archive, then two redirects within archive.org; plus MusicBrainz when the release has no cover) |
+| Errors | 9 × HTTP 500 from the Cover Art Archive on the first pass; all succeeded on retry |
+| Time | 332 s for the first pass, 45 s for the retries: about 6.6 s per release |
+| Thumbnails | All on `coverartarchive.org`, which redirects the browser to archive.org (about 2 s for a cold 250 px thumbnail, about 15 KB) |
+| History | 209,383 scrobbles, fingerprint unchanged before and after |
+
+- **Played releases:** 11,890 of 24,362 catalogue albums have a release ID. The rest (for example
+  *Midnights (3am Edition)*, a top-three album here) are name-matched only and keep the placeholder.
+- **Real Overview:** all time 2.54–2.62 s, from 2.47 s; a year 0.75 s.
+- **Top 10 albums of all time:** 9 with covers; the tenth has no release ID.
