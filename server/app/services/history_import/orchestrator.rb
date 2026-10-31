@@ -318,7 +318,7 @@ module HistoryImport
         remote = client.recent_tracks(username: identity.username, session_key: identity.session_key, limit: 1,
                                       from: month.window_from, to: month.window_to).total.to_i
         ImportWindow.uncached do
-          present = Scrobble.present.where(user_id: run.user_id).played_between(month.window_from, month.window_to).count
+          present = Scrobble.from_lastfm.present.where(user_id: run.user_id).played_between(month.window_from, month.window_to).count
           scope = ImportWindow.where(id: month.id, state: "committed", window_to: month.window_to)
           scope.update_all(count_checked_at: now, remote_count: remote, present_count: present, updated_at: now)
           Recheck.arm!(scope, run, now: now) unless remote == present

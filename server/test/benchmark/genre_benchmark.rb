@@ -12,7 +12,7 @@ ActiveRecord::Base.connection_pool.disable_query_cache!
 
 SCROBBLES = Integer(ENV.fetch("SCROBBLES", "209000"))
 conn = ActiveRecord::Base.connection
-tables = %w[genre_classifications metadata_artworks metadata_tags metadata_artists metadata_targets metadata_fetches metadata_overrides
+tables = %w[listening_observations listening_sources genre_classifications metadata_artworks metadata_tags metadata_artists metadata_targets metadata_fetches metadata_overrides
             catalogue_inferences mbid_disputes review_decisions reconciliation_disputes scrobble_removals scrobble_corrections
             catalogue_reviews artist_aliases scrobbles import_window_rows import_window_fetches import_windows import_runs
             name_variants tracks albums artists lastfm_connections sessions identities users]

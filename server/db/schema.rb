@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000023) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_01_000024) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -294,6 +294,66 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000023) do
     t.check_constraint "history_state::text = ANY (ARRAY['not_started'::character varying, 'importing'::character varying, 'imported'::character varying, 'failed'::character varying]::text[])", name: "lastfm_connections_history_state_check"
   end
 
+  create_table "listening_observations", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.bigint "listening_source_id", null: false
+    t.string "provider", null: false
+    t.text "source_event_id", null: false
+    t.datetime "reported_at", null: false
+    t.text "reported_at_raw", null: false
+    t.string "timestamp_kind", null: false
+    t.integer "duration_ms"
+    t.bigint "name_variant_id", null: false
+    t.text "provider_track_id"
+    t.text "provider_album_id"
+    t.text "provider_artist_ids", default: [], null: false, array: true
+    t.text "isrc"
+    t.jsonb "context"
+    t.bigint "scrobble_id"
+    t.string "link_state", null: false
+    t.string "linked_by"
+    t.jsonb "match_evidence", default: {}, null: false
+    t.datetime "received_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.integer "times_seen", default: 1, null: false
+    t.jsonb "later_values"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["listening_source_id", "source_event_id"], name: "index_listening_observations_identity", unique: true
+    t.index ["listening_source_id"], name: "index_listening_observations_on_listening_source_id"
+    t.index ["name_variant_id"], name: "index_listening_observations_on_name_variant_id"
+    t.index ["scrobble_id", "provider"], name: "index_listening_observations_one_per_provider", unique: true, where: "(scrobble_id IS NOT NULL)"
+    t.index ["scrobble_id"], name: "index_listening_observations_on_scrobble_id"
+    t.index ["user_id", "link_state"], name: "index_listening_observations_on_user_id_and_link_state"
+    t.index ["user_id", "reported_at"], name: "index_listening_observations_on_user_id_and_reported_at"
+    t.index ["user_id"], name: "index_listening_observations_on_user_id"
+    t.check_constraint "(link_state::text = 'pending_review'::text) = (scrobble_id IS NULL)", name: "listening_observations_scrobble"
+    t.check_constraint "link_state::text = ANY (ARRAY['created'::character varying, 'linked'::character varying, 'pending_review'::character varying]::text[])", name: "listening_observations_link_state"
+    t.check_constraint "provider::text = 'spotify'::text", name: "listening_observations_provider"
+  end
+
+  create_table "listening_sources", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.string "provider", null: false
+    t.text "external_account_id", null: false
+    t.text "display_name"
+    t.string "state", default: "connected", null: false
+    t.text "credentials"
+    t.text "scopes"
+    t.datetime "connected_at", null: false
+    t.datetime "disconnected_at"
+    t.datetime "paused_at"
+    t.text "last_error"
+    t.datetime "last_error_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "external_account_id"], name: "index_listening_sources_on_provider_and_external_account_id", unique: true
+    t.index ["user_id", "provider"], name: "index_listening_sources_on_user_id_and_provider"
+    t.index ["user_id"], name: "index_listening_sources_on_user_id"
+    t.check_constraint "provider::text = 'spotify'::text", name: "listening_sources_provider"
+    t.check_constraint "state::text = ANY (ARRAY['connected'::character varying, 'needs_reauth'::character varying, 'disconnected'::character varying]::text[])", name: "listening_sources_state"
+  end
+
   create_table "mbid_disputes", force: :cascade do |t|
     t.binary "strings_hash", null: false
     t.string "level", null: false
@@ -541,9 +601,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000023) do
     t.datetime "removed_at"
     t.bigint "first_seen_fetch_id"
     t.datetime "created_at", null: false
+    t.string "source", default: "lastfm", null: false
     t.index ["name_variant_id"], name: "index_scrobbles_on_name_variant_id"
     t.index ["user_id", "played_at", "seq"], name: "index_scrobbles_identity", unique: true
     t.check_constraint "seq >= 0", name: "scrobbles_seq_non_negative"
+    t.check_constraint "source::text = ANY (ARRAY['lastfm'::character varying, 'spotify'::character varying]::text[])", name: "scrobbles_source"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -626,6 +688,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000023) do
   add_foreign_key "import_windows", "users", on_delete: :cascade
   add_foreign_key "lastfm_connections", "identities", on_delete: :cascade
   add_foreign_key "lastfm_connections", "users", on_delete: :cascade
+  add_foreign_key "listening_observations", "listening_sources", on_delete: :cascade
+  add_foreign_key "listening_observations", "name_variants"
+  add_foreign_key "listening_observations", "scrobbles"
+  add_foreign_key "listening_observations", "users", on_delete: :cascade
+  add_foreign_key "listening_sources", "users", on_delete: :cascade
   add_foreign_key "mbid_disputes", "import_windows", column: "first_import_window_id", on_delete: :nullify
   add_foreign_key "name_variants", "albums"
   add_foreign_key "name_variants", "artists"

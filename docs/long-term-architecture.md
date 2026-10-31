@@ -161,6 +161,9 @@ Users, sessions and history already belong to Runout's own UUIDs; identities are
 
 ## 9. What in today's design would make this harder, and when to change it
 
+**Update 2026-10-31:** #1, #2 (Last.fm side), #5 (for new sources) and #10 are addressed by the
+Spotify work (`docs/spotify-plan.md` §2, §5).
+
 | # | Current decision | Impact on the direction | Severity | Change in |
 |---|---|---|---|---|
 | 1 | One flag, `LASTFM_HISTORY_STORAGE_ENABLED`, gates **all** history models (`HistoryStorage`) | Directly scrobbled data would be blocked by Last.fm's licensing | High | Source model milestone: one gate per source |

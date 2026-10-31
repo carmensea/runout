@@ -58,6 +58,9 @@ module Runout
     config.x.history_import_enabled = ENV.fetch("LASTFM_HISTORY_STORAGE_ENABLED", "false")
     # Metadata enrichment (MusicBrainz) is off unless switched on (docs/milestone-4-plan.md §5).
     config.x.metadata_enrichment_enabled = ENV.fetch("METADATA_ENRICHMENT_ENABLED", "false")
+    # Storing plays reported by Spotify (ListeningStorage, docs/spotify-plan.md). Off unless exactly
+    # "true" or "1"; connecting an account and read-only checks don't need it.
+    config.x.spotify_ingestion_enabled = ENV.fetch("SPOTIFY_INGESTION_ENABLED", "false")
 
     # Ongoing synchronisation (HistoryImport::Sync, docs/milestone-2-plan.md §5.2). The recurring
     # tick (config/recurring.yml) starts whichever kind is due; these say how often each is due.

@@ -45,6 +45,21 @@ class HistoryImport::ReconciliationTest < ActiveSupport::TestCase
 
   def removal_for(track) = ScrobbleRemoval.joins(scrobble: :name_variant).where(name_variants: { track_name: track }).order(:id).last
 
+  test "plays from another source are never compared, flagged or renumbered, and Last.fm plays take the slots after them" do
+    spotify = ->(at, track) { Scrobble.create!(user: @user, played_at: at, seq: 0, source: "spotify", name_variant: variant(artist: "Artist", track: track)) }
+    direct = spotify.(T, "Spotify only")         # in a second Last.fm also reports, before the month is first committed
+    later = spotify.(T + 3600, "Spotify later")  # a second Last.fm never reports
+    check!(base)
+    assert_equal [ [ T, 0, "Spotify only" ], [ T, 1, "A" ], [ T, 2, "B" ], [ T, 3, "C" ] ],
+                 stored.where(played_at: T).includes(:name_variant).map { |s| [ s.played_at, s.seq, s.name_variant.track_name ] }
+    window = check!(base + [ entry(T, "D") ])
+    assert_equal 4, stored.find_by!(name_variant: NameVariant.find_by!(track_name: "D")).seq
+    assert_equal({ "matched" => 4, "added" => 1 }, window.last_check_summary)
+    assert_equal [ 0, 0 ], [ ScrobbleRemoval.count, ReconciliationDispute.count ], "Last.fm not reporting a Spotify play is not a removal"
+    assert_equal [ [ direct.id, 0, nil ], [ later.id, 0, nil ] ], Scrobble.where(source: "spotify").order(:id).pluck(:id, :seq, :removed_at)
+    assert_equal 5, window.committed_count, "Last.fm's own count for the month"
+  end
+
   test "an identical snapshot changes nothing and marks the month synchronized" do
     check!(base)
     before = snapshot_of

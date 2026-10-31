@@ -114,7 +114,7 @@ module HistoryImport
           check_range_is_empty(window)
           variant_ids = store_variants(rows)
           added = store_scrobbles(window, rows, variant_ids)
-          stored = Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
+          stored = Scrobble.from_lastfm.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
           raise "stored #{stored} plays, expected #{rows.size}" unless added == rows.size && stored == rows.size
 
           summary = { added: added }
@@ -122,7 +122,7 @@ module HistoryImport
 
         verified = window.whole_window_checked?
         window.window_to = range.end if range.end > window.window_to
-        present = Scrobble.present.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
+        present = Scrobble.from_lastfm.present.where(user_id: window.user_id).played_between(window.window_from, window.window_to).count
         window.assign_attributes(state: "committed", committed_at: window.committed_at || now, committed_count: present,
                                  last_checked_at: now, last_check_fetch_id: @fetch.id, last_check_summary: summary,
                                  check_from: nil, check_to: nil, claim_token: nil, lease_expires_at: nil, last_error_message: nil, retry_at: nil,
@@ -159,7 +159,7 @@ module HistoryImport
     end
 
     def check_range_is_empty(window)
-      return unless Scrobble.where(user_id: window.user_id).played_between(window.window_from, window.window_to).exists?
+      return unless Scrobble.from_lastfm.where(user_id: window.user_id).played_between(window.window_from, window.window_to).exists?
 
       raise Inconsistent, "plays are already stored in a range that was never committed"
     end
@@ -182,9 +182,12 @@ module HistoryImport
       ids
     end
 
+    # Slots follow the snapshot's positions, after any held by other sources' plays in that second.
     def store_scrobbles(window, rows, variant_ids)
+      other = Scrobble.where(user_id: window.user_id).where.not(source: "lastfm").played_between(window.window_from, window.window_to)
+                      .group(:played_at).maximum(:seq).transform_keys(&:to_i)
       records = rows.map do |row|
-        { user_id: window.user_id, played_at: row.played_at, seq: row.position,
+        { user_id: window.user_id, played_at: row.played_at, seq: row.position + (other.key?(row.played_at.to_i) ? other[row.played_at.to_i] + 1 : 0),
           name_variant_id: variant_ids.fetch(row.variant_hash), first_seen_fetch_id: @fetch.id }
       end
       records.each_slice(BATCH).sum { |batch| Scrobble.insert_all!(batch).length }

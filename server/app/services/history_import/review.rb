@@ -182,7 +182,7 @@ module HistoryImport
       window = ImportWindow.live.imported.where(user_id: user_id).find_by("window_from <= ? AND window_to > ?", played_at, played_at)
       return unless window
 
-      present = Scrobble.present.where(user_id: user_id).played_between(window.window_from, window.window_to).count
+      present = Scrobble.from_lastfm.present.where(user_id: user_id).played_between(window.window_from, window.window_to).count
       ImportWindow.where(id: window.id).update_all(committed_count: present, present_count: present, count_mismatch_at: nil, updated_at: Time.current)
     end
   end

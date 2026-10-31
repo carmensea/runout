@@ -63,7 +63,7 @@ module Catalogue
     end
 
     def match!(variant)
-      HistoryImport.ensure_enabled!
+      ListeningStorage.ensure_writable!
       NameVariant.transaction do
         v = NameVariant.lock.find(variant.id)
         @disputed = MbidDispute.levels_for(v)

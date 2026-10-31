@@ -15,7 +15,8 @@ module HistoryImport
              updated_at = :now
         FROM (SELECT w2.id, COUNT(s.id) FILTER (WHERE s.removed_at IS NULL) AS present
                 FROM import_windows w2
-                LEFT JOIN scrobbles s ON s.user_id = w2.user_id AND s.played_at >= w2.window_from AND s.played_at < w2.window_to
+                LEFT JOIN scrobbles s ON s.user_id = w2.user_id AND s.source = 'lastfm'
+                                     AND s.played_at >= w2.window_from AND s.played_at < w2.window_to
                WHERE w2.user_id = :user AND w2.state = 'committed'
                GROUP BY w2.id) c
        WHERE w.id = c.id AND w.state = 'committed'

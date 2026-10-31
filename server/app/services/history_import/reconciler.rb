@@ -54,6 +54,7 @@ module HistoryImport
     # Returns counts of what happened, for the window's last_check_summary.
     def call
       stored = stored_plays
+      @other_slots = other_slots
       @removals = ScrobbleRemoval.where(scrobble_id: stored.map(&:id)).order(:id).group_by(&:scrobble_id)
       @disputes = ReconciliationDispute.where(user_id: @window.user_id, played_at: @range, state: %w[open dismissed])
                                        .order(:id).group_by { |d| d.played_at.to_i }
@@ -72,12 +73,22 @@ module HistoryImport
 
     private
 
-    # Every play in the month, removed ones included, with its variant's strings. Read from the
+    # Every Last.fm play in the month, removed ones included, with its variant's strings. Plays from
+    # other sources are never compared, removed or disputed here (docs/spotify-plan.md §5): they
+    # only keep their slots (#other_slots). Read from the
     # database, never from the query cache: writes by other processes don't clear it.
     def stored_plays
       Scrobble.uncached do
-        Scrobble.where(user_id: @window.user_id).played_between(@range.begin, @range.end).joins(:name_variant)
+        Scrobble.from_lastfm.where(user_id: @window.user_id).played_between(@range.begin, @range.end).joins(:name_variant)
                 .select("scrobbles.*, name_variants.artist_name, name_variants.track_name, name_variants.album_name").to_a
+      end
+    end
+
+    # The highest slot per second held by other sources' plays, which new Last.fm plays go after.
+    def other_slots
+      Scrobble.uncached do
+        Scrobble.where(user_id: @window.user_id).where.not(source: "lastfm").played_between(@range.begin, @range.end)
+                .group(:played_at).maximum(:seq).transform_keys(&:to_i)
       end
     end
 
@@ -161,7 +172,8 @@ module HistoryImport
       supersede!(open, "the second is no longer ambiguous") if open
       @summary[:matched] += matched.size
       matched.each { |s| s.removed_at ? reappeared!(s) : seen!(s) }
-      next_seq = stored.map(&:seq).max.to_i + (stored.any? ? 1 : 0)
+      taken = [ stored.map(&:seq).max, @other_slots[t] ].compact.max
+      next_seq = taken ? taken + 1 : 0
       unmatched_staged.each_with_index do |row, i|
         @inserts << { user_id: @window.user_id, played_at: row.played_at, seq: next_seq + i,
                       name_variant_id: @variant_ids.fetch(row.variant_hash), first_seen_fetch_id: @fetch.id }
