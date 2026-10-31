@@ -1,10 +1,29 @@
 /** Test-only data. Small, obviously synthetic values used to exercise rendering paths. */
 import type { HistoryApi, RunoutApi } from '../data/api';
 import { NotConnectedError, noHistoryApi } from '../data/api';
-import type { ImportStatus, OverviewData, ReviewQueue, SyncHealth } from '../data/types';
+import type { ArtistKindKey, GenreDetail, ImportStatus, OverviewData, ReviewQueue, SyncHealth } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0);
+
+const noKinds: Record<ArtistKindKey, number> = {
+  female: 0, male: 0, nonbinary: 0, other_gender: 0, person_unlisted: 0, group: 0, orchestra_choir: 0, other_type: 0,
+  type_unlisted: 0, not_looked_up: 0, not_identified: 0,
+};
+
+export function makeGenreDetail(slug = 'rock', overrides: Partial<GenreDetail> = {}): GenreDetail {
+  return {
+    period: 'all',
+    genre: { slug, name: 'Rock', level: 'broad', parent: null },
+    plays: 100, allocated: 40, share: 0.4, reach: { plays: 70, share: 0.7 }, unclassifiedShare: 0.2,
+    subgenres: [{ slug: 'post-punk', name: 'Post-punk', allocated: 30, share: 0.3 }, { slug: null, name: 'Other rock', allocated: 10, share: 0.1 }],
+    topArtists: [{ id: 'a1', name: 'Test Artist A', allocated: 25.5, plays: 30, genreShare: 0.85 }],
+    topTracks: [{ id: 't1', name: 'Test Track', artist: 'Test Artist A', allocated: 8.5 }],
+    byYear: [{ year: 2020, plays: 60, allocated: 30, share: 0.5, reachShare: 0.8 }, { year: 2021, plays: 40, allocated: 10, share: 0.25, reachShare: 0.5 }],
+    methodology: { level: 'artist', provider: 'MusicBrainz', license: 'CC BY-NC-SA 3.0', url: 'https://musicbrainz.org' },
+    ...overrides,
+  };
+}
 
 export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewData {
   return {
@@ -37,12 +56,15 @@ export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewDat
           { id: 'jazz', name: 'Jazz', share: 0.3, subgenres: [], topArtists: [] },
         ],
         untaggedShare: 0.1,
+        unclassified: { notIdentified: 0.05, notLookedUp: 0.03, noGenres: 0.02 },
         byYear: [
           { year: 2020, shares: { rock: 0.6, jazz: 0.3, untagged: 0.1 } },
           { year: 2021, shares: { rock: 0.5, jazz: 0.4, untagged: 0.1 } },
         ],
       },
       sub: null,
+      level: 'artist',
+      source: { provider: 'MusicBrainz', license: 'CC BY-NC-SA 3.0', url: 'https://musicbrainz.org' },
     },
     top: {
       artists: [{ id: 'a1', name: 'Test Artist A', artist: null, tracksPlayed: 4, imageUrl: null, scrobbles: 20, firstScrobble: '2020-01-05', latestScrobble: '2021-02-01', trend: [1, 2, 3] }],
@@ -55,9 +77,10 @@ export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewDat
     backInRotation: [],
     discovery: { months: [{ key: '2020-01', newArtists: 3, explorationShare: 0.2 }], firstHeard: [], rediscovered: [] },
     metadata: {
-      byArtists: { male: 1, female: 1, nonbinary: 0, group: 1, unknown: 1 },
-      byScrobbles: { male: 10, female: 10, nonbinary: 0, group: 10, unknown: 10 },
+      byArtists: { ...noKinds, male: 1, female: 1, group: 1, not_looked_up: 1 },
+      byScrobbles: { ...noKinds, male: 10, female: 10, group: 10, not_looked_up: 10 },
       unmatchedArtists: 0,
+      source: { provider: 'MusicBrainz', license: 'CC0', url: 'https://musicbrainz.org' },
     },
     nearestWithData: [],
     coverage: { status: 'complete', missing: [] },
@@ -74,6 +97,7 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     getCalendarDays: async (from, to) => ({ from, to, days: [], coverage: { status: 'none', missing: [] } }),
     getPlays: async (p) => ({ period: serializePeriod(p), total: 0, plays: [], nextCursor: null, coverage: { status: 'none', missing: [] } }),
     getOnThisDay: async (date) => ({ date, leapDay: false, years: [] }),
+    getGenre: async (slug) => makeGenreDetail(slug),
     signInUrl: () => '/api/auth/lastfm',
     signOut: async () => {},
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
@@ -151,6 +175,9 @@ export const notConnectedApi: RunoutApi = {
     throw new NotConnectedError();
   },
   getOnThisDay: async () => {
+    throw new NotConnectedError();
+  },
+  getGenre: async () => {
     throw new NotConnectedError();
   },
   signInUrl: () => '/api/auth/lastfm',

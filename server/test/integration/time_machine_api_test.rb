@@ -63,3 +63,29 @@ class TimeMachineApiTest < ActionDispatch::IntegrationTest
     assert_equal "invalid_cursor", response.parsed_body["error"]
   end
 end
+
+# GET /api/genres/:slug. Synthetic data only.
+class GenresApiTest < ActionDispatch::IntegrationTest
+  include HistoryHelpers
+
+  test "a genre's detail for the signed-in user only; unknown genres and periods refused" do
+    get "/api/genres/pop"
+    assert_response :unauthorized
+
+    Genres::Seed.new.apply!
+    sign_in_via_lastfm(username: "listener")
+    user = User.sole
+    scrobble(user, at: Time.utc(2014, 3, 15, 12), variant: variant(track: "Mine", artist: "My Band"))
+    scrobble(history_user("other"), at: Time.utc(2014, 3, 15, 12), variant: variant(track: "Theirs", artist: "Their Band"))
+
+    get "/api/genres/pop", params: { period: "year:2014" }
+    assert_response :ok
+    body = response.parsed_body
+    assert_equal %w[allocated byYear genre methodology period plays reach share subgenres topArtists topTracks unclassifiedShare], body.keys.sort
+    assert_equal 1, body["plays"], "only this user's plays"
+    get "/api/genres/nonsense"
+    assert_response :not_found
+    get "/api/genres/pop", params: { period: "year:20x4" }
+    assert_response :bad_request
+  end
+end

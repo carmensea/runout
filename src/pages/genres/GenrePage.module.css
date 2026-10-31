@@ -1,0 +1,123 @@
+/* The genre page: the Overview's layout and tokens; nothing new but rows of bars and two tables. */
+
+.back {
+  color: inherit;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--ac);
+}
+
+.bars {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: minmax(96px, 200px) minmax(0, 1fr) 56px 140px;
+  gap: 16px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--ln2);
+  font-size: 13px;
+}
+
+.barRow a {
+  color: var(--fg);
+}
+
+.barRow .mono {
+  font-size: 12px;
+  text-align: right;
+}
+
+.barRow > :first-child {
+  text-align: left;
+}
+
+.track {
+  display: block;
+  height: 6px;
+  background: var(--ln2);
+}
+
+.track span {
+  display: block;
+  height: 100%;
+  background: var(--ac);
+}
+
+.muted {
+  color: var(--mu);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--ln);
+  color: var(--mu);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.table td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--ln2);
+  color: var(--fg);
+}
+
+.table td a {
+  color: var(--fg);
+}
+
+.num {
+  text-align: right !important;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.method {
+  margin-top: 56px;
+  border-top: 1px solid var(--ln);
+  padding-top: 16px;
+  max-width: 720px;
+  display: grid;
+  gap: 10px;
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.methodTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 20px;
+  color: var(--fg);
+}
+
+@media (max-width: 767px) {
+  .barRow {
+    grid-template-columns: minmax(0, 1fr) 48px;
+    row-gap: 4px;
+  }
+
+  .track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .barRow > :last-child {
+    display: none;
+  }
+}

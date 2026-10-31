@@ -8,7 +8,8 @@ interface Props {
   genres: Array<GenreCategory & { color: string }>;
   selectedId: string | null;
   onSelect(id: string | null): void;
-  formatShare(share: number): string;
+  /** The genre's share as shown (whole percentages that add up to 100, worked out by the caller). */
+  formatShare(share: number, id: string): string;
 }
 
 /** Selectable list (role="listbox"). Arrow keys move the selection. */
@@ -56,7 +57,7 @@ export function GenreList({ genres, selectedId, onSelect, formatShare }: Props) 
             <div style={{ height: 6, background: 'var(--ln2)' }} aria-hidden="true">
               <div style={{ height: 6, width: `${ratio(g.share, max) * 100}%`, background: g.color }} />
             </div>
-            <span className="mono" style={{ fontSize: 12, textAlign: 'right' }}>{formatShare(g.share)}</span>
+            <span className="mono" style={{ fontSize: 12, textAlign: 'right' }}>{formatShare(g.share, g.id)}</span>
           </div>
         );
       })}
@@ -66,17 +67,20 @@ export function GenreList({ genres, selectedId, onSelect, formatShare }: Props) 
 
 interface PanelProps {
   genre: GenreCategory;
+  /** The genre's own page, when it has one ("Other genres" doesn't). */
+  genreHref?: string | null;
   artistHref(id: string): string;
   formatCount(n: number): string;
   onClear(): void;
 }
 
 /** Selected genre: subgenres and the artists contributing most scrobbles. */
-export function GenrePanel({ genre, artistHref, formatCount, onClear }: PanelProps) {
+export function GenrePanel({ genre, genreHref, artistHref, formatCount, onClear }: PanelProps) {
   return (
     <div className={styles.panel} aria-live="polite">
       <div className={styles.panelHead}>
         <h4 className={styles.panelTitle}>{genre.name}</h4>
+        {genreHref && <Link to={genreHref} className={styles.linkButton}>Open {genre.name}</Link>}
         <button type="button" className={styles.linkButton} onClick={onClear}>Clear selection</button>
       </div>
       {genre.subgenres.length > 0 && (

@@ -320,3 +320,39 @@ Tanlines, Tim Kasher, pr0files.
 **The 503s.** About 12% of requests were rate limited although Runout spaced them 1.1 s apart.
 MusicBrainz limits clients without contact details more strictly. Before the full run: set
 `MUSICBRAINZ_CONTACT`, and consider a 1.5 s interval.
+
+## 12. Stage 3: genre analytics and the genre page (2026-10-31)
+
+- **The Overview fills `genres` and `metadata`** once any artist is classified, and keeps them null
+  before that.
+  - Broad genres and subgenres: six slots plus Other, with Unclassified broken down by reason (not
+    identified, not looked up yet, no listed genres), and by year with every year summing to 1.
+  - Captions state the artist level and credit MusicBrainz. The listed figures are whole
+    percentages that add up to 100.
+  - Artist metadata uses the §4 categories, with missing values counted and shown.
+- **`GET /api/genres/:slug`** and the page `/genres/:slug`, built from Overview components:
+  - share, plays counted, reach (labelled as overlapping) and Unclassified, beside the comparison
+    period's figures;
+  - share by year, subgenres, contributing artists and tracks, and how it is counted.
+
+**Measured** (median of 3; synthetic histories from `test/benchmark/genre_benchmark.rb`, 60% of
+artists with genres; real figures from the owner's history with the pilot's 100 artists):
+
+| | 209k synthetic | 1M synthetic | Real (209,383) |
+|---|---|---|---|
+| Overview, all time, without → with genres and metadata | 2.29 → 2.92 s | 11.3 → 13.1 s | 2.33 → 2.47 s |
+| Overview, a year, without → with | 0.55 → 0.71 s | 2.6 → 3.3 s | 0.72 → 0.76 s |
+| Genre page, all time | 0.27 s | 1.38 s | 0.22 s |
+| Genre page, a year | 0.05 s | 0.20 s | 0.06 s |
+| Classifying every artist | 0.27 s | 1.10 s | — |
+
+**First version vs this one:**
+- The first version summed in Ruby and built identity keys for every play: genre page 14.2 s at 1M,
+  and genres 2.1 s in the all-time Overview.
+- The sums are now PostgreSQL's, and identity keys are built only for the plays of contributing
+  artists.
+- No summary tables or caching were added.
+
+**Found in the browser:** per-year shares reached the page as JSON strings. PostgreSQL's `sum()` of
+integers is `numeric`, and the stacked chart drew only its first band. They are now numbers, and a
+test checks the JSON types.

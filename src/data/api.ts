@@ -1,6 +1,6 @@
 import { serializePeriod, type Period } from '../lib/period';
 import type {
-  CalendarDays, ConnectionState, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
+  CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
   ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
 } from './types';
 
@@ -17,6 +17,8 @@ export interface RunoutApi {
   getCalendarDays(from: string, to: string, signal?: AbortSignal): Promise<CalendarDays>;
   getPlays(period: Period, cursor: string | null, signal?: AbortSignal): Promise<PlaysPage>;
   getOnThisDay(date: string, signal?: AbortSignal): Promise<OnThisDay>;
+  /** One genre in a period (GET /api/genres/:slug). */
+  getGenre(slug: string, period: Period, signal?: AbortSignal): Promise<GenreDetail>;
   /** Where to send the browser to sign in with Last.fm, or null when no server is configured. */
   signInUrl(): string | null;
   signOut(): Promise<void>;
@@ -151,6 +153,7 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     getCalendarDays: (from, to, signal) => get<CalendarDays>('/calendar', { from, to }, signal),
     getPlays: (period, cursor, signal) => get<PlaysPage>('/plays', { period: serializePeriod(period), ...(cursor ? { cursor } : {}) }, signal),
     getOnThisDay: (date, signal) => get<OnThisDay>('/on-this-day', { date }, signal),
+    getGenre: (slug, period, signal) => get<GenreDetail>(`/genres/${encodeURIComponent(slug)}`, { period: serializePeriod(period) }, signal),
     signInUrl: () => {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       return `${root}/auth/lastfm${tz ? `?${new URLSearchParams({ tz })}` : ''}`;
@@ -202,6 +205,7 @@ export const disconnectedApi: RunoutApi = {
   getCalendarDays: notConnected,
   getPlays: notConnected,
   getOnThisDay: notConnected,
+  getGenre: notConnected,
   signInUrl: () => null,
   signOut: async () => {},
   deleteAccount: async () => {

@@ -240,6 +240,18 @@ describe('Overview, connected', () => {
     expect(screen.queryByText(/without artwork/)).not.toBeInTheDocument();
   });
 
+  it('shows genres as whole percentages that add up to 100, explains Unclassified, credits MusicBrainz and opens a genre', async () => {
+    const user = userEvent.setup();
+    renderApp(connectedApi(), '/overview?period=year:2020');
+    const list = await screen.findByRole('listbox', { name: 'Genres' });
+    const shown = within(list).getAllByRole('option').map((o) => o.textContent);
+    expect(shown).toEqual(['Rock60%', 'Jazz30%']);
+    expect(screen.getByText('10% of plays are unclassified: 3% by artists not looked up yet, 5% by artists without a MusicBrainz ID, 2% by artists with no listed genres.')).toBeInTheDocument();
+    expect(screen.getByText(/CC BY-NC-SA 3.0/)).toBeInTheDocument();
+    await user.click(within(list).getByRole('option', { name: /Rock/ }));
+    expect(screen.getByRole('link', { name: 'Open Rock' })).toHaveAttribute('href', '/genres/rock?period=year%3A2020');
+  });
+
   it('lists the dates a period is missing, and says figures cover imported history only', async () => {
     const missing = [
       { from: '2020-06-01', to: '2020-06-30', startsAt: '2020-05-31T23:00:00Z', endsAt: '2020-06-30T23:00:00Z', partialFrom: false, partialTo: false },

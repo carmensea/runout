@@ -83,7 +83,7 @@ module Analytics
       @from = range.begin || Time.utc(1970)
       @to = range.end || Time.utc(9999)
       # Dropped at commit; dropped here too in case this runs inside an outer transaction.
-      exec("DROP TABLE IF EXISTS ov_keys, ov, ov_artists")
+      exec("DROP TABLE IF EXISTS ov_keys, ov, ov_artists, ov_ga, ov_gaa")
       exec(KEYS_SQL, user: @user.id)
       exec(PLAYS_SQL, user: @user.id, tz: @tz, from: @from, to: @to)
       exec("ANALYZE ov_keys, ov")
@@ -98,13 +98,13 @@ module Analytics
         mostActiveDays: most_active("d", ->(d) { d.iso8601 }),
         mostActiveMonths: most_active("mon", ->(m) { month_key(m) }),
         habits: habits,
-        genres: nil,
+        genres: genres,
         top: top_lists,
         rankHistory: rank_history,
         onRepeat: on_repeat,
         backInRotation: back_in_rotation,
         discovery: discovery,
-        metadata: nil,
+        metadata: artist_metadata,
         nearestWithData: total.to_i.zero? ? nearest_with_data : [],
         coverage: coverage
       }
@@ -361,6 +361,26 @@ module Analytics
           FROM scrobbles WHERE user_id = :user AND removed_at IS NULL
       SQL
       [ before, after ].compact.map { |m| "month:#{m}" }
+    end
+
+    # --- genres and artist metadata (Milestone 4) -------------------------------------------------
+
+    # Null until enrichment has classified anything: nothing is shown as known before it is.
+    def genres
+      return nil unless GenreClassification.where(level: "artist").exists?
+
+      GenreFigures.new(->(sql, **binds) { rows(sql, **binds) }, ->(ids) { labels(:a, ids).transform_values { |key, name, _| [ key, name ] } }).call
+    end
+
+    def artist_metadata
+      return nil unless MetadataArtist.exists?
+
+      plays = rows(<<~SQL).to_h { |key, n| [ key, n.to_i ] }
+        SELECT k.artist_key, sum(c.n) FROM (SELECT a, count(*) AS n FROM ov GROUP BY a) c
+          JOIN (SELECT DISTINCT a, artist_key FROM ov_keys) k USING (a)
+         GROUP BY 1
+      SQL
+      ArtistKinds.call(plays)
     end
 
     # Whether the period lies within imported history (Analytics::Coverage).

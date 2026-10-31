@@ -116,7 +116,7 @@ function buildOverview(period: Period, seed: number): OverviewData {
     mostActiveDays: [100, 92, 88, 81, 77].map((s, i) => ({ key: `2014-03-${pad(i + 1)}`, scrobbles: s })),
     mostActiveMonths: [100, 96, 90, 85, 83].map((s, i) => ({ key: `2014-${pad(i + 1)}`, scrobbles: s * 10 })),
     habits: { byHour, byWeekday, byWeekdayHour, avgPerDayByMonth },
-    genres: { broad: { categories, untaggedShare: 0, byYear }, sub: null },
+    genres: { broad: { categories, untaggedShare: 0, unclassified: { notIdentified: 0, notLookedUp: 0, noGenres: 0 }, byYear }, sub: null, level: 'artist', source: { provider: 'MusicBrainz', license: 'CC BY-NC-SA 3.0', url: 'https://musicbrainz.org' } },
     top: { artists: top('artists'), albums: top('albums'), tracks: top('tracks'), totals: { artists: 1000, albums: 1000, tracks: 1000 } },
     rankHistory: {
       years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026],
@@ -130,9 +130,10 @@ function buildOverview(period: Period, seed: number): OverviewData {
       rediscovered: [31, 32, 33].map((i) => ({ id: `artists-${i}`, name: placeholder('Artist', i), lastYearBefore: 2010 })),
     },
     metadata: {
-      byArtists: { male: 38, female: 21, nonbinary: 3, group: 26, unknown: 12 },
-      byScrobbles: { male: 41, female: 18, nonbinary: 2, group: 31, unknown: 8 },
+      byArtists: { female: 21, male: 38, nonbinary: 3, other_gender: 1, person_unlisted: 4, group: 26, orchestra_choir: 1, other_type: 1, type_unlisted: 1, not_looked_up: 2, not_identified: 2 },
+      byScrobbles: { female: 18, male: 41, nonbinary: 2, other_gender: 1, person_unlisted: 3, group: 31, orchestra_choir: 1, other_type: 1, type_unlisted: 0, not_looked_up: 1, not_identified: 1 },
       unmatchedArtists: 100,
+      source: { provider: 'MusicBrainz', license: 'CC0', url: 'https://musicbrainz.org' },
     },
     nearestWithData: [],
     coverage: { status: 'complete', missing: [] },
@@ -287,6 +288,16 @@ export const specimenApi: RunoutApi = {
   getCalendarDays: async (from, to) => specimenDays(from, to),
   getPlays: async (period, cursor) => specimenPlays(period, cursor),
   getOnThisDay: async (date) => specimenOnThisDay(date),
+  getGenre: async (slug, period) => ({
+    period: serializePeriod(period),
+    genre: { slug, name: placeholder('Genre', 1), level: 'broad', parent: null },
+    plays: 1000, allocated: 400, share: 0.4, reach: { plays: 700, share: 0.7 }, unclassifiedShare: 0.1,
+    subgenres: [1, 2, 3].map((i) => ({ slug: `genre-${i}`, name: placeholder('Subgenre', i), allocated: 100, share: 0.1 })),
+    topArtists: [1, 2, 3, 4, 5].map((i) => ({ id: `artists-${i}`, name: placeholder('Artist', i), allocated: 50, plays: 60, genreShare: 0.8 })),
+    topTracks: [1, 2, 3, 4, 5].map((i) => ({ id: `tracks-${i}`, name: placeholder('Track title', i), artist: placeholder('Artist', i), allocated: 10 })),
+    byYear: Array.from({ length: 10 }, (_, i) => ({ year: 2016 + i, plays: 100, allocated: 40, share: 0.4, reachShare: 0.7 })),
+    methodology: { level: 'artist', provider: 'MusicBrainz', license: 'CC BY-NC-SA 3.0', url: 'https://musicbrainz.org' },
+  }),
   signInUrl: () => null,
   signOut: async () => {},
   deleteAccount: async () => {

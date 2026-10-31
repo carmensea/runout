@@ -8,7 +8,8 @@ import { Icon } from '../../../components/ui/Icon';
 import type { ActivityBucket, OverviewData } from '../../../data/types';
 import { MONTH_NAMES, WEEKDAY_SHORT } from '../../../lib/dates';
 import { quantileBucketer, ratio } from '../../../lib/scale';
-import { artistHref, timeMachineHref, type OverviewView } from '../view';
+import { wholePercentages } from '../../../lib/shares';
+import { artistHref, genreHref, timeMachineHref, unclassifiedText, type OverviewView } from '../view';
 import styles from './MobileOverview.module.css';
 
 /** Accent opacity per quantile step; zero renders as the empty surface. */
@@ -179,7 +180,7 @@ function Genres({ data, view }: { data: OverviewData; view: OverviewView }) {
     return (
       <section aria-labelledby="m-genres">
         <h3 id="m-genres" className={styles.h3} style={{ marginBottom: 10 }}>Genres</h3>
-        <p className="caption" role="status">Genres aren’t available yet. They need artist tags, which Runout doesn’t collect yet.</p>
+        <p className="caption" role="status">Genres aren’t available yet. They come from MusicBrainz once Runout has looked up your artists.</p>
       </section>
     );
   }
@@ -191,13 +192,14 @@ function GenresContent({ breakdown, view }: { breakdown: NonNullable<OverviewDat
   const [open, setOpen] = useState<string | null>(null);
   const genres = breakdown.categories.slice(0, 7).map((g, i) => ({ ...g, color: `var(--c${i + 1})` }));
   const selected = genres.find((g) => g.id === open);
+  const percent = wholePercentages<string>({ ...Object.fromEntries(genres.map((g) => [g.id, g.share])), untagged: breakdown.untaggedShare });
   return (
     <section aria-labelledby="m-genres">
       <h3 id="m-genres" className={styles.h3} style={{ marginBottom: 10 }}>Genres</h3>
       <div
         className={styles.shareBar}
         role="img"
-        aria-label={`Genre share: ${genres.map((g) => `${g.name} ${fmt.percent(g.share)}`).join(', ')}${breakdown.untaggedShare > 0 ? `, untagged ${fmt.percent(breakdown.untaggedShare)}` : ''}.`}
+        aria-label={`Genre share: ${genres.map((g) => `${g.name} ${percent[g.id]}%`).join(', ')}${breakdown.untaggedShare > 0 ? `, unclassified ${percent.untagged}%` : ''}.`}
       >
         {genres.map((g) => <span key={g.id} style={{ flex: g.share, background: g.color }} />)}
         {breakdown.untaggedShare > 0 && <span style={{ flex: breakdown.untaggedShare, background: 'var(--hatch)', outline: '1px solid var(--mu)', outlineOffset: -1 }} />}
@@ -208,15 +210,16 @@ function GenresContent({ breakdown, view }: { breakdown: NonNullable<OverviewDat
             <button type="button" className={styles.genreRow} aria-expanded={open === g.id} onClick={() => setOpen(open === g.id ? null : g.id)}>
               <span aria-hidden="true" style={{ width: 10, height: 10, background: g.color }} />
               <span>{g.name}</span>
-              <span className="mono" style={{ fontSize: 12 }}>{fmt.percent(g.share)}</span>
+              <span className="mono" style={{ fontSize: 12 }}>{percent[g.id]}%</span>
               <span className={styles.chevron} aria-hidden="true"><Icon name="chevron_right" /></span>
             </button>
             {selected?.id === g.id && (
-              <GenrePanel genre={selected} artistHref={(id) => artistHref(view, id)} formatCount={fmt.count} onClear={() => setOpen(null)} />
+              <GenrePanel genre={selected} genreHref={genreHref(view, selected.id)} artistHref={(id) => artistHref(view, id)} formatCount={fmt.count} onClear={() => setOpen(null)} />
             )}
           </div>
         ))}
       </div>
+      {breakdown.untaggedShare > 0 && <p className="caption" style={{ marginTop: 8 }}>{unclassifiedText(breakdown, (s) => fmt.percent(s))}</p>}
     </section>
   );
 }

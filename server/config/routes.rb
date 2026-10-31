@@ -27,5 +27,6 @@ Rails.application.routes.draw do
     resource :calendar, only: :show
     resources :plays, only: :index
     resource :on_this_day, only: :show, path: "on-this-day"
+    get "genres/:slug", to: "genres#show", as: :genre, constraints: { slug: /[a-z0-9-]+/ }
   end
 end

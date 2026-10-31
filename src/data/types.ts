@@ -68,10 +68,12 @@ export interface GenreCategory {
 }
 
 export interface GenreBreakdown {
-  /** Ordered by share, max seven entries mapped to chart slots c1..c7. */
+  /** Ordered by share, max seven entries mapped to chart slots c1..c7; the seventh may be "other". */
   categories: GenreCategory[];
-  /** Share of scrobbles with no mapped tag, 0..1. */
+  /** Share of scrobbles that are Unclassified, 0..1. Categories plus this add up to 1. */
   untaggedShare: number;
+  /** Why plays are Unclassified, as shares of all plays (they add up to `untaggedShare`). */
+  unclassified: { notIdentified: number; notLookedUp: number; noGenres: number };
   /** Per-year shares keyed by category id; "untagged" holds the remainder. */
   byYear: Array<{ year: number; shares: Record<string, number> }>;
 }
@@ -126,12 +128,26 @@ export interface Discovery {
   rediscovered: Array<ArtistRef & { lastYearBefore: number }>;
 }
 
-export type ArtistKindKey = 'male' | 'female' | 'nonbinary' | 'group' | 'unknown';
+/**
+ * Artists by their listed type and gender (MusicBrainz, or the owner's correction). Never inferred:
+ * a group is a group whoever is in it. Missing values are categories of their own.
+ */
+export type ArtistKindKey =
+  | 'female' | 'male' | 'nonbinary' | 'other_gender' | 'person_unlisted'
+  | 'group' | 'orchestra_choir' | 'other_type' | 'type_unlisted' | 'not_looked_up' | 'not_identified';
+
+export interface MetadataSource {
+  provider: string;
+  license: string;
+  url: string;
+}
 
 export interface ArtistMetadata {
   byArtists: Record<ArtistKindKey, number>;
   byScrobbles: Record<ArtistKindKey, number>;
+  /** Artists without a MusicBrainz ID. */
   unmatchedArtists: number;
+  source: MetadataSource;
 }
 
 export interface OverviewData {
@@ -147,8 +163,11 @@ export interface OverviewData {
   mostActiveDays: RankedPeriod[];
   mostActiveMonths: RankedPeriod[];
   habits: Habits;
-  /** Null until genres are available (Milestone 4); never estimated. */
-  genres: { broad: GenreBreakdown; sub: GenreBreakdown | null } | null;
+  /**
+   * Null until enrichment has classified any artist; never estimated. Shares are allocated (each play
+   * split over its artist's genres), at artist level: an approximation of the music played.
+   */
+  genres: { broad: GenreBreakdown; sub: GenreBreakdown | null; level: 'artist'; source: MetadataSource } | null;
   top: TopLists;
   rankHistory: RankHistory;
   onRepeat: OnRepeatEntry[];
@@ -182,6 +201,25 @@ export interface LocalDays {
   /** The first or last day is only partly inside the interval. */
   partialFrom: boolean;
   partialTo: boolean;
+}
+
+// ---------- Genre drill-down (server/app/services/analytics/genre_detail.rb) ----------
+
+/** One genre in a period. `allocated` plays split over artists' genres; `reach` overlaps and is never summed. */
+export interface GenreDetail {
+  period: string;
+  genre: { slug: string; name: string; level: 'broad' | 'sub'; parent: { slug: string; name: string } | null };
+  plays: number;
+  allocated: number;
+  share: number;
+  reach: { plays: number; share: number };
+  unclassifiedShare: number;
+  /** For a broad genre; `slug` is null for "Other <genre>". */
+  subgenres: Array<{ slug: string | null; name: string; allocated: number; share: number }>;
+  topArtists: Array<{ id: string; name: string; allocated: number; plays: number; genreShare: number }>;
+  topTracks: Array<{ id: string; name: string; artist: string; allocated: number }>;
+  byYear: Array<{ year: number; plays: number; allocated: number; share: number; reachShare: number }>;
+  methodology: { level: 'artist'; provider: string; license: string; url: string };
 }
 
 // ---------- Time Machine (server/app/services/analytics/calendar.rb, plays.rb, on_this_day.rb) ----------

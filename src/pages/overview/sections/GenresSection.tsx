@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { DataTable } from '../../../components/charts/DataTable';
 import { GenreList, GenrePanel } from '../../../components/charts/GenreList';
 import { StackedShareChart, type ShareSeries } from '../../../components/charts/StackedShareChart';
 import { Module, ModuleRow } from '../../../components/layout/Module';
 import { Section } from '../../../components/layout/Section';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
-import { artistHref, type SectionProps } from '../view';
+import { wholePercentages } from '../../../lib/shares';
+import moreStyles from '../../../components/charts/MoreCharts.module.css';
+import { artistHref, genreHref, unclassifiedText, type SectionProps } from '../view';
 
 type Level = 'broad' | 'sub';
 const SLOT = (i: number) => `var(--c${(i % 7) + 1})`;
 
-const DESCRIPTION = 'Genres come from Last.fm artist tags, mapped to seven broad categories. Tags with very few votes are ignored.';
+const DESCRIPTION = 'Genres listed for each artist on MusicBrainz, mapped to Runout’s broad genres. Each play counts once, split across its artist’s genres, so the shares add up to 100%. Classified by artist: an approximation of the music played, not a label on every song.';
 
 /** Genres arrive with Milestone 4; until then the section says so instead of showing figures. */
 export function GenresSection(props: SectionProps) {
@@ -19,7 +20,7 @@ export function GenresSection(props: SectionProps) {
     return (
       <Section id="genres" eyebrow="03 / Genres" title="What it sounds like" description={DESCRIPTION}>
         <p className="caption" role="status" style={{ padding: '16px 0' }}>
-          Genres aren’t available yet. They need artist tags, which Runout doesn’t collect yet.
+          Genres aren’t available yet. They come from MusicBrainz once Runout has looked up your artists.
         </p>
       </Section>
     );
@@ -39,8 +40,10 @@ function GenresContent({ view, genres: available }: SectionProps & { genres: Non
 
   const series: ShareSeries[] = [
     ...genres.map((g) => ({ id: g.id, name: g.name, color: g.color })),
-    ...(breakdown.untaggedShare > 0 ? [{ id: 'untagged', name: 'Untagged', color: 'var(--mu)', hatched: true }] : []),
+    ...(breakdown.untaggedShare > 0 ? [{ id: 'untagged', name: 'Unclassified', color: 'var(--mu)', hatched: true }] : []),
   ];
+  const percent = wholePercentages<string>({ ...Object.fromEntries(genres.map((g) => [g.id, g.share])), untagged: breakdown.untaggedShare });
+  const shown = (id: string) => `${percent[id] ?? 0}%`;
 
   return (
     <Section
@@ -67,6 +70,21 @@ function GenresContent({ view, genres: available }: SectionProps & { genres: Non
         <Module title="Genre share over time" caption="Share of each year's scrobbles. Bands are labelled directly; hover or tab to a year for exact shares.">
           {breakdown.byYear.length === 0 ? (
             <p className="caption" role="status">No tagged scrobbles in this period.</p>
+          ) : breakdown.byYear.length === 1 ? (
+            // One year: there is no change over time to draw, so the period's shares as one bar.
+            <>
+              <div
+                className={moreStyles.shareBar}
+                role="img"
+                aria-label={`Genre share in ${breakdown.byYear[0]!.year}: ${series.map((s) => `${s.name} ${shown(s.id)}`).join(', ')}.`}
+              >
+                {series.map((s) => {
+                  const share = s.id === 'untagged' ? breakdown.untaggedShare : genres.find((g) => g.id === s.id)?.share ?? 0;
+                  return share > 0 ? <div key={s.id} className={s.hatched ? moreStyles.hatch : undefined} style={{ flex: share, background: s.hatched ? undefined : s.color }} /> : null;
+                })}
+              </div>
+              <p className="caption" style={{ marginTop: 8 }}>Change over time shows for periods spanning two years or more.</p>
+            </>
           ) : (
             <StackedShareChart
               series={series}
@@ -87,15 +105,17 @@ function GenresContent({ view, genres: available }: SectionProps & { genres: Non
           />
         </Module>
         <Module title="Most listened genres" caption="Select a genre to see the artists behind it." gap={12}>
-          <GenreList genres={genres} selectedId={selectedId} onSelect={setChosen} formatShare={(s) => fmt.percent(s)} />
+          <GenreList genres={genres} selectedId={selectedId} onSelect={setChosen} formatShare={(_, id) => shown(id)} />
           {breakdown.untaggedShare > 0 && (
-            <p className="caption" style={{ marginTop: 12 }}>
-              {fmt.percent(breakdown.untaggedShare)} of scrobbles are from untagged artists. <Link to={view.withPeriod('/settings#metadata')}>Metadata coverage</Link>
-            </p>
+            <p className="caption" style={{ marginTop: 12 }}>{unclassifiedText(breakdown, (s) => fmt.percent(s))}</p>
           )}
+          <p className="caption" style={{ marginTop: 8 }}>
+            Genres from <a href={available.source.url} target="_blank" rel="noreferrer">{available.source.provider}</a> ({available.source.license}).
+          </p>
           {selected && (
             <GenrePanel
               genre={selected}
+              genreHref={genreHref(view, selected.id)}
               artistHref={(id) => artistHref(view, id)}
               formatCount={fmt.count}
               onClear={() => setChosen(null)}
