@@ -114,6 +114,47 @@ class Listening::RecorderTest < ActiveSupport::TestCase
     assert_equal [ first.id, second.id ], ListeningObservation.order(:reported_at).pluck(:scrobble_id)
   end
 
+  test "a song restarted 8 times at 75% (or 55%) counts 8 times, each Spotify report linked to its own Last.fm scrobble" do
+    [ [ 0.75, 180 ], [ 0.55, 180 ], [ 0.75, 400 ] ].each_with_index do |(share, length), round|
+      start = T + round * 1.day
+      played = share * length # seconds actually heard before restarting
+      starts = Array.new(8) { |i| start + (i * played).round }
+      starts.each { |at| lastfm_play(at, track: "Loop #{round}") } # Last.fm: each play's start
+      events = starts.map { |at| event(at + played, track: "Loop #{round}", duration: length * 1000) } # Spotify: each play's end
+      assert_equal({ linked: 8 }, @recorder.record_all!(events.shuffle), "#{(share * 100).round}% of a #{length} s track")
+    end
+    assert_equal 24, Scrobble.count, "every play counted once, none twice"
+    assert_equal 24, ListeningObservation.where(link_state: "linked").distinct.count(:scrobble_id)
+
+    spotify_only = Array.new(8) { |i| event(T + 10.days + i * 135, track: "Spotify only", duration: 180_000) }
+    assert_equal({ created: 8 }, @recorder.record_all!(spotify_only), "with no Last.fm copy: 8 new plays")
+  end
+
+  test "real timings, 2026-10-31: Last.fm stamping a play's end, or a skipped play, goes to review instead of counting twice" do
+    at = ->(hms) { Time.utc(2026, 10, 31, *hms.split(":").map(&:to_f)) }
+    # Last.fm stamped the play when it ended (Spotify's played_at to the second).
+    lastfm_play(at.("00:31:10"), track: "End Stamped")
+    end_stamped = @recorder.record!(event(at.("00:31:10.923"), track: "End Stamped", duration: 272_000))
+    assert_equal [ :pending_review, "same_track_unexpected_time" ], [ end_stamped.outcome, end_stamped.observation.match_evidence["reason"] ]
+    assert_equal "near", end_stamped.observation.match_evidence.dig("candidates", 0, "window")
+
+    # A skipped play, then the track again: Last.fm has one play, 7 s before Spotify's first end.
+    lastfm_play(at.("01:19:06"), track: "Skipped")
+    lastfm_play(at.("01:23:40"), track: "Next Track")
+    results = [ [ "01:19:13.288", "Skipped", 239_000 ], [ "01:20:57.142", "Between", 119_000 ], [ "01:23:40.899", "Skipped", 239_000 ],
+                [ "01:27:39.171", "Next Track", 237_000 ] ].map { |t, track, d| @recorder.record!(event(at.(t), track: track, duration: d)).outcome }
+    assert_equal %i[pending_review created created linked], results
+    assert_equal 3, Scrobble.from_lastfm.count, "Last.fm plays are never removed or merged"
+    assert_equal 1, ListeningObservation.where(link_state: "linked").count
+  end
+
+  test "a repeat chain with one Last.fm scrobble missing holds that report for review rather than adding it" do
+    starts = Array.new(4) { |i| T + i * 135 } # 75% of 180 s
+    starts.each_with_index { |s, i| lastfm_play(s, track: "Loop") unless i == 1 }
+    outcomes = starts.map { |s| @recorder.record!(event(s + 135, track: "Loop", duration: 180_000)).outcome }
+    assert_equal %i[linked pending_review linked linked], outcomes
+  end
+
   test "different plays at the same time are not merged; a play is attested once per provider" do
     lastfm_play(T, track: "Something Else")
     assert_equal :created, @recorder.record!(event(T + 200)).outcome, "same time, different track: separate plays"

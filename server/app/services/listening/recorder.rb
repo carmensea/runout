@@ -53,7 +53,7 @@ module Listening
       decision = CrossSource.new(user_id: @source.user_id, provider: @source.provider).decide(event, variant)
       scrobble = case decision.action
       when :create then create_scrobble!(event, variant)
-      when :link then decision.scrobble
+      when :link then Scrobble.find(decision.scrobble_id)
       end
       state = { create: "created", link: "linked", review: "pending_review" }.fetch(decision.action)
       now = @now.call

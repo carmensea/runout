@@ -11,19 +11,29 @@ module Listening
   # the same provider already attests are not candidates either: each play is attested at most
   # once per provider.
   #
+  # Real plays don't always fit that (docs/spotify-plan.md §12): Last.fm sometimes stamps a play
+  # with its end, not its start, and a skipped play's start can't be computed, because Spotify
+  # reports the track's length, not how much was heard. So a wider NEAR window is also searched,
+  # from a full `duration_ms` before the report to SLACK after it. A play of the same track found
+  # only there is never linked and never ignored: it goes to a person.
+  #
   # Identity, per candidate:
   # - same: the same catalogue track, or the same artist and title once normalised (case, Unicode,
   #   spacing; CatalogName.normalize). The album is ignored: providers name editions differently.
   # - similar: the same normalised artist and the same title once a trailing " - ..." and bracketed
   #   parts are removed ("Song - 2011 Remaster", "Song (Live)"). Never merged automatically.
   #
-  # Decision: exactly one `same` candidate is linked. More than one `same`, or only `similar` ones,
-  # goes to a person. Anything else is a new play. Timestamps alone never link two plays.
+  # Decision, in order:
+  # - exactly one `same` candidate in the usual window: linked (a repeat's neighbours may sit in the
+  #   near window; they belong to the neighbouring reports);
+  # - more than one `same` there, or `similar` ones, or `same`/`similar` ones only in the near
+  #   window: a person decides;
+  # - otherwise a new play. Timestamps alone never link two plays.
   class CrossSource
     SLACK = 30.seconds
     THRESHOLD = 240 # seconds: a scrobble needs half the track or four minutes, whichever is less
 
-    Decision = Data.define(:action, :scrobble, :evidence) # action: :create, :link, :review
+    Decision = Data.define(:action, :scrobble_id, :evidence) # action: :create, :link, :review
 
     Candidate = Data.define(:scrobble_id, :source, :played_at, :artist_name, :track_name, :track_id)
 
@@ -32,6 +42,7 @@ module Listening
       @provider = provider
     end
 
+    # Where another provider's start of this play is expected.
     def window(event)
       duration = event.duration_ms.to_i / 1000.0
       case event.timestamp_kind
@@ -42,24 +53,31 @@ module Listening
       end
     end
 
-    def decide(event, variant)
-      range = window(event)
-      candidates = candidates(range)
-      track_root = root_track(variant.track_id)
-      rated = candidates.map { |c| [ c, identity(c, variant, track_root) ] }
-      same = rated.select { |_, rating| rating == :same }.map(&:first)
-      similar = rated.select { |_, rating| rating == :similar }.map(&:first)
-      evidence = { rule: "cross_source_v1", window: [ range.begin.iso8601(3), range.end.iso8601(3) ],
-                   candidates: rated.map { |c, rating| describe(c, rating, event) } }
+    # Where another provider's timestamp of this play can still be: never linked from here.
+    def near_window(event)
+      (window(event).begin)..(event.reported_at + SLACK)
+    end
 
-      if same.size == 1
-        Decision.new(action: :link, scrobble: Scrobble.find(same.first.scrobble_id), evidence: evidence.merge(reason: "one_same_play"))
-      elsif same.size > 1
-        Decision.new(action: :review, scrobble: nil, evidence: evidence.merge(reason: "several_same_plays"))
-      elsif similar.any?
-        Decision.new(action: :review, scrobble: nil, evidence: evidence.merge(reason: "similar_play"))
-      else
-        Decision.new(action: :create, scrobble: nil, evidence: evidence.merge(reason: candidates.any? ? "different_plays" : "no_play_nearby"))
+    def decide(event, variant)
+      usual = window(event)
+      near = near_window(event)
+      track_root = root_track(variant.track_id)
+      rated = candidates(near).map { |c| [ c, identity(c, variant, track_root), usual.cover?(c.played_at) ? :usual : :near ] }
+      pick = ->(rating, where) { rated.select { |_, r, w| r == rating && (where.nil? || w == where) }.map(&:first) }
+      same = pick.(:same, :usual)
+      evidence = { rule: "cross_source_v2", window: [ usual.begin.iso8601(3), usual.end.iso8601(3) ],
+                   near_window: [ near.begin.iso8601(3), near.end.iso8601(3) ],
+                   candidates: rated.map { |c, rating, where| describe(c, rating, where, event) } }
+      decision = lambda do |action, reason, id = nil|
+        Decision.new(action: action, scrobble_id: id, evidence: evidence.merge(reason: reason))
+      end
+
+      if same.size == 1 then decision.(:link, "one_same_play", same.first.scrobble_id)
+      elsif same.size > 1 then decision.(:review, "several_same_plays")
+      elsif pick.(:similar, :usual).any? then decision.(:review, "similar_play")
+      elsif pick.(:same, :near).any? then decision.(:review, "same_track_unexpected_time")
+      elsif pick.(:similar, :near).any? then decision.(:review, "similar_play_unexpected_time")
+      else decision.(:create, rated.any? { |_, _, w| w == :usual } ? "different_plays" : "no_play_nearby")
       end
     end
 
@@ -93,9 +111,9 @@ module Listening
       (@roots ||= {})[id] ||= Track.find_by(id: id)&.resolved&.id
     end
 
-    def describe(candidate, rating, event)
+    def describe(candidate, rating, where, event)
       { scrobble_id: candidate.scrobble_id, source: candidate.source, played_at: candidate.played_at.utc.iso8601,
-        seconds_before_report: (event.reported_at - candidate.played_at).round(1), identity: rating.to_s }
+        seconds_before_report: (event.reported_at - candidate.played_at).round(1), identity: rating.to_s, window: where.to_s }
     end
   end
 end

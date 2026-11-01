@@ -202,11 +202,14 @@ A play never waits for metadata.
 
 ## 9. Measurements (to fill in at stage 2 verification)
 
+Measured 2026-11-01 on the owner's account, read-only:
+
 | Question | Result |
 |---|---|
-| Plays Recently Played returns, and whether `before` paging reaches further | |
-| Spotify `played_at` minus Last.fm start, minus duration | |
-| Recent plays already in the archive (dry run) | |
+| Plays Recently Played returns, and whether `before` paging reaches further | Exactly 50 (about 7 hours of listening here). The second page is empty with no cursor: nothing beyond 50. |
+| Spotify `played_at` minus Last.fm start, minus duration | Median +2.0 s; 44 of 45 matched plays within ±5 s (range −7.7 to +4.1 s). **`played_at` is the end of playback.** |
+| Recent plays already in the archive (dry run) | None. The archive's Last.fm history ends 2026-10-30 23:20 UTC; the 50 plays start 2026-10-31 20:45 UTC. |
+| Token refresh | A forced refresh issued a new access token, stored encrypted and accepted by `GET /me`. Spotify didn't rotate the refresh token; the old one was kept. |
 
 ## 10. Ingestion (stage 3)
 
@@ -319,6 +322,50 @@ the interval):
    - run Solid Queue (`bin/jobs`, with `QUEUE_DATABASE_URL` as in `docs/real-import-runbook.md`)
      beside the Rails server;
    - the tick polls every 5 minutes. Pause in Settings stops it at any time.
+
+## 12. Real-account verification and the first poll (2026-11-01)
+
+**Matching against Last.fm's own record of the same hours** (Last.fm fetched read-only, never
+stored; the real `Listening::CrossSource#decide`, candidates in memory):
+
+| | v1 rules | v2 rules (now) |
+|---|---|---|
+| Linked to the Last.fm play | 45 | 45 |
+| Held for review | 0 | 2 |
+| New plays | 5 | 3 |
+
+What v1 got wrong, and v2 changes:
+1. **Last.fm sometimes stamps a play with its end, not its start.** One play's Last.fm time
+   equals Spotify's `played_at` to the second. v1 found no candidate and would have added a second
+   copy.
+2. **Skipped plays.** Spotify lists them, timed when playback stopped, but reports the track's full
+   length, so their start can't be computed. One Last.fm play sat 7 s before Spotify's end. v1
+   would have added a second copy.
+
+v2 also searches a **near window**, from a full track length before Spotify's end to 30 s after
+it. The same track found only there goes to review, never linked automatically. The usual window
+and its one-to-one links are unchanged, so a song restarted 8 times still counts 8 times (tested at
+55% and 75%, with and without Last.fm copies). A repeat chain with one Last.fm scrobble missing
+holds that one report for review rather than adding it.
+
+**Also observed:**
+- Three Last.fm plays in those hours have no Spotify report at all.
+- One Spotify play has no Last.fm scrobble.
+- Neither provider is complete on its own. That's another reason the analytics' "complete" means
+  complete for the sources Runout records.
+
+**First live poll** (approved; `SPOTIFY_INGESTION_ENABLED=true bin/rails spotify:poll`, one run):
+- 1 request, 50 plays read, 50 created, 0 linked, 0 held, no gap. They needed v1 only: no Last.fm
+  plays overlap them.
+- Last.fm plays: 209,383, checksum unchanged. Every pre-existing artist, album, track and name
+  variant row is unchanged.
+- The poll added:
+  - 1 artist, 33 albums, 37 tracks and 44 name variants;
+  - 21 exact-name links of new name-only artists to identified ones;
+  - 62 possible-match catalogue reviews; nothing was merged.
+- Visible in the Time Machine (Oct 31: 50 plays), the October and 2026 Overviews, and Search.
+- Plays from 2026-10-30 23:20 to 2026-10-31 20:45 UTC are beyond Spotify's 50 and only in Last.fm.
+  The analytics mark those days partial.
 
 ## 7. Future providers (not built)
 
