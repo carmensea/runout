@@ -1,4 +1,4 @@
-# Solid Queue runs inside Puma on one small Render instance (docs/backend-plan.md §10).
+# Solid Queue runs inside Puma on one small Railway service (docs/railway-deployment.md).
 # Conservative on purpose: every poll is a query, and a short interval adds load for no benefit
 # to a personal archive whose jobs are not latency-sensitive.
 default: &default

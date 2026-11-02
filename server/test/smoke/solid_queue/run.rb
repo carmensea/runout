@@ -420,7 +420,7 @@ module Smoke
               "#{task.schedule}: #{gap} s apart")
 
         source = File.read(Rails.root.join("config/environments/production.rb"))
-        check("production sets the Solid Queue shutdown timeout (default 25 s, under Render's 30 s)",
+        check("production sets the Solid Queue shutdown timeout (default 25 s, under Railway's 30 s draining)",
               source.include?('config.solid_queue.shutdown_timeout = ENV.fetch("SOLID_QUEUE_SHUTDOWN_TIMEOUT", 25).to_i.seconds'))
       end
     end

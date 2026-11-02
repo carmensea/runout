@@ -40,15 +40,15 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # Replace the default in-process memory cache store with a durable alternative.
-  config.cache_store = :solid_cache_store
+  # Only sign-in rate limits use the cache. One process, so memory is enough; a deploy resets them.
+  config.cache_store = :memory_store, { size: 8 * 1024 * 1024 }
 
   # Replace the default in-process and non-durable queuing backend for Active Job.
   config.active_job.queue_adapter = :solid_queue
   config.solid_queue.connects_to = { database: { writing: :queue } }
   # On deploy, give a running job time to finish its current request before the process stops.
   # A job that doesn't finish is released and redelivered; import steps resume where they were.
-  # Keep this below the platform's shutdown grace period (Render: 30 s).
+  # Keep this below the platform's shutdown grace period (RAILWAY_DEPLOYMENT_DRAINING_SECONDS: 30).
   config.solid_queue.shutdown_timeout = ENV.fetch("SOLID_QUEUE_SHUTDOWN_TIMEOUT", 25).to_i.seconds
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
@@ -62,7 +62,7 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
-  # Only answer for the app's own host. The health check is exempt so Render can reach it directly.
+  # Only answer for the app's own host. The health check is exempt so Railway can reach it directly.
   config.hosts = [ URI(ENV.fetch("APP_ORIGIN")).host ]
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end
