@@ -1,7 +1,7 @@
 # Runout: development instructions
 
 Personal Last.fm listening archive. React/TypeScript frontend at the repo root, Rails 8 API in
-`server/`. Plans: `docs/backend-plan.md`, `docs/milestone-2-plan.md`.
+`server/`. Plans: `docs/backend-plan.md`, `docs/milestone-2-plan.md`. Deployment: `docs/railway-deployment.md`.
 
 ## Database safety (mandatory)
 

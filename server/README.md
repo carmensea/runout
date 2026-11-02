@@ -120,12 +120,12 @@ processes are running. It truncates that database's tables before every scenario
 | `LASTFM_ALLOWED_USERNAME` | The one Last.fm account allowed to sign in (case-insensitive). Required: without it, sign-in is refused |
 | `APP_ORIGIN` | Browser-facing origin (default `http://localhost:5173`) |
 | `ACTIVE_RECORD_ENCRYPTION_*` | Required in production; derived from the local secret in development |
-| `DATABASE_URL`, `CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL` | Production (Neon, direct connections) |
+| `DATABASE_URL` | Production (Railway's PostgreSQL). Solid Queue uses a `runout_queue` database on the same server, or `QUEUE_DATABASE_URL` if set |
 | `SECRET_KEY_BASE` | Production |
-| `SOLID_QUEUE_IN_PUMA` | Production: set to `1` to run Solid Queue (jobs, recurring watchdog) inside Puma |
+| `SOLID_QUEUE_IN_PUMA` | Production: `async` (the image's default) runs Solid Queue as threads inside Puma; any other value forks its processes |
 | `JOB_THREADS` | Solid Queue worker threads (default 2): one import step and one maintenance job at a time |
 | `RAILS_MAX_THREADS` | Database connections per pool (default 5). Keep it at least Puma's threads, and at least `JOB_THREADS` + 2 for the queue database |
-| `SOLID_QUEUE_SHUTDOWN_TIMEOUT` | Seconds a running job gets to finish on deploy (default 25; keep below Render's 30 s grace period). Unfinished jobs are released and redelivered |
+| `SOLID_QUEUE_SHUTDOWN_TIMEOUT` | Seconds a running job gets to finish on deploy (default 25; keep below `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`, 30 s grace period). Unfinished jobs are released and redelivered |
 | `LASTFM_MIN_REQUEST_INTERVAL` | Seconds between Last.fm requests across all processes (default 1.0) |
 | `LASTFM_HISTORY_STORAGE_ENABLED` | Off unless exactly `true` or `1`. Gates storing Last.fm listening history; keep off until Last.fm's storage terms are resolved |
 

@@ -11,8 +11,8 @@ this plan that change because of it (§9 there).
 Decisions recorded from review:
 
 - Rails 8 in API-only mode, in `server/`. The React/TypeScript frontend stays at the repo root.
-- PostgreSQL: Neon in production, local PostgreSQL 17 in development and test.
-- Hosting: Render, one paid web service running Puma with Solid Queue inside it.
+- PostgreSQL: Railway in production, local PostgreSQL 17 in development and test.
+- Hosting: Railway, one service running Puma with Solid Queue inside it, plus PostgreSQL (`docs/railway-deployment.md`; replaced Render and Neon on 2026-11-02, so §9 and §10 below are history).
 - Sign-in: Last.fm only, with an internal `users` table and provider identities.
 - Genres: a database-backed, editable taxonomy, seeded from version-controlled data.
 
