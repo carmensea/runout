@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  # Health check for Render.
+  # Health check for Railway.
   get "up" => "rails/health#show", as: :rails_health_check
 
   scope :api, module: :api, defaults: { format: :json } do
@@ -40,4 +40,9 @@ Rails.application.routes.draw do
     resource :on_this_day, only: :show, path: "on-this-day"
     get "genres/:slug", to: "genres#show", as: :genre, constraints: { slug: /[a-z0-9-]+/ }
   end
+
+  # The React app's routes. Unknown API paths and missing asset files stay real 404s.
+  root "frontend#show"
+  get "*path", to: "frontend#show", format: false,
+               constraints: ->(request) { !request.path.match?(%r{\A/(api|up)(/|\z)}) && File.extname(request.path).empty? }
 end

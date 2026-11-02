@@ -49,6 +49,8 @@ module Runout
     # which proxies /api to Rails.
     config.x.app_origin = ENV.fetch("APP_ORIGIN", "http://localhost:5173")
     config.x.app_origins = [ config.x.app_origin ]
+    # The built frontend's shell (put there by the Dockerfile; absent in development).
+    config.x.frontend_index = Rails.root.join("frontend/index.html")
 
     # The Last.fm account allowed to sign in (single-account private deployment). See
     # Lastfm::AccountPolicy; without it, sign-in is refused.
