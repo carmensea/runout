@@ -58,3 +58,46 @@ jobs:
       - run: bin/rubocop
       - run: bin/brakeman --no-pager --quiet
       - run: bin/bundler-audit
+
+  image:
+    name: Production image (build, boot, same-origin checks)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t runout .
+      - name: The image carries no local secrets or data
+        run: docker run --rm runout sh -c '! ls -a /rails | grep -E "^\.env" && ! find /rails -name "*.dump" | grep .'
+      - name: Boot it and check one origin
+        run: |
+          docker run -d --name runout --network host \
+            -e PORT=3000 -e APP_ORIGIN=https://runout.test -e SECRET_KEY_BASE=ci-only-not-a-secret \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/runout_ci \
+            -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=ci-only-primary-key-0123456789abcd \
+            -e ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=ci-only-deterministic-key-0123456 \
+            -e ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=ci-only-key-derivation-salt-01234 \
+            runout
+          for i in $(seq 1 60); do curl -fs localhost:3000/up && break; sleep 2; done
+          get() { curl -s -o /dev/null -w '%{http_code}' -H 'Host: runout.test' "localhost:3000$1"; }
+          curl -fs localhost:3000/up
+          test "$(get /overview)" = 200
+          test "$(get /api/overview)" = 401
+          test "$(get /api/nope)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' localhost:3000/)" = 403
+          asset=$(curl -s -H 'Host: runout.test' localhost:3000/ | grep -o '/assets/[^"]*\.js' | head -1)
+          test "$(get "$asset")" = 200
+      - name: It comes back after a restart
+        run: |
+          docker restart runout
+          for i in $(seq 1 60); do curl -fs localhost:3000/up && break; sleep 2; done
+          curl -fs localhost:3000/up
+      - if: always()
+        run: docker logs runout 2>&1 | tail -40
+

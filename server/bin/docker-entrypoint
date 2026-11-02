@@ -1,0 +1,6 @@
+#!/bin/sh -e
+# Container start: prepare the databases, then become Puma so it receives Railway's SIGTERM.
+# A failed release exits here, the health check never passes, and the running deploy stays up.
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+bin/rails deploy:release
+exec bundle exec puma -C config/puma.rb

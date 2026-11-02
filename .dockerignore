@@ -1,0 +1,20 @@
+# Allow-list: nothing reaches the image unless named here, so no .env or local data can.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.app.json
+!tsconfig.node.json
+!vite.config.ts
+!index.html
+!public
+!src
+!server
+server/.env*
+server/.*.un~
+server/log
+server/tmp
+server/test
+server/vendor/bundle
+**/*.dump
+**/*~
