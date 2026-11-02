@@ -367,6 +367,14 @@ holds that one report for review rather than adding it.
 - Plays from 2026-10-30 23:20 to 2026-10-31 20:45 UTC are beyond Spotify's 50 and only in Last.fm.
   The analytics mark those days partial.
 
+**Continuous scrobbling** (the owner confirmed on 2026-11-02 that it is meant to stay on):
+- Local only: the real account, recorded into `runout_development`, with
+  `SPOTIFY_INGESTION_ENABLED=true` in `server/.env` and Solid Queue running on the Mac.
+- Running since 2026-11-01 18:25 UTC, the first scheduled poll. The approval was recorded after it
+  started.
+- It covers nothing else: not production, Render or Neon, and not Last.fm sync or import.
+- Pause in Settings stops it at any time.
+
 ## 7. Future providers (not built)
 
 The pattern for each: a `listening_sources.provider` value, a client that turns the provider's

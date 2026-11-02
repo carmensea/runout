@@ -47,10 +47,15 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   nothing else. Not another import, sync with storage on, production, Render or Neon: each needs
   the owner's explicit approval. The imported history is real data: never reset, truncate,
   restore over or rewrite it without the owner's approval.
-- **Spotify ingestion stays off until the owner approves it.** `SPOTIFY_INGESTION_ENABLED` gates
-  storing plays reported by Spotify (`docs/spotify-plan.md`). Connecting an account and read-only
-  API checks don't need it. Don't switch it on for the real account, or schedule recurring
-  real-account Spotify writes, without the owner's explicit approval.
+- **Spotify ingestion needs the owner's approval.** `SPOTIFY_INGESTION_ENABLED` gates storing plays
+  reported by Spotify (`docs/spotify-plan.md`). Connecting an account and read-only API checks
+  don't need it. Don't switch it on for the real account, or schedule recurring real-account
+  Spotify writes, without the owner's explicit approval.
+- **One approved Spotify exception (2026-11-02):** the owner confirmed continuous scrobbling of
+  their real account into the local `runout_development` database, polling through Solid Queue
+  (`docs/spotify-plan.md` §12). It's on: don't switch it off or pause it without asking. It
+  authorises nothing else. Production, Render, Neon or another account each need the owner's
+  explicit approval.
 - **Last.fm sync needs the reverse matching rule first.** Before Last.fm sync or import is ever
   switched on again, a Last.fm play matching a stored Spotify play must be linked, not inserted
   (`docs/spotify-plan.md` §5).
