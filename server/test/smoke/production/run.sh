@@ -27,10 +27,15 @@ docker rm -f runout-smoke-app runout-smoke-pg runout-smoke-stub runout-smoke-dri
 docker network rm "$NET" > /dev/null 2>&1 || true
 
 docker build -q -t runout:smoke "$ROOT" > /dev/null
-docker build -q -t runout:smoke-driver - > /dev/null <<'DOCKERFILE'
-FROM ruby:3.4.7-slim
-RUN apt-get update -qq && apt-get install -y --no-install-recommends docker.io
-DOCKERFILE
+
+# The driver stops and inspects containers through the host's Docker socket, with the host's own CLI
+# when that's a Linux binary (CI), or Docker's static client otherwise (a Mac).
+DOCKER_CLI=$(command -v docker)
+if [ "$(head -c 4 "$DOCKER_CLI" | tr -d '\0' | cut -c2-4)" != "ELF" ]; then
+  case $(uname -m) in arm64 | aarch64) ARCH=aarch64 ;; *) ARCH=x86_64 ;; esac
+  curl -fsSL "https://download.docker.com/linux/static/stable/$ARCH/docker-28.3.3.tgz" | tar xz -C "$STATE" docker/docker
+  DOCKER_CLI="$STATE/docker/docker"
+fi
 
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$STATE/stub.key" -out "$STATE/stub.crt" -days 2 -subj /CN=stub \
   -addext "subjectAltName=DNS:accounts.spotify.com,DNS:api.spotify.com,DNS:ws.audioscrobbler.com" 2> /dev/null
@@ -59,4 +64,4 @@ docker run -d --name runout-smoke-app --network "$NET" --network-alias app -v "$
 
 docker run --name runout-smoke-driver --network "$NET" -e INGESTION="$INGESTION" -e MIGRATIONS=/migrate \
   -v "$STATE:/state" -v "$HERE/driver.rb:/driver.rb:ro" -v "$ROOT/server/db/migrate:/migrate:ro" \
-  -v /var/run/docker.sock:/var/run/docker.sock runout:smoke-driver ruby /driver.rb
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$DOCKER_CLI:/usr/local/bin/docker:ro" ruby:3.4.7-slim ruby /driver.rb
