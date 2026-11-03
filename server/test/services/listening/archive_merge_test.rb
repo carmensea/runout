@@ -137,12 +137,12 @@ class Listening::ArchiveMergeTest < ActiveSupport::TestCase
 
     2.times { merge! }
 
-    assert_equal 1, @source.polls.count
-    assert_equal @source.polls.sole, @source.gaps.sole.listening_poll
+    assert_equal 1, @source.polls.reload.count
+    assert_equal @source.polls.reload.sole, @source.gaps.reload.sole.listening_poll
   end
 
   test "catalogue decisions are carried in the file and reported, not applied" do
-    MetadataOverride.create!(entity_kind: "artist", provider_id: "x", field: "genres", value: { "rock" => 1 })
+    MetadataOverride.create!(entity_kind: "artist", provider_id: "x", field: "genres", value: [])
     record(event(T))
     export!
     forget_spotify!
