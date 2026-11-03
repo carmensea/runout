@@ -1,8 +1,9 @@
 #!/bin/sh
-# Off-platform backup of Runout's Railway archive to this Mac (docs/railway-deployment.md §Backups).
-# Dumps the primary database, proves the dump restores into a disposable local database, compares
-# row counts, then keeps it in ~/runout-backups/railway. Earlier backups are never touched, except
-# that dumps in that folder beyond the newest 30 are deleted. Prints no credentials.
+# Off-platform backup of Runout's Railway database (docs/railway-deployment.md §7), run daily by
+# .github/workflows/backup.yml and by hand from the Mac. Dumps the primary database, proves the dump
+# restores into a disposable database, compares row counts, then keeps it in RUNOUT_BACKUP_DIR
+# (~/runout-backups/railway by default). Earlier backups are never touched, except that dumps in that
+# folder beyond the newest 30 are deleted. Prints no credentials.
 #
 #   bin/backup-railway                  URL read from the linked Railway project's Postgres service
 #   RUNOUT_BACKUP_URL=... bin/backup-railway
@@ -11,7 +12,8 @@ set -eu
 DEST="${RUNOUT_BACKUP_DIR:-$HOME/runout-backups/railway}"
 CHECK_DB=runout_restore_check
 LOCAL="-h ${RUNOUT_LOCAL_PGHOST:-localhost} -U ${RUNOUT_LOCAL_PGUSER:-postgres}"
-# This Mac's PATH has an older pg_dump than the server needs (docs/real-import-runbook.md).
+# The tools must be at least the server's version. This Mac's PATH has an older pg_dump
+# (docs/real-import-runbook.md), and Railway's current Postgres template is 18.
 PG_BIN="${RUNOUT_PG_BIN:-$HOME/.local/postgresql-17/bin}"
 
 fail() {
