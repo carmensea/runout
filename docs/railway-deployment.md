@@ -1,8 +1,9 @@
 # Deploying Runout to Railway
 
-Status: **prepared, not deployed** (2026-11-03). No Railway project exists for Runout, no data has
-left this Mac, and production Spotify polling is off. Chosen path: **Spotify-first**. Enabling cloud
-polling, and later copying the Last.fm archive, each need the owner's approval (`CLAUDE.md`).
+Status: **live, Spotify-first** (cutover 2026-11-03, 04:14 UTC). Railway polls Spotify every 5 minutes
+and local polling is stopped. The Last.fm archive is still only on this Mac: copying it needs the
+owner's approval (`CLAUDE.md`). Still to confirm: a recording made with the Mac asleep (§5, step 10).
+Known limit: Spotify's feed omits some plays (§4).
 
 ## 1. What runs
 
@@ -132,6 +133,17 @@ and Time Machine shows only those until a merge. Your older history stays in the
 The alternative, copying the archive first, stays available (§6) but needs your approval and carries
 the added licence questions in §3.
 
+**Known limit: Spotify's feed omits some plays.** On 2026-11-03, 12 of the 62 plays Last.fm held since
+22:10 UTC the day before weren't in Spotify's Recently Played. Polling succeeded throughout, and local
+polling missed the same older plays, so it isn't Runout or Railway. The cause is unknown; some are quick
+repeats, but not all. It's one day's sample, matched by name and time. Spotify can also date a play much
+later than Last.fm does (one play: Last.fm 03:16, Spotify 04:16), which matters for matching in §6.
+
+The owner chose to leave this as it is for now. Last.fm still records these plays, so they can be added at
+the merge, which means Runout isn't yet independent of Last.fm. Alternatives if that changes: poll
+Spotify's currently-playing endpoint (new scope, unproven), or add recent Last.fm plays to Railway (needs
+the approval and matching rule in `CLAUDE.md`).
+
 ## 5. Go-live checklist
 
 Each step is safe to stop after. Steps 7 and 8 need your explicit approval at the time.
@@ -194,7 +206,7 @@ railway variable set --service runout SPOTIFY_INGESTION_ENABLED=true
 Then record the approval in `CLAUDE.md`, replacing the local-only record.
 
 **9. Verify new plays are recorded exactly once**
-- Within 5 minutes Settings shows a successful check. Play a song, and it appears after it finishes.
+- Within 5 minutes Settings shows a successful check. Play a few songs, and they appear after they finish. Spotify omits some (§4), so one missing song isn't a failure.
 - `railway connect Postgres`, then each must return 0:
   ```sql
   select count(*) from (select listening_source_id, source_event_id from listening_observations group by 1,2 having count(*)>1) x;
