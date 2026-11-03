@@ -61,7 +61,8 @@ end
 
 def memory_mb = (docker("exec", APP, "cat", "/sys/fs/cgroup/memory.current").to_f / 1024 / 1024).round
 def pg_memory_mb = (docker("exec", PG, "cat", "/sys/fs/cgroup/memory.current").to_f / 1024 / 1024).round
-def ruby_processes = docker("exec", APP, "sh", "-c", "grep -l -a -E 'puma|solid-queue' /proc/[0-9]*/cmdline 2>/dev/null | wc -l").strip
+# Bracketed so the shell and grep running this check don't match their own command lines.
+def ruby_processes = docker("exec", APP, "sh", "-c", "grep -l -a -E '^[p]uma |[s]olid-queue' /proc/[0-9]*/cmdline 2>/dev/null | wc -l").strip
 
 def lastfm_sign_in
   location = req(:get, "/api/auth/lastfm")["location"]
