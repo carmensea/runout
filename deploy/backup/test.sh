@@ -35,12 +35,14 @@ for d in 20261101T100000Z 20261102T100000Z 20261010T100000Z 20261011T100000Z 202
 done
 git -C "$T/seed" push -q "$T/dest.git" "HEAD:refs/heads/main"
 chmod -R a+rwX "$T/dest.git"
+# The destination belongs to the runner here, and Git's local transport ignores config set by environment.
+printf '[safe]\n\tdirectory = *\n' > "$T/gitconfig"
+chmod 644 "$T/gitconfig"
 
 branches() { git -C "$T/dest.git" for-each-ref --format='%(refname:short)' 'refs/heads/backup/*' | sort; }
 URL=postgresql://backup_ro:robackuppw@$PG:5432/railway
 run() { # extra docker -e options, then the log file is $T/log
-  docker run --rm --network "$NET" -v "$T/dest.git:/dest.git" \
-    -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e 'GIT_CONFIG_VALUE_0=*' \
+  docker run --rm --network "$NET" -v "$T/dest.git:/dest.git" -v "$T/gitconfig:/tmp/.gitconfig:ro" \
     -e BACKUP_REPO=/dest.git -e "BACKUP_PUBLIC_CERT=$(cat "$T/k.crt")" "$@" runout-backup:test > "$T/log" 2>&1
 }
 
