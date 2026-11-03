@@ -318,7 +318,7 @@ To test: `gh workflow run watchdog.yml -R carmensea/runout-backups -f max_age_ho
 to `deploy/backup/` on `main` reaches Runout's job but not NoRentGrets', until the branch is moved on
 purpose (`git push origin main:backups/norentgrets`, after CI's backup test passes). Its role is
 `norentgrets_backup` (read-only, 3 connections), its destination `carmensea/norentgrets-backups`, its key
-`~/norentgrets-backup-keys/norentgrets-backup.key`, and its watchdog lives in that repository. The first
+`~/norentgrets-backup-keys/norentgrets-backup.key`, and its watchdog lives in that repository, checking at 14:17 and 20:17 UTC (at 12:17 a failed 10:30 backup would still be under 26 hours old). The first
 run: 33 tables, 1,963 rows, 240 KB encrypted; restored independently on this Mac with PostgreSQL 17 tools.
 
 **Your private key:** `~/runout-backup-keys/runout-backup.key` on this Mac. **Move it into your password
