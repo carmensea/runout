@@ -312,6 +312,15 @@ backup is under 26 hours old. Failing emails you through GitHub's normal Actions
 covers a failed run, a missed run and a stopped schedule. A failed run alerts the same day, within about 2 hours.
 To test: `gh workflow run watchdog.yml -R carmensea/runout-backups -f max_age_hours=0`.
 
+**NoRentGrets uses the same job** (set up 2026-11-03, with the owner's approval): a `backup` Cron service in
+`dazzling-quietude`'s production environment, daily at 10:30 UTC, built from this repository's
+`deploy/backup/` on the branch **`backups/norentgrets`**, not `main`. That branch pins the code: a change
+to `deploy/backup/` on `main` reaches Runout's job but not NoRentGrets', until the branch is moved on
+purpose (`git push origin main:backups/norentgrets`, after CI's backup test passes). Its role is
+`norentgrets_backup` (read-only, 3 connections), its destination `carmensea/norentgrets-backups`, its key
+`~/norentgrets-backup-keys/norentgrets-backup.key`, and its watchdog lives in that repository. The first
+run: 33 tables, 1,963 rows, 240 KB encrypted; restored independently on this Mac with PostgreSQL 17 tools.
+
 **Your private key:** `~/runout-backup-keys/runout-backup.key` on this Mac. **Move it into your password
 manager.** Without it no backup can be read. Keep the app's `ACTIVE_RECORD_ENCRYPTION_*` values there too:
 without them a restored database can't decrypt tokens, though you could sign in and connect Spotify again.
