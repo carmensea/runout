@@ -44,6 +44,10 @@ URL=postgresql://backup_ro:robackuppw@$PG:5432/railway
 run() { # extra docker -e options, then the log file is $T/log
   docker run --rm --network "$NET" -v "$T/dest.git:/dest.git" -v "$T/gitconfig:/tmp/.gitconfig:ro" \
     -e BACKUP_REPO=/dest.git -e "BACKUP_PUBLIC_CERT=$(cat "$T/k.crt")" "$@" runout-backup:test > "$T/log" 2>&1
+  rc=$?
+  # The job's umask keeps what it writes private, so this test can only read it after opening it up.
+  docker run --rm --user 0 -v "$T/dest.git:/dest.git" runout-backup:test chmod -R a+rwX /dest.git
+  return "$rc"
 }
 
 # Plays keep arriving throughout: only a shared snapshot gives identical counts.
