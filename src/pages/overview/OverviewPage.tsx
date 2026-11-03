@@ -34,8 +34,8 @@ const SECTIONS = [
 export function OverviewPage() {
   const { connection, fmt, timeZone } = useAppData();
   const { current, compare, today, withPeriod } = usePeriod();
-  // History endpoints exist only once an import has started.
-  const connected = connection.status === 'success' && connection.data.status !== 'none' && connection.data.status !== 'connected';
+  // A signed-in account can hold plays without a Last.fm import: Spotify records them directly.
+  const connected = connection.status === 'success' && connection.data.status !== 'none';
   const overview = useOverview(current, compare, connected);
 
   const currentLabel = periodShortLabel(current, today);
@@ -147,16 +147,6 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
       </MessageState>
     );
   }
-  if (connection.data.status === 'connected') {
-    return (
-      <MessageState
-        icon="link"
-        message={`Signed in as ${connection.data.username}.`}
-        detail={<>Your listening history hasn’t been imported yet. <Link to={withPeriod('/settings#history')}>Start the import in Settings</Link>. Charts appear here once it has.</>}
-      />
-    );
-  }
-
   const main = overview.main;
   if (main.status === 'loading') {
     return <LoadingState label={`Loading scrobbles for ${periodLabel(current, today)}`} />;
@@ -181,6 +171,15 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
         </div>
         <p className={stateStyles.technical}>{main.error.message}</p>
       </MessageState>
+    );
+  }
+  if (connection.data.status === 'connected' && main.data.stats.scrobbles === 0 && main.data.nearestWithData.length === 0) {
+    return (
+      <MessageState
+        icon="link"
+        message={`Signed in as ${connection.data.username}.`}
+        detail={<>Your listening history hasn’t been imported yet. <Link to={withPeriod('/settings#history')}>Start the import in Settings</Link>. Charts appear here once it has.</>}
+      />
     );
   }
   if (main.data.stats.scrobbles === 0) return <EmptyPeriod data={main.data} view={view} importing={connection.data.status === 'importing'} />;

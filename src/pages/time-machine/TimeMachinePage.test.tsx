@@ -221,6 +221,17 @@ describe('Time Machine', () => {
     expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
   });
 
+  it('shows plays recorded from Spotify when Last.fm was never imported', async () => {
+    renderApp(api({ getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }) }), '/time-machine');
+    expect(await screen.findByText('Morning Song')).toBeInTheDocument();
+    expect(screen.queryByText(/hasn’t been imported yet/)).not.toBeInTheDocument();
+  });
+
+  it('asks a signed-in account with no plays to import', async () => {
+    renderApp({ ...connectedApi(), getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }) }, '/time-machine');
+    expect(await screen.findByText('Your listening history hasn’t been imported yet.')).toBeInTheDocument();
+  });
+
   it('has an empty state for an empty history', async () => {
     renderApp(api({ getCalendar: async () => ({ firstDay: null, lastDay: null, years: [], months: [], coverage: { status: 'none', missing: [] } }) }), '/time-machine');
     expect(await screen.findByText('There are no scrobbles in your history yet.')).toBeInTheDocument();

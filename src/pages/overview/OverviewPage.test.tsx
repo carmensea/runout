@@ -30,22 +30,26 @@ describe('Overview, authentication states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That sign-in link expired or was opened in another browser.');
   });
 
-  it('shows a signed-in account without history, and loads no charts', async () => {
-    let overviewCalls = 0;
+  it('shows a signed-in account without history', async () => {
     const api: RunoutApi = {
-      ...connectedApi(),
+      ...connectedApi(() => makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, nearestWithData: [] })),
       getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
-      getOverview: async () => {
-        overviewCalls += 1;
-        return makeOverview();
-      },
     };
     renderApp(api);
     expect(await screen.findByText('Signed in as test-user.')).toBeInTheDocument();
     expect(screen.getByText(/Your listening history hasn’t been imported yet/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Start the import in Settings' })).toBeInTheDocument();
-    expect(overviewCalls).toBe(0);
     expect(screen.getAllByText('Last.fm connected').length).toBeGreaterThan(0);
+  });
+
+  it('shows plays recorded from Spotify when Last.fm was never imported', async () => {
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+    };
+    renderApp(api);
+    expect(await screen.findByRole('heading', { name: '01 / Listening overview' })).toBeInTheDocument();
+    expect(screen.queryByText(/hasn’t been imported yet/)).not.toBeInTheDocument();
   });
 
   it('signs out from Settings', async () => {
