@@ -81,10 +81,10 @@ describe('Time Machine', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Tuesday 15 March 2016' })).toBeInTheDocument();
     await waitFor(() => expect(location.current).toBe('/time-machine?period=day%3A2016-03-15&at=2016-03-15'));
 
-    const rows = await screen.findAllByRole('listitem');
-    const log = rows.filter((r) => r.querySelector('time'));
+    // Wait for the plays: the sidebar's list items are there before they are.
+    expect(await screen.findByText('Showing 2 of 4')).toBeInTheDocument();
+    const log = screen.getAllByRole('listitem').filter((r) => r.querySelector('time'));
     expect(log.map((r) => r.querySelector('time')!.textContent)).toEqual(['08:00:00', '08:04:10']);
-    expect(screen.getByText('Showing 2 of 4')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Show 2 more' }));
     expect(await screen.findByText('Showing 4 of 4')).toBeInTheDocument();
@@ -219,6 +219,17 @@ describe('Time Machine', () => {
   it('says so when nothing is connected or there is no history yet', async () => {
     renderApp(notConnectedApi, '/time-machine');
     expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
+  });
+
+  it('shows plays recorded from Spotify when Last.fm was never imported', async () => {
+    renderApp(api({ getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }) }), '/time-machine');
+    expect(await screen.findByText('Morning Song')).toBeInTheDocument();
+    expect(screen.queryByText(/hasn’t been imported yet/)).not.toBeInTheDocument();
+  });
+
+  it('asks a signed-in account with no plays to import', async () => {
+    renderApp({ ...connectedApi(), getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }) }, '/time-machine');
+    expect(await screen.findByText('Your listening history hasn’t been imported yet.')).toBeInTheDocument();
   });
 
   it('has an empty state for an empty history', async () => {

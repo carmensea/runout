@@ -33,7 +33,8 @@ export function TimeMachinePage() {
   const { current, compare, today } = usePeriod();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const connected = connection.status === 'success' && connection.data.status !== 'none' && connection.data.status !== 'connected';
+  // A signed-in account can hold plays without a Last.fm import: Spotify records them directly.
+  const connected = connection.status === 'success' && connection.data.status !== 'none';
   const history = useAsync(connected ? 'time-machine:calendar' : null, (signal) => api.getCalendar(signal));
 
   // The URL is consistent when `at` matches the period; only then is a place shown. Arriving, the
@@ -179,16 +180,7 @@ function Body({ connected, history, focus, hrefFor }: {
     );
   }
   if (!connected) {
-    const signedIn = connection.data.status === 'connected';
-    return (
-      <MessageState
-        icon={signedIn ? 'link' : 'link_off'}
-        message={signedIn ? 'Your listening history hasn’t been imported yet.' : 'Connect your Last.fm account to see your listening.'}
-        detail={signedIn
-          ? <><Link to={withPeriod('/settings#history')}>Start the import in Settings</Link>. Time Machine fills in once it has.</>
-          : <Link to={withPeriod('/overview')}>Connect on the Overview</Link>}
-      />
-    );
+    return <MessageState icon="link_off" message="Connect your Last.fm account to see your listening." detail={<Link to={withPeriod('/overview')}>Connect on the Overview</Link>} />;
   }
   if (history.status === 'error') {
     if (history.error instanceof NotConnectedError) {
@@ -202,6 +194,15 @@ function Body({ connected, history, focus, hrefFor }: {
     );
   }
   if (history.status === 'loading' || !focus) return <LoadingState label="Loading your listening history" />;
+  if (!history.data.lastDay && connection.data.status === 'connected') {
+    return (
+      <MessageState
+        icon="link"
+        message="Your listening history hasn’t been imported yet."
+        detail={<><Link to={withPeriod('/settings#history')}>Start the import in Settings</Link>. Time Machine fills in once it has.</>}
+      />
+    );
+  }
   if (!history.data.lastDay) {
     return (
       <MessageState
