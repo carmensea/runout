@@ -26,8 +26,9 @@ end
 def snapshot(url)
   tables = psql(url, "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1").split("\n") - EXCLUDED
   tables.to_h do |table|
-    has_id = psql(url, "select count(*) from information_schema.columns where table_schema='public' and table_name='#{table}' and column_name='id'") == "1"
-    max = has_id ? psql(url, "select coalesce(max(id),0) from #{table}").to_i : nil
+    # New rows are expected in tables with growing IDs; other tables (UUID keys) must match exactly.
+    growing = psql(url, "select count(*) from information_schema.columns where table_schema='public' and table_name='#{table}' and column_name='id' and data_type in ('bigint','integer')") == "1"
+    max = growing ? psql(url, "select coalesce(max(id),0) from #{table}").to_i : nil
     [ table, { "count" => psql(url, "select count(*) from #{table}").to_i, "max_id" => max, "md5" => digest(url, table, max) } ]
   end
 end
