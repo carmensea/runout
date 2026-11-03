@@ -8,7 +8,8 @@ name: Database backup
 # - RUNOUT_BACKUP_PUBLIC_CERT: a certificate. Dumps are encrypted to it; its private key stays with the
 #   owner, so neither GitHub nor this repository can read a stored backup.
 #
-# A failed run emails the owner (GitHub's default for scheduled workflows).
+# A failed run emails the owner (GitHub's default for scheduled workflows). Optional:
+# RUNOUT_BACKUP_HEARTBEAT_URL, pinged after success, so a free uptime service can alert if runs stop.
 
 on:
   schedule:
@@ -66,3 +67,7 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ steps.keep.outputs.days }}
           compression-level: 0
+      - name: Report success
+        env:
+          HEARTBEAT: ${{ secrets.RUNOUT_BACKUP_HEARTBEAT_URL }}
+        run: if [ -n "$HEARTBEAT" ]; then curl -fsS -m 10 --retry 3 "$HEARTBEAT" > /dev/null; fi
