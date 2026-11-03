@@ -180,7 +180,7 @@ done
 - Read-only check: `railway ssh --service runout -- bin/rails spotify:verify`.
 - Wait 10 minutes: Time Machine stays empty and Settings shows no checks.
 
-**6. Verify backups** (§7): the export is the only layer on Hobby. Run it once and test a restore before cutover.
+**6. Verify backups** (§7): one real run reaches the backups repository, a restore passes, and the watchdog's alert arrives.
 
 **7. Stop local Spotify polling** (approval needed)
 - Take a local backup into `~/runout-backups/`.
@@ -268,52 +268,51 @@ outage long enough for 50 newer plays to push it out. Those periods show as gaps
 
 ## 7. Backups
 
-| Layer | Schedule and retention | Needs |
-|---|---|---|
-| Railway volume backups | **Not available on Hobby.** The API refuses: "Manual backups and backup schedules are only available for Pro workspaces." | A Pro workspace |
-| **Daily portable export** | GitHub Actions, 10:17 UTC. Kept 30 days; the first of each month kept 90. No laptop needed. | A read-only database role, a certificate, three settings. Free within a private repo's quotas: about 60 of 2,000 minutes a month. |
-| By hand | `bin/backup-railway` from the Mac, into `~/runout-backups/railway/`. Optional extra. | |
+Railway's own backups need a Pro workspace, so this is the only layer on Hobby. No public database port
+and no Railway SSH key is involved.
 
-**Proved on Runout's live Postgres 18 (2026-11-03), with no public port:** `pg_dump` over `railway ssh`
-from a logged-in Mac, byte-identical by checksum, and a restore into a throwaway database on the same
-server with matching counts. The workflow below still uses the TCP proxy, and hasn't run. Choose between
-the proxy and SSH before relying on it. `railway ssh` needs a registered key, which can reach every
-service on the account, so neither is free of trade-offs.
+**The job:** a Railway Cron service, `backup`, built from `deploy/backup/`. Daily at 10:00 UTC, it exits when
+finished, and can't run longer than 30 minutes. Each run, over the private network:
+1. Opens one read-only snapshot as `runout_backup` (`pg_read_all_data`; it can't write).
+2. Dumps at that snapshot with PostgreSQL 18 tools.
+3. Restores into a disposable PostgreSQL server **inside the job's container**, never on the production
+   server. Compares the schema, every table's row count and the Last.fm fingerprint against the same
+   snapshot, and runs `pg_amcheck`. Plays arriving meanwhile can't cause a false difference.
+4. Encrypts to your certificate. The private key isn't on Railway or GitHub.
+5. Pushes only ciphertext to the private repository `carmensea/runout-backups`, as one branch per backup,
+   with a deploy key that can reach only that repository. Clones it back to confirm the checksum.
+6. Applies retention, only after that succeeds.
 
-**What each daily run does** (`.github/workflows/backup.yml`):
-1. Dumps through a read-only role.
-2. Restores into a disposable database. Compares play counts, users and the Last.fm fingerprint.
-3. Encrypts to your certificate. Only ciphertext is stored; GitHub can't read it.
-4. Fails loudly: GitHub emails you on a failed scheduled run.
+If any step fails, nothing further is kept. Tool errors aren't logged, because they can quote rows: a
+failure logs the step name only. `deploy/backup/test.sh` runs all of this in CI, including every failure.
 
-**To turn it on** (your authorization needed; this creates the credentials):
+**Retention:** the newest 30 backups, plus the newest of each older month for 12 months.
+
+**Why a repository for now:** it's free, already private, and needs no new account or paid service. Deleted
+branches free space only when GitHub cleans up, and a file can't exceed 100 MB (the job refuses at 95 MB).
+Spotify-only backups are tiny. With the full archive at about 11 MB each, 42 backups would be about
+460 MB, near GitHub's suggested 1 GB. **If it outgrows that,** move to object storage such as Cloudflare
+R2, at about $0.015 per GB a month with a free allowance: check current prices, and it needs a new account.
+The deploy key could also delete backups if it leaked, while object storage can make them immutable.
+
+**Alerts:** a watchdog workflow in the backups repository checks at 12:17 and 20:17 UTC that the newest
+backup is under 26 hours old. Failing emails you through GitHub's normal Actions notifications. One check
+covers a failed run, a missed run and a stopped schedule. A failed run alerts the same day, within about 2 hours.
+To test: `gh workflow run watchdog.yml -R carmensea/runout-backups -f max_age_hours=0`.
+
+**Your private key:** `~/runout-backup-keys/runout-backup.key` on this Mac. **Move it into your password
+manager.** Without it no backup can be read. Keep the app's `ACTIVE_RECORD_ENCRYPTION_*` values there too:
+without them a restored database can't decrypt tokens, though you could sign in and connect Spotify again.
+
+**Restore drill** (every 3 months; PostgreSQL 18 tools needed, so a throwaway Railway database or a CI job is
+the easy way, since this Mac has 17):
 ```sh
-# Keep runout-backup.key in your password manager, and off this repository.
-openssl req -x509 -newkey rsa:4096 -nodes -keyout runout-backup.key -out runout-backup.crt -days 3650 -subj /CN=runout-backup
-gh secret set RUNOUT_BACKUP_PUBLIC_CERT < runout-backup.crt
-# In railway connect Postgres, with a generated password:
-#   create role runout_backup login password '...'; grant pg_read_all_data to runout_backup;
-# Then build its URL from DATABASE_PUBLIC_URL's host and port, and enter it at the prompt:
-gh secret set RUNOUT_BACKUP_URL
-gh variable set RUNOUT_PG_MAJOR --body <major version from "show server_version">
-gh variable set RUNOUT_BACKUP_ENABLED --body true
-gh workflow run backup.yml
+git clone --depth 1 --branch backup/<stamp> git@github.com:carmensea/runout-backups.git drill
+openssl cms -decrypt -binary -inform DER -inkey runout-backup.key -in drill/db.dump.cms -out db.dump
+openssl dgst -sha256 db.dump      # must match dump_sha256 in drill/manifest.txt
+createdb runout_restore_drill && pg_restore --no-owner --no-privileges --exit-on-error -d runout_restore_drill db.dump
 ```
-- The role can't change data: writing as a read-only role was refused in testing.
-- It needs Railway's public TCP proxy on Postgres, protected by that password.
-
-**Restore drill** (at setup, then every 3 months):
-```sh
-gh run download <run id> --dir ./restore-check
-openssl cms -decrypt -binary -inform DER -inkey runout-backup.key -in ./restore-check/*/FILE.dump.cms -out FILE.dump
-shasum -a 256 -c ./restore-check/*/FILE.dump.sha256     # run where FILE.dump is
-createdb runout_restore_drill && pg_restore --no-owner --exit-on-error -d runout_restore_drill FILE.dump
-```
-- Compare counts with production, then drop only `runout_restore_drill`.
-- Railway's current template is PostgreSQL 18, and this Mac's tools are 17. An 18 dump needs 18 tools. Installing them changes local PostgreSQL tooling, so it needs your OK.
-
-**If runs stop silently:** GitHub emails on failure, not if the schedule itself stops. A free uptime check can cover
-that: set `RUNOUT_BACKUP_HEARTBEAT_URL`, for example from Healthchecks.io. Optional, and it needs an account you create.
+Compare with `rows=` in the manifest, then drop only `runout_restore_drill`.
 
 **Restoring production** replaces data, so it's always your decision: add a new Postgres service, restore
 into it, compare, then point `DATABASE_URL` at it. Keep the old service until you've checked the new one.

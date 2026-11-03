@@ -1,0 +1,33 @@
+# Lives in the backups repository as .github/workflows/watchdog.yml. Fails, and so emails the owner, if
+# the newest backup is too old: that covers a failed run, a missed run and a stopped schedule alike.
+# A successful backup is the only thing that resets it.
+name: Backup watchdog
+
+on:
+  schedule:
+    - cron: "17 12 * * *"
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+    inputs:
+      max_age_hours:
+        description: "Hours; 0 forces a failure, to test the alert"
+        default: "26"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: The newest backup is recent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours || '26' }}
+        run: |
+          NEWEST=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/backup/" --jq '.[].ref' | sed 's|refs/heads/backup/||' | sort | tail -1)
+          [ -n "$NEWEST" ] || { echo "::error::No backups exist"; exit 1; }
+          WHEN=$(echo "$NEWEST" | sed -E 's/^(....)(..)(..)T(..)(..)(..)Z$/\1-\2-\3 \4:\5:\6 UTC/')
+          AGE=$(( ($(date -u +%s) - $(date -u -d "$WHEN" +%s)) / 3600 ))
+          echo "Newest backup: $NEWEST, $AGE hours old"
+          [ "$AGE" -lt "$MAX_AGE_HOURS" ] || { echo "::error::Newest backup is $AGE hours old; the limit is $MAX_AGE_HOURS"; exit 1; }
