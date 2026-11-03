@@ -141,9 +141,16 @@ idle_mb = memory_mb
 pg_mb = pg_memory_mb
 wait_poll("again")
 
+# As PID 1 in a container Puma can't re-raise SIGTERM to itself, so its exit code is 1 rather than
+# 143 after a graceful stop. What matters is that it and Solid Queue stop cleanly, within Railway's
+# draining time (30 s here; after that Docker, like Railway, sends SIGKILL).
+started = Time.now
 docker("stop", "-t", "30", APP)
-status = docker("inspect", "-f", "{{.State.ExitCode}}", APP).strip
-check("SIGTERM stops Puma cleanly", %w[0 143].include?(status), "exit #{status}")
+took = Time.now - started
+logs = docker("logs", APP)
+check("SIGTERM stops Puma and Solid Queue gracefully, within draining time",
+      took < 30 && logs.include?("Gracefully stopping") && logs.include?("Supervisor terminated gracefully"),
+      "#{took.round(1)}s, exit #{docker("inspect", "-f", "{{.State.ExitCode}}", APP).strip}")
 docker("start", APP); wait_up; wait_poll("after a graceful restart")
 docker("kill", APP)
 docker("start", APP); wait_up; wait_poll("after SIGKILL")

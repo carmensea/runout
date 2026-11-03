@@ -35,9 +35,10 @@ macOS physical footprint.
 
 - Async costs about 5 MB over no jobs at all. Forking costs about 150 MB more than async.
 - Turning YJIT off saved nothing measurable at this traffic, so the Rails default stays.
-- **These are Rosetta and macOS figures: trust the ratios, not the absolutes.** NoRentGrets runs the
-  same setup on Railway at 189 MB, so expect about 200 to 260 MB. Check `railway metrics` after
-  deploying.
+- **These are Rosetta and macOS figures: trust the ratios, not the absolutes.** In CI's Linux
+  container the image used 125 to 137 MB (cgroup, page cache included) after requests and polls, and
+  NoRentGrets runs the same setup on Railway at 189 MB. Expect 140 to 220 MB. Check
+  `railway metrics` after deploying.
 - **The trade-off:** Solid Queue's README recommends fork mode, because a job shares memory and the
   Ruby lock with web requests. A job here is one short HTTP call every 5 minutes, and web traffic is
   one person.
@@ -48,9 +49,9 @@ macOS physical footprint.
 PostgreSQL and a fake Spotify and Last.fm on a Docker network with no internet route. CI runs it on
 every pull request.
 
-**The image itself hasn't run yet:** Docker can't start on this Mac (§9). On 2026-11-03 the same
-driver ran against the same code in production mode natively, on PostgreSQL 17, with a throwaway
-stand-in for the Docker commands: **0 failures.**
+**Verified in CI on 2026-11-03** (pull request #1): the image built from this branch, booted in a
+container against PostgreSQL 18, passed every check below, twice: with ingestion off (the tick stored
+nothing) and on. Docker can't start on this Mac (§9), so the same driver also ran natively here.
 
 | Area | Checked |
 |---|---|
@@ -342,22 +343,22 @@ volume a month. Hobby is $5 including $5 of usage, and you pay the larger of $5 
 
 | Service | RAM | CPU | Monthly |
 |---|---:|---:|---:|
-| `runout` (same setup as NoRentGrets, plus 5-minute polls) | 200 to 260 MB | 0.002 to 0.005 vCPU | $2.05 to $2.70 |
-| `Postgres`, small while Spotify-only | 60 to 70 MB | about 0.001 vCPU | $0.65 to $0.75 |
+| `runout` (137 MB in CI's container; NoRentGrets' same setup runs at 189 MB) | 140 to 220 MB | 0.002 to 0.005 vCPU | $1.45 to $2.30 |
+| `Postgres`, small while Spotify-only (65 MB for NoRentGrets' similar size) | 60 to 100 MB | about 0.001 vCPU | $0.65 to $1.05 |
 | Volume, plus Railway backups | | | under $0.10 |
-| **Total** | | | **about $2.75 to $3.50** |
+| **Total** | | | **about $2.20 to $3.45** |
 
-**Your bill:** usage of about $5.90 to $6.60 a month, so **about $6 to $7**, up from $5 today: **$1 to $2 more**,
+**Your bill:** usage of about $5.35 to $6.60 a month, so **about $5.50 to $7**, up from $5 today: **$0.50 to $2 more**,
 because NoRentGrets leaves about $1.87 of the included $5 unused. Egress is about $0.01.
 
 **This period** (to Nov 18) is higher: $6.42 is already used, mostly before the Nov 2 cleanup. Railway's $11.98
 estimate projects that earlier spending forward, so it overstates things.
 
-**Not verified: these need Docker or a real deploy**
-- The `Dockerfile` and `run.sh` have never run: Docker can't start on this Mac, because Homebrew's Lima runs under
-  Rosetta. CI's `image` job covers them, on the same architecture Railway uses.
-- PostgreSQL 18 (Railway's template): tested on 17 here; `run.sh` and CI use 18.
-- Linux memory with jemalloc, Railway's private network, proxy and health check.
+**Not verified: these need a real deploy**
+- Railway's private network, proxy and health check. (The image, PostgreSQL 18 and Linux memory were
+  covered by CI; Docker itself can't start on this Mac, because Homebrew's Lima runs under Rosetta.)
+- On teardown Puma exits 1, not 143, because PID 1 can't re-raise SIGTERM to itself; it still stops
+  gracefully within the draining time. Railway ignores exit codes on a deliberate stop.
 - Real Spotify and Last.fm sign-in in production (steps 3 and 5).
 - The `railway` commands in §5 and §6: flags checked against CLI help, none run. `backup.yml`: parsed, never run;
   its script and encryption were tested separately.
