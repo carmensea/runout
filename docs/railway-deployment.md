@@ -1,8 +1,8 @@
 # Deploying Runout to Railway
 
-Status: **prepared, not deployed** (2026-11-02). No Railway project exists for Runout, no data has
-left this Mac, and production Spotify polling is off. Going live needs the owner's approval, and
-copying the Last.fm archive needs separate approval (`CLAUDE.md`).
+Status: **prepared, not deployed** (2026-11-03). No Railway project exists for Runout, no data has
+left this Mac, and production Spotify polling is off. Chosen path: **Spotify-first**. Enabling cloud
+polling, and later copying the Last.fm archive, each need the owner's approval (`CLAUDE.md`).
 
 ## 1. What runs
 
@@ -35,32 +35,43 @@ macOS physical footprint.
 
 - Async costs about 5 MB over no jobs at all. Forking costs about 150 MB more than async.
 - Turning YJIT off saved nothing measurable at this traffic, so the Rails default stays.
-- **These are Rosetta and macOS figures: trust the ratios, not the absolutes.** Docker can't run on
-  this Mac (§9). Expect 200 to 300 MB on Railway, going by NoRentGrets' 203 MB web service, and
-  check `railway metrics` after deploying.
+- **These are Rosetta and macOS figures: trust the ratios, not the absolutes.** NoRentGrets runs the
+  same setup on Railway at 189 MB, so expect about 200 to 260 MB. Check `railway metrics` after
+  deploying.
 - **The trade-off:** Solid Queue's README recommends fork mode, because a job shares memory and the
   Ruby lock with web requests. A job here is one short HTTP call every 5 minutes, and web traffic is
   one person.
 
 ## 2. What was tested
 
-Run in a production-mode scratch copy against disposable databases, with a local fake of Spotify
-and Last.fm reached over real TLS. No real account or provider was contacted.
+`server/test/smoke/production/run.sh` is the repeatable test. It builds the image and runs it beside
+PostgreSQL and a fake Spotify and Last.fm on a Docker network with no internet route. CI runs it on
+every pull request.
 
-| Area | Result |
+**The image itself hasn't run yet:** Docker can't start on this Mac (§9). On 2026-11-03 the same
+driver ran against the same code in production mode natively, on PostgreSQL 17, with a throwaway
+stand-in for the Docker commands: **0 failures.**
+
+| Area | Checked |
 |---|---|
-| Frontend | Shell served at `/` and deep links, uncached and `noindex`; digested assets cached a year; unknown `/api` paths and missing assets are real 404s |
-| Hosts and HTTPS | Other `Host` headers get 403; `/up` answers any host; HSTS on; cookies `Secure` |
-| Sign-in | Another Last.fm account refused and no user created; the allowed one signs in; `__Host-` cookie, `HttpOnly`, `SameSite=Lax` |
-| Private data | Overview, Search, Plays, Calendar and Listening sources all return 401 without a session |
+| One origin | Shell at `/` and deep links, uncached and `noindex`; hashed assets cached; frontend calls `/api`; missing assets and unknown API paths are real 404s |
+| Hosts and HTTPS | Other `Host` refused; `/up` answers Railway's health check; HSTS on; cookies `Secure` |
+| Sign-in | Another Last.fm account refused, no user created; `__Host-` cookie, `HttpOnly`, `SameSite=Lax` |
+| Private data | Overview, Search, Plays, Calendar and Listening sources return 401 without a session |
 | CSRF | POST refused with no `Origin`, a wrong `Origin`, or no `X-Requested-With` |
 | Spotify OAuth | Full flow with an `https://` callback; forged state refused; tokens and the Last.fm key encrypted at rest |
-| Polling | Recurring tick to stored plays through the real job chain; resumed after SIGTERM, after SIGKILL and after all database connections were dropped |
-| Deduplication | Across all of that: 62 observations, 62 plays, 62 reported events, no duplicates, no gaps; every play linked to its observation |
-| Last.fm | Only the 4 sign-in calls; recurring jobs made none with storage off |
-| Release | Creates both databases, loads schemas, seeds genres; safe to repeat; refuses tables without `schema_migrations` |
-| Archive copy | Release left the Last.fm fingerprint and counts unchanged; credentials decrypt with the copied keys; Overview, Search, Calendar, Plays and On this day return 200 |
-| Backup | Dump restored into a disposable database, counts and fingerprint compared, checksum valid; a bad source fails without keeping a file |
+| Queue | One process; async supervisor; `spotify_poll` registered; no Solid Cache tables |
+| Database | All 25 migrations applied through `DATABASE_URL`; queue database derived; genres seeded; second release does nothing |
+| Polling | Recurring schedule to stored plays; resumed after SIGTERM, SIGKILL, dropped connections and (natively, as dropped connections) a database restart |
+| Deduplication | 65 reported events, 65 observations, 65 plays, no gaps, source identity on every play |
+| Quiet by default | Only the 4 sign-in calls to Last.fm; no MusicBrainz or artwork activity; no errors logged |
+
+**Other checks on this branch:** 537 Rails tests, RuboCop, Brakeman and bundler-audit clean; frontend
+lint, type-check and build pass; 111 frontend tests pass when run serially. In parallel, 2 or 3 of them
+time out when the Mac is heavily loaded, on `main` too (load average 22 at the time).
+
+**Solid Cache removal, reviewed:** intentional. Only sign-in rate limits use the cache, and nothing else
+refers to `solid_cache`, `cache.yml`, `cache_schema.rb` or `CACHE_DATABASE_URL`.
 
 ## 3. Last.fm licence review
 
@@ -112,180 +123,195 @@ compliance.** Not Last.fm's: 1,308 MusicBrainz tags (CC-BY-NC-SA) and Spotify's 
 which stopped being true on 2026-10-30. Correct it before sending. It isn't a prerequisite for
 Path B.
 
-## 4. Choosing a path
+## 4. Chosen path: Spotify-first
 
-**Recommendation: B, Spotify-first.** It meets the goal, moves no Last.fm history, needs no answer
-from Last.fm, costs least and is easy to undo. Path A stays open later.
+The Last.fm archive stays on this Mac. The cloud app shows plays from cutover, plus Spotify's last 50,
+and Time Machine shows only those until a merge. Your older history stays in the local app.
 
-| | A: full archive | B: Spotify-first |
-|---|---|---|
-| Last.fm history in the cloud | Yes: needs your approval | No |
-| Licensing exposure added | Items 4 and 5 above | Sign-in only (username, session key) |
-| Cloud app shows | Everything | Plays from cutover, plus Spotify's last 50 |
-| Old history visible at | The cloud app | The local app, as now |
-| Extra steps | Restore, copy encryption keys | None |
-| Undo | Delete the Railway copy; backups may need deleting too | Delete the project |
+The alternative, copying the archive first, stays available (§6) but needs your approval and carries
+the added licence questions in §3.
 
-### Path B: later reconciliation
+## 5. Go-live checklist
 
-Spotify plays are identified by the exact `played_at` in milliseconds, per account, with a unique
-index. The same play always gets the same identity, in any database.
+Each step is safe to stop after. Steps 7 and 8 need your explicit approval at the time.
 
-To merge later, with your approval:
-1. Pause cloud polling and take a backup.
-2. Export the cloud observations: raw timestamp, names, provider IDs, ISRC and context.
-3. Replay them through `Listening::Recorder` into **a copy** of the local archive. It decides each
-   one: already seen, linked to a matching play, held for review, or new.
-4. Compare counts and the Last.fm fingerprint. Then use the merged copy, by Path A if that's approved.
+**Before starting:** merge `railway-deployment` to `main` and confirm CI's `image` job passes.
 
-**Rehearsed on scratch copies of the real archive:**
+**1. Create the Runout Railway project** (from `server/`; a project of its own, separate from NoRentGrets)
+```sh
+railway init --name runout
+railway add --database postgres
+railway add --service runout --repo carmensea/runout --branch main
+railway domain --service runout    # note the https address
+```
 
-| Replay | Outcome | Last.fm / Spotify plays |
-|---|---|---|
-| The archive's own 85 Spotify plays again (overlap) | 85 seen | 209,383 / 85 |
-| 62 new "cloud" plays | 62 created | 209,383 / 147 |
-| The same 62 again | 62 seen | 209,383 / 147 |
+**2. Deploy Rails and PostgreSQL with Spotify ingestion disabled**
+```sh
+R="railway variable set --service runout --skip-deploys"
+ORIGIN=https://<the address from step 1>
+$R APP_ORIGIN=$ORIGIN SPOTIFY_REDIRECT_URI=$ORIGIN/api/auth/spotify/callback \
+   'DATABASE_URL=${{Postgres.DATABASE_URL}}' SPOTIFY_INGESTION_ENABLED=false \
+   RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30 RAILWAY_DEPLOYMENT_OVERLAP_SECONDS=0
+for k in SECRET_KEY_BASE ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY \
+         ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT; do
+  openssl rand -hex 32 | tr -d '\n' | $R "$k" --stdin
+done
+(set -a; . ./.env; set +a
+ for k in LASTFM_API_KEY LASTFM_SHARED_SECRET LASTFM_ALLOWED_USERNAME SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET; do
+   printenv "$k" | tr -d '\n' | $R "$k" --stdin
+ done)
+```
+- Never set `LASTFM_HISTORY_STORAGE_ENABLED` or `METADATA_ENRICHMENT_ENABLED`: both stay off.
+- In the dashboard: `runout` → Settings → Healthcheck Path = `/up`.
+- Deploy: `railway redeploy --service runout`.
+- Copy the encryption keys into your password manager from the dashboard.
 
-The Last.fm fingerprint didn't change. **Limits:**
-- The export and replay ran from throwaway scripts, not a committed task. Allow about an hour to make
-  them permanent when needed.
-- Review decisions made in the cloud don't carry over, so leave reviews until after a merge.
-- First-received times and seen counts restart in the merged copy.
-- Plays older than Spotify's last 50 when polling starts can't be recovered.
+**3. Verify the application and authentication**
+- `curl -s -o /dev/null -w '%{http_code}\n' $ORIGIN/up` returns 200; `$ORIGIN/api/overview` returns 401.
+- `railway logs --service runout` shows `Supervisor(async)` and no errors.
+- Sign in with Last.fm in the browser. Sign out and in again.
 
-**One poller only:** two databases can't lock each other, so §5's cutover is the guard. Stop local
-polling and confirm it stopped before enabling cloud polling.
+**4. Configure the production Spotify callback**
+- In Spotify's developer dashboard, add `<ORIGIN>/api/auth/spotify/callback`. Keep the local one.
 
-## 5. Go-live steps
+**5. Connect Spotify**
+- Settings → Listening sources → connect. It stores tokens and records no plays.
+- Read-only check: `railway ssh --service runout -- bin/rails spotify:verify`.
+- Wait 10 minutes: Time Machine stays empty and Settings shows no checks.
 
-Each step that sends data or starts polling is marked. Ask before running those.
+**6. Verify backups** (§7): turn on Railway's and the daily job, run it once, and test a restore.
 
-**Prepare (about 30 minutes)**
+**7. Stop local Spotify polling** (approval needed)
+- Take a local backup into `~/runout-backups/`.
+- Pause in local Settings, set `SPOTIFY_INGESTION_ENABLED=false` in `server/.env`, restart local Rails.
+- Confirm no new local `listening_polls` rows for 10 minutes. Keep the local app for your archive.
 
-1. Merge this branch and confirm CI's `image` job passes. That is the first real image build.
-2. Create the project and services, from `server/`:
-   ```sh
-   railway init --name runout
-   railway add --database postgres
-   railway add --service runout --repo carmensea/runout --branch main
-   railway domain --service runout   # note the https address
-   ```
-3. Check the Postgres version: `railway connect Postgres`, then `show server_version;`. The local
-   tools are version 17 and can't dump a newer server (§7).
-4. Set variables, without printing secrets:
-   ```sh
-   R="railway variable set --service runout --skip-deploys"
-   ORIGIN=https://<the address from step 2>
-   $R APP_ORIGIN=$ORIGIN SPOTIFY_REDIRECT_URI=$ORIGIN/api/auth/spotify/callback \
-      'DATABASE_URL=${{Postgres.DATABASE_URL}}' SPOTIFY_INGESTION_ENABLED=false \
-      RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30 RAILWAY_DEPLOYMENT_OVERLAP_SECONDS=0
-   for k in SECRET_KEY_BASE ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY \
-            ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT; do
-     openssl rand -hex 32 | tr -d '\n' | $R "$k" --stdin
-   done
-   set -a; . ./.env; set +a
-   for k in LASTFM_API_KEY LASTFM_SHARED_SECRET LASTFM_ALLOWED_USERNAME SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET; do
-     printenv "$k" | tr -d '\n' | $R "$k" --stdin
-   done
-   ```
-   Keep a copy of the encryption keys in your password manager: backups can't decrypt tokens without
-   them, though you could reconnect instead.
-5. In the dashboard: `runout` → Settings → Healthcheck Path = `/up`. Also set a usage limit, if you
-   want one, under workspace settings.
-6. In Spotify's developer dashboard, add `<ORIGIN>/api/auth/spotify/callback` as a redirect URI. Keep
-   the local one.
+**8. Enable cloud Spotify polling** (approval needed)
+```sh
+railway variable set --service runout SPOTIFY_INGESTION_ENABLED=true
+```
+Then record the approval in `CLAUDE.md`, replacing the local-only record.
 
-**Deploy with polling off**
+**9. Verify new plays are recorded exactly once**
+- Within 5 minutes Settings shows a successful check. Play a song, and it appears after it finishes.
+- `railway connect Postgres`, then each must return 0:
+  ```sql
+  select count(*) from (select listening_source_id, source_event_id from listening_observations group by 1,2 having count(*)>1) x;
+  select count(*) from (select user_id, played_at, seq from scrobbles group by 1,2,3 having count(*)>1) x;
+  ```
 
-7. Deploy (`railway redeploy --service runout`, or a push to `main`). The container prepares the
-   databases, then starts Puma. Check `railway logs --service runout` and `curl $ORIGIN/up`.
-8. Open the address: expect the signed-out app. Check private data is closed: `curl -i
-   $ORIGIN/api/overview` must return 401.
-9. Sign in with Last.fm, then Settings → Listening sources → connect Spotify. **This is the real
-   OAuth test.** It reads your account and stores tokens; it records no plays.
-10. Read-only check: `railway ssh --service runout -- bin/rails spotify:verify`.
-11. Run a first backup (§7), and restore-test it before going further.
+**10. Monitor and confirm recovery behaviour**
+- `railway redeploy --service runout`: polling resumes within 5 minutes, and the step 9 queries still return 0.
+- With the Mac asleep overnight, play something on your phone. Confirm it's there in the morning.
+- After a day: `railway metrics --service runout --memory --cpu`, and Settings' recent checks.
 
-**Path A only, with separate approval, before step 7:** see §6.
+## 6. The future merge: one archive
 
-**Cut over: needs your approval**
+**The tools:** `archive:export_spotify`, `archive:merge_spotify` and `script/verify_archive_merge.rb`.
 
-12. Stop local polling: Pause in local Settings, set `SPOTIFY_INGESTION_ENABLED=false` in
-    `server/.env`, and restart local Rails. Keep the local app for your archive.
-13. Confirm it stopped: no new `listening_polls` rows locally for 10 minutes.
-14. Take a local backup: `pg_dump -Fc runout_development` into `~/runout-backups/`, as usual.
-15. **Start cloud polling:** `railway variable set --service runout SPOTIFY_INGESTION_ENABLED=true`.
-    This redeploys.
-16. Confirm: within about 5 minutes Settings shows a successful check, and Time Machine shows today's
-    plays.
-17. Watch for a day: `railway metrics --service runout --memory --cpu` and Settings' recent checks.
-    Then install the daily backup (§7) and update `CLAUDE.md`'s approval record.
+**What's preserved, and how:**
 
-## 6. Path A: full archive (separate approval only)
+| Requirement | How |
+|---|---|
+| All Last.fm scrobbles | The merge target is the archive. Verified by fingerprint and row comparison. |
+| All cloud Spotify plays | Each goes through `Listening::Recorder`. Each ends up new, linked, already there, or visibly held for you. |
+| Several reports of one play | A Spotify report of a Last.fm play is linked: one play, two sources. Unique indexes forbid duplicates. |
+| Catalogue and genre metadata | Target rows aren't edited. New name variants match by the usual rules. |
+| Matching decisions, audit | Evidence, first-received times, seen counts, later values, polls, gaps and review decisions carry over, with original dates. |
+| Integrity guarantees | Same code and database constraints as a live poll. |
 
-Run after step 6 and **before the first deploy**, so the release finds a complete database. A partial
-restore makes the release stop rather than load a schema over it.
+**What goes to you, never guessed:**
+- A "same play" decision made in the cloud: IDs differ, and the archive holds evidence you didn't see then.
+- Reports the archive finds ambiguous: held for review, not counted.
+- Catalogue and metadata decisions made in the cloud: carried in the file and listed.
+  To keep these few, leave cloud catalogue reviews until after a merge.
 
-1. Stop local polling (steps 12 and 13) so the copy is final and two pollers never hold one token.
-2. Dump, and record the fingerprint:
-   ```sh
-   PG=~/.local/postgresql-17/bin
-   $PG/pg_dump -h localhost -U postgres -Fc --no-owner --no-privileges -f ~/runout-backups/before-railway.dump runout_development
-   ```
-3. Restore into the empty Railway database through its public proxy:
-   ```sh
-   URL=$(railway variable list --service Postgres --kv | sed -n 's/^DATABASE_PUBLIC_URL=//p')
-   $PG/pg_restore --no-owner --no-privileges --exit-on-error -d "$URL" ~/runout-backups/before-railway.dump
-   ```
-4. Compare with the local database: the same fingerprint query as `bin/backup-railway`, plus counts of
-   artists, genres, tags, reviews and observations.
-5. Give production the keys that encrypted these rows. Do this instead of the random keys in step 4:
-   ```sh
-   for pair in ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:primary_key \
-               ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:deterministic_key \
-               ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:key_derivation_salt; do
-     bin/rails runner "print ActiveRecord::Encryption.config.${pair#*:}" 2>/dev/null \
-       | railway variable set --service runout --skip-deploys "${pair%%:*}" --stdin
-   done
-   ```
-6. Continue from step 7. Keep `LASTFM_HISTORY_STORAGE_ENABLED` unset: no import or sync restarts.
+**Procedure** (needs your approval when the time comes):
+1. Pause cloud polling. Back up the cloud and local databases.
+2. Export: `railway ssh --service runout -- bin/rails archive:export_spotify FILE=/tmp/spotify.ndjson`, and copy it out over the same connection.
+3. Restore the local backup into a **new** database, `runout_merge`. Never merge into `runout_development`: the task refuses it.
+4. Snapshot: `script/verify_archive_merge.rb snapshot <url> > before.json`.
+5. Merge: `SPOTIFY_INGESTION_ENABLED=true CONFIRM_DATABASE=runout_merge bin/rails archive:merge_spotify FILE=...`, with `DATABASE_URL` set to `runout_merge`.
+6. Verify: `script/verify_archive_merge.rb verify <url> before.json spotify.ndjson`. It must print `VERIFIED`.
+7. Merge again, verify again: nothing may change.
+8. Check Time Machine and Overview on the copy. Decide separately whether it goes to Railway.
+
+**Moving a merged archive to Railway** (separate approval; Last.fm data leaves the Mac):
+- Restore into a **new** Railway Postgres service, with `pg_restore --no-owner --no-privileges --exit-on-error`.
+- Repeat the verifier against it.
+- Give production the local encryption keys, so restored tokens decrypt:
+  ```sh
+  for pair in ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:primary_key ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:deterministic_key \
+              ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:key_derivation_salt; do
+    bin/rails runner "print ActiveRecord::Encryption.config.${pair#*:}" 2>/dev/null \
+      | railway variable set --service runout --skip-deploys "${pair%%:*}" --stdin
+  done
+  ```
+- That replaces the production keys, so anything encrypted with the old ones needs reconnecting: sign in and connect Spotify again.
+- Then point `DATABASE_URL` at the new service. The start-up release marks it as production and adds any new migrations.
+
+**Rehearsed 2026-11-03** on scratch copies, with the local archive as the target:
+
+| Check | Result |
+|---|---|
+| 65 new plays from the production test | 65 created |
+| Reports of 20 real, isolated Last.fm plays, as Spotify would send them | 20 linked, no new plays |
+| Verifier | `VERIFIED`; every existing row in 30 tables unchanged; Last.fm fingerprint unchanged |
+| Merged again | 85 already present, nothing changed, `VERIFIED` |
+| Deliberate damage: renamed artist, moved Last.fm play, changed genre, deleted observation | All 4 caught |
+
+The verifier shares no code with the merge and doesn't load Rails.
+
+**Plays that can't be recovered:** anything older than Spotify's last 50 when polling starts, or lost during an
+outage long enough for 50 newer plays to push it out. Those periods show as gaps, never as made-up plays.
 
 ## 7. Backups
 
-| Layer | What | Limit |
+| Layer | Schedule and retention | Needs |
 |---|---|---|
-| Railway | Postgres service → Backups: daily (kept 6 days) and weekly (kept 27 days) | Restores only into the same project and environment. Wiping the volume deletes them. Docs don't say whether Hobby includes this: check the tab. |
-| **Off-platform** | `bin/backup-railway`: daily dump to `~/runout-backups/railway/` | Reads through Postgres' public TCP proxy. The Mac must wake to run it, but scrobbling doesn't depend on it. |
+| Railway volume backups | Daily (6 days) and weekly (27 days). Set in Postgres → Backups. | Check the tab offers them on Hobby: Railway's docs don't say. Restores only in the same project, and wiping the volume deletes them. |
+| **Daily portable export** | GitHub Actions, 10:17 UTC. Kept 30 days; the first of each month kept 90. No laptop needed. | A read-only database role, a certificate, three settings. Free within a private repo's quotas: about 60 of 2,000 minutes a month. |
+| By hand | `bin/backup-railway` from the Mac, into `~/runout-backups/railway/`. Optional extra. | |
 
-`bin/backup-railway` proves each dump restores into a disposable local `runout_restore_check`
-database, compares counts and fingerprint, checksums it, keeps the newest 30, and shows a macOS
-notification on failure. It doesn't touch `~/runout-backups/*` outside that folder, or
-`runout_development`.
+**What each daily run does** (`.github/workflows/backup.yml`):
+1. Dumps through a read-only role.
+2. Restores into a disposable database. Compares play counts, users and the Last.fm fingerprint.
+3. Encrypts to your certificate. Only ciphertext is stored; GitHub can't read it.
+4. Fails loudly: GitHub emails you on a failed scheduled run.
 
-**A newer server:** if step 3 shows a version above 17, install matching client tools and set
-`RUNOUT_PG_BIN`. Ask first: `CLAUDE.md` restricts local PostgreSQL changes.
-
-**Daily schedule** (`~/Library/LaunchAgents/com.runout.backup.plist`; launchd runs a missed job at the
-next wake):
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.runout.backup</string>
-  <key>WorkingDirectory</key><string>/Users/carmen/projects/runout/server</string>
-  <key>ProgramArguments</key><array><string>bin/backup-railway</string></array>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/usr/bin:/bin</string></dict>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
-  <key>StandardOutPath</key><string>/Users/carmen/runout-backups/railway/backup.log</string>
-  <key>StandardErrorPath</key><string>/Users/carmen/runout-backups/railway/backup.log</string>
-</dict></plist>
+**To turn it on** (your authorization needed; this creates the credentials):
+```sh
+# Keep runout-backup.key in your password manager, and off this repository.
+openssl req -x509 -newkey rsa:4096 -nodes -keyout runout-backup.key -out runout-backup.crt -days 3650 -subj /CN=runout-backup
+gh secret set RUNOUT_BACKUP_PUBLIC_CERT < runout-backup.crt
+# In railway connect Postgres, with a generated password:
+#   create role runout_backup login password '...'; grant pg_read_all_data to runout_backup;
+# Then build its URL from DATABASE_PUBLIC_URL's host and port, and enter it at the prompt:
+gh secret set RUNOUT_BACKUP_URL
+gh variable set RUNOUT_PG_MAJOR --body <major version from "show server_version">
+gh variable set RUNOUT_BACKUP_ENABLED --body true
+gh workflow run backup.yml
 ```
-Load it with `launchctl load ~/Library/LaunchAgents/com.runout.backup.plist`. The local Postgres must
-be running for the restore check; it doesn't start by itself after a reboot.
+- The role can't change data: writing as a read-only role was refused in testing.
+- It needs Railway's public TCP proxy on Postgres, protected by that password.
 
-**Restoring into Railway** (replaces data, so it's always your decision): add a new Postgres service,
-`pg_restore` into it as in §6, compare, then point `DATABASE_URL` at it. The old service stays until
-you've checked the new one.
+**Restore drill** (at setup, then every 3 months):
+```sh
+gh run download <run id> --dir ./restore-check
+openssl cms -decrypt -binary -inform DER -inkey runout-backup.key -in ./restore-check/*/FILE.dump.cms -out FILE.dump
+shasum -a 256 -c ./restore-check/*/FILE.dump.sha256     # run where FILE.dump is
+createdb runout_restore_drill && pg_restore --no-owner --exit-on-error -d runout_restore_drill FILE.dump
+```
+- Compare counts with production, then drop only `runout_restore_drill`.
+- Railway's current template is PostgreSQL 18, and this Mac's tools are 17. An 18 dump needs 18 tools. Installing them changes local PostgreSQL tooling, so it needs your OK.
+
+**If runs stop silently:** GitHub emails on failure, not if the schedule itself stops. A free uptime check can cover
+that: set `RUNOUT_BACKUP_HEARTBEAT_URL`, for example from Healthchecks.io. Optional, and it needs an account you create.
+
+**Restoring production** replaces data, so it's always your decision: add a new Postgres service, restore
+into it, compare, then point `DATABASE_URL` at it. Keep the old service until you've checked the new one.
+
+**Your local archive and `~/runout-backups/` aren't touched by any of this.**
 
 ## 8. Rollback
 
@@ -294,35 +320,47 @@ you've checked the new one.
 | Stop polling now | Pause in Settings, or `SPOTIFY_INGESTION_ENABLED=false` |
 | A bad deploy | Dashboard → Deployments → redeploy the previous one. A failed release never takes over, because the health check doesn't pass. |
 | A bad migration | Fix forward, as `CLAUDE.md` says. Restore a backup only with your approval. |
-| Abandon the cloud | Set the flag off, confirm no new cloud polls, then set the local flag on, Resume and restart. Local catches up on the last 50 plays. Merge cloud-only plays by §4 before deleting the project. |
+| Abandon the cloud | Set the flag off, confirm no new cloud polls, set the local flag on, Resume, restart. Local catches up on the last 50 plays. Merge cloud-only plays by §6 before deleting the project. |
 
-The local database is never written during cutover, so it's always there to return to.
+Cutover never writes to the local database, so it's always there to return to.
 
 ## 9. Cost and open items
 
-**Rates** (`railway.com/pricing`, 2026-11-02): $10 per GB of RAM a month, $20 per vCPU a month, $0.15
-per GB of volume a month. Hobby is $5 including $5 of usage.
+**Rates** (`railway.com/pricing`): $10 per GB of RAM a month, $20 per vCPU a month, $0.15 per GB of
+volume a month. Hobby is $5 including $5 of usage, and you pay the larger of $5 or your usage.
 
-**The included $5 is already used.** `railway usage` shows $6.42 so far this period and an estimated
-$12.02 bill, all from NoRentGrets, so Runout's usage is all extra.
+**NoRentGrets now** (`dazzling-quietude`, measured over the 23 hours after its Nov 2 cleanup):
 
-| Added monthly | Path B | Path A |
-|---|---:|---:|
-| `runout` at 200 to 300 MB | $2.00 to $3.00 | $2.00 to $3.00 |
-| Postgres at 60 to 100 MB (A: 100 to 200 MB) | $0.60 to $1.00 | $1.00 to $2.00 |
-| CPU, under 0.01 vCPU | up to $0.20 | up to $0.20 |
-| Volume and backups | under $0.05 | about $0.10 |
-| **Total** | **about $3 to $4.50** | **about $3.50 to $5.50** |
+| Service | RAM | CPU | Volume | Monthly |
+|---|---:|---:|---:|---:|
+| production `norentgrets` (Puma with async Solid Queue) | 189 MB | 0.0015 vCPU | | $1.88 |
+| production `Postgres-6L4m` | 65 MB | 0.0008 vCPU | 136 MB | $0.67 |
+| staging `Postgres` | 56 MB | 0.0002 vCPU | 137 MB | $0.58 |
+| **Total** | | | | **about $3.13** |
 
-So a bill of about $15 to $18 a month. Memory is estimated from NoRentGrets' measured web and database
-services, not from Runout on Railway. A separate worker would add about $1.50 to $2 more.
+**Runout, estimated separately:**
 
-**Not verified: these need a real deploy or Docker**
-- The `Dockerfile` has never been built: Docker can't run on this Mac, because Homebrew's Lima runs
-  under Rosetta. CI's `image` job builds and boots it on the first push.
-- jemalloc, Linux memory, Railway's private network, its proxy and health check.
-- Real Spotify and Last.fm sign-in in production (step 9).
-- `railway` commands in §5 and §6: flags checked against CLI help, none run.
-- Rate limits behind Railway's proxy: if it isn't a trusted proxy to Rails, limits count all visitors as
-  one. Harmless for one person. Check `request.remote_ip` if sign-ins start being limited.
-- A stalled in-process Solid Queue isn't detected by `/up`. Settings shows the last successful check.
+| Service | RAM | CPU | Monthly |
+|---|---:|---:|---:|
+| `runout` (same setup as NoRentGrets, plus 5-minute polls) | 200 to 260 MB | 0.002 to 0.005 vCPU | $2.05 to $2.70 |
+| `Postgres`, small while Spotify-only | 60 to 70 MB | about 0.001 vCPU | $0.65 to $0.75 |
+| Volume, plus Railway backups | | | under $0.10 |
+| **Total** | | | **about $2.75 to $3.50** |
+
+**Your bill:** usage of about $5.90 to $6.60 a month, so **about $6 to $7**, up from $5 today: **$1 to $2 more**,
+because NoRentGrets leaves about $1.87 of the included $5 unused. Egress is about $0.01.
+
+**This period** (to Nov 18) is higher: $6.42 is already used, mostly before the Nov 2 cleanup. Railway's $11.98
+estimate projects that earlier spending forward, so it overstates things.
+
+**Not verified: these need Docker or a real deploy**
+- The `Dockerfile` and `run.sh` have never run: Docker can't start on this Mac, because Homebrew's Lima runs under
+  Rosetta. CI's `image` job covers them, on the same architecture Railway uses.
+- PostgreSQL 18 (Railway's template): tested on 17 here; `run.sh` and CI use 18.
+- Linux memory with jemalloc, Railway's private network, proxy and health check.
+- Real Spotify and Last.fm sign-in in production (steps 3 and 5).
+- The `railway` commands in §5 and §6: flags checked against CLI help, none run. `backup.yml`: parsed, never run;
+  its script and encryption were tested separately.
+- Rate limits behind Railway's proxy: if it isn't a trusted proxy to Rails, limits count all visitors as one.
+  Harmless for one person.
+- `/up` doesn't detect a stalled in-process Solid Queue. Settings shows the last successful check.
