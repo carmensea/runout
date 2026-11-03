@@ -72,3 +72,12 @@ jobs:
         run: INGESTION=false server/test/smoke/production/run.sh
       - name: Sign-in, OAuth, polling, restarts, deduplication
         run: server/test/smoke/production/run.sh
+
+  backup:
+    name: Backup job (PostgreSQL 18, restore, encryption, retention, failures)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: deploy/backup/test.sh
+
