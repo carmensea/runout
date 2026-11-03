@@ -180,7 +180,7 @@ done
 - Read-only check: `railway ssh --service runout -- bin/rails spotify:verify`.
 - Wait 10 minutes: Time Machine stays empty and Settings shows no checks.
 
-**6. Verify backups** (§7): turn on Railway's and the daily job, run it once, and test a restore.
+**6. Verify backups** (§7): the export is the only layer on Hobby. Run it once and test a restore before cutover.
 
 **7. Stop local Spotify polling** (approval needed)
 - Take a local backup into `~/runout-backups/`.
@@ -270,9 +270,15 @@ outage long enough for 50 newer plays to push it out. Those periods show as gaps
 
 | Layer | Schedule and retention | Needs |
 |---|---|---|
-| Railway volume backups | Daily (6 days) and weekly (27 days). Set in Postgres → Backups. | Check the tab offers them on Hobby: Railway's docs don't say. Restores only in the same project, and wiping the volume deletes them. |
+| Railway volume backups | **Not available on Hobby.** The API refuses: "Manual backups and backup schedules are only available for Pro workspaces." | A Pro workspace |
 | **Daily portable export** | GitHub Actions, 10:17 UTC. Kept 30 days; the first of each month kept 90. No laptop needed. | A read-only database role, a certificate, three settings. Free within a private repo's quotas: about 60 of 2,000 minutes a month. |
 | By hand | `bin/backup-railway` from the Mac, into `~/runout-backups/railway/`. Optional extra. | |
+
+**Proved on Runout's live Postgres 18 (2026-11-03), with no public port:** `pg_dump` over `railway ssh`
+from a logged-in Mac, byte-identical by checksum, and a restore into a throwaway database on the same
+server with matching counts. The workflow below still uses the TCP proxy, and hasn't run. Choose between
+the proxy and SSH before relying on it. `railway ssh` needs a registered key, which can reach every
+service on the account, so neither is free of trade-offs.
 
 **What each daily run does** (`.github/workflows/backup.yml`):
 1. Dumps through a read-only role.
