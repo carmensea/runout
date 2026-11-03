@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts index.html ./
 COPY public public
 COPY src src
-RUN npm ci && VITE_RUNOUT_API_URL=/api npm run build
+RUN npm ci && VITE_RUNOUT_API_URL=/api npm run build && mv dist/index.html index.html
 
 FROM ruby:3.4.7-slim AS gems
 RUN apt-get update -qq && apt-get install -y --no-install-recommends build-essential libpq-dev libyaml-dev pkg-config
@@ -23,11 +23,12 @@ ENV RAILS_ENV=production BUNDLE_DEPLOYMENT=1 BUNDLE_WITHOUT=development:test BUN
     RAILS_LOG_LEVEL=info SOLID_QUEUE_IN_PUMA=async
 COPY --from=gems /usr/local/bundle /usr/local/bundle
 COPY server/ ./
-# Vite's assets go in public/ for Rails' static server. index.html stays outside it, so
-# FrontendController can serve it without the far-future cache header digested assets get.
+# Vite's assets go in public/ for Rails' static server. index.html never does, so
+# FrontendController serves it, without the far-future cache header digested assets get. Moving it
+# out in a later layer isn't enough: Railway's build still served it from public/.
 COPY --from=frontend /app/dist/ public/
-RUN mkdir frontend && mv public/index.html frontend/index.html \
-  && bundle exec bootsnap precompile --gemfile app/ lib/ \
+COPY --from=frontend /app/index.html frontend/index.html
+RUN bundle exec bootsnap precompile --gemfile app/ lib/ \
   && useradd --create-home --uid 1000 rails && mkdir -p tmp log && chown -R rails:rails tmp log
 USER rails
 CMD ["bin/docker-entrypoint"]
