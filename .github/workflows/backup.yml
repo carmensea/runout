@@ -1,0 +1,73 @@
+name: Database backup
+
+# Daily off-platform backup of Runout's Railway database, independent of any laptop
+# (docs/railway-deployment.md §7). Does nothing until the owner sets the repository variable
+# RUNOUT_BACKUP_ENABLED=true and the two secrets below.
+#
+# - RUNOUT_BACKUP_URL: a read-only role's connection URL, through Railway's TCP proxy.
+# - RUNOUT_BACKUP_PUBLIC_CERT: a certificate. Dumps are encrypted to it; its private key stays with the
+#   owner, so neither GitHub nor this repository can read a stored backup.
+#
+# A failed run emails the owner (GitHub's default for scheduled workflows). Optional:
+# RUNOUT_BACKUP_HEARTBEAT_URL, pinged after success, so a free uptime service can alert if runs stop.
+
+on:
+  schedule:
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: vars.RUNOUT_BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PG_MAJOR: ${{ vars.RUNOUT_PG_MAJOR || '18' }}
+    services:
+      postgres:
+        image: postgres:${{ vars.RUNOUT_PG_MAJOR || '18' }}
+        env:
+          POSTGRES_PASSWORD: restore-check-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install matching PostgreSQL tools
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends "postgresql-client-$PG_MAJOR"
+      - name: Dump, restore into a disposable database, compare
+        env:
+          RUNOUT_BACKUP_URL: ${{ secrets.RUNOUT_BACKUP_URL }}
+          RUNOUT_BACKUP_DIR: ${{ runner.temp }}/backup
+          RUNOUT_LOCAL_PGHOST: localhost
+          RUNOUT_LOCAL_PGUSER: postgres
+          PGPASSWORD: restore-check-only
+        run: |
+          RUNOUT_PG_BIN="/usr/lib/postgresql/$PG_MAJOR/bin" server/bin/backup-railway
+      - name: Encrypt to the owner's key; only ciphertext leaves this job
+        env:
+          PUBLIC_CERT: ${{ secrets.RUNOUT_BACKUP_PUBLIC_CERT }}
+          BACKUP_DIR: ${{ runner.temp }}/backup
+        run: server/script/encrypt-backup "$BACKUP_DIR"
+      - name: Choose retention
+        id: keep
+        # 30 days daily; the first of each month for 90, GitHub's longest.
+        run: echo "days=$([ "$(date -u +%d)" = 01 ] && echo 90 || echo 30)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runout-backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/backup/*.cms
+            ${{ runner.temp }}/backup/*.sha256
+          if-no-files-found: error
+          retention-days: ${{ steps.keep.outputs.days }}
+          compression-level: 0
+      - name: Report success
+        env:
+          HEARTBEAT: ${{ secrets.RUNOUT_BACKUP_HEARTBEAT_URL }}
+        run: if [ -n "$HEARTBEAT" ]; then curl -fsS -m 10 --retry 3 "$HEARTBEAT" > /dev/null; fi

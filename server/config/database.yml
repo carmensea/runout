@@ -1,5 +1,5 @@
 # Development and test use a local PostgreSQL (see server/README.md).
-# Production uses Neon through direct (non-pooled) connection URLs; see docs/backend-plan.md §9.
+# Production uses Railway's PostgreSQL; see docs/railway-deployment.md.
 default: &default
   adapter: postgresql
   encoding: unicode
@@ -32,16 +32,16 @@ test:
   <<: *default
   database: runout_test
 
+# Railway gives one DATABASE_URL over its private network. Solid Queue has its own database on the
+# same server, so backing up or restoring the archive never touches queue state.
 production:
   primary:
     adapter: postgresql
     url: <%= ENV["DATABASE_URL"] %>
-    max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  cache:
-    adapter: postgresql
-    url: <%= ENV["CACHE_DATABASE_URL"] %>
-    migrations_paths: db/cache_migrate
+    max_connections: <%= pool = ENV.fetch("RAILS_MAX_THREADS", 3).to_i + ENV.fetch("JOB_THREADS", 2).to_i %>
   queue:
     adapter: postgresql
-    url: <%= ENV["QUEUE_DATABASE_URL"] %>
+    url: <%= ENV["QUEUE_DATABASE_URL"].presence || (ENV["DATABASE_URL"].present? ? URI(ENV["DATABASE_URL"]).tap { |u| u.path = "/runout_queue" }.to_s : nil) %>
+    # In-process Solid Queue: job threads plus the dispatcher, scheduler, poller and heartbeats.
+    max_connections: <%= pool + 6 %>
     migrations_paths: db/queue_migrate

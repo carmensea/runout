@@ -1,0 +1,20 @@
+#!/bin/sh
+# Encrypts the dumps in a folder to the owner's certificate and removes the plaintext, for
+# .github/workflows/backup.yml. Uses standard CMS through openssl, which both the runner and the Mac
+# already have. Only the private key, which never leaves the owner, can decrypt:
+#   openssl cms -decrypt -binary -inform DER -inkey runout-backup.key -in FILE.dump.cms -out FILE.dump
+set -eu
+DIR=$1
+CERT="$(mktemp)"
+trap 'rm -f "$CERT"' EXIT
+printf '%s\n' "$PUBLIC_CERT" > "$CERT"
+openssl x509 -in "$CERT" -noout > /dev/null || { echo "encrypt-backup: not a certificate" >&2; exit 1; }
+found=0
+for dump in "$DIR"/*.dump; do
+  [ -f "$dump" ] || continue
+  openssl cms -encrypt -aes-256-cbc -binary -outform DER -in "$dump" -out "$dump.cms" "$CERT"
+  [ -s "$dump.cms" ] || { echo "encrypt-backup: encryption failed" >&2; exit 1; }
+  rm -f "$dump"
+  found=1
+done
+[ "$found" = 1 ] || { echo "encrypt-backup: nothing to encrypt" >&2; exit 1; }

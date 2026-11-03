@@ -10,8 +10,9 @@ class ReviewDecision < ApplicationRecord
 
   def readonly? = persisted?
 
-  def self.record!(subject, action, source:, by: nil, **details)
+  # `at`: when the decision was really made, for one carried over from another database.
+  def self.record!(subject, action, source:, by: nil, at: nil, **details)
     create!(user_id: subject.user_id, subject_type: subject.class.name, subject_id: subject.id, action: action.to_s,
-            source: source.to_s, decided_by: by, details: details)
+            source: source.to_s, decided_by: by, details: details, **(at ? { created_at: at } : {}))
   end
 end

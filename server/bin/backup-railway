@@ -1,0 +1,57 @@
+#!/bin/sh
+# Off-platform backup of Runout's Railway database (docs/railway-deployment.md §7), run daily by
+# .github/workflows/backup.yml and by hand from the Mac. Dumps the primary database, proves the dump
+# restores into a disposable database, compares row counts, then keeps it in RUNOUT_BACKUP_DIR
+# (~/runout-backups/railway by default). Earlier backups are never touched, except that dumps in that
+# folder beyond the newest 30 are deleted. Prints no credentials.
+#
+#   bin/backup-railway                  URL read from the linked Railway project's Postgres service
+#   RUNOUT_BACKUP_URL=... bin/backup-railway
+set -eu
+
+DEST="${RUNOUT_BACKUP_DIR:-$HOME/runout-backups/railway}"
+CHECK_DB=runout_restore_check
+LOCAL="-h ${RUNOUT_LOCAL_PGHOST:-localhost} -U ${RUNOUT_LOCAL_PGUSER:-postgres}"
+# The tools must be at least the server's version. This Mac's PATH has an older pg_dump
+# (docs/real-import-runbook.md), and Railway's current Postgres template is 18.
+PG_BIN="${RUNOUT_PG_BIN:-$HOME/.local/postgresql-17/bin}"
+
+fail() {
+  echo "backup-railway: $1" >&2
+  osascript -e 'display notification "Runout backup failed; see the log." with title "Runout"' 2>/dev/null || true
+  exit 1
+}
+
+URL="${RUNOUT_BACKUP_URL:-$(railway variable list --service Postgres --kv 2>/dev/null | sed -n 's/^DATABASE_PUBLIC_URL=//p')}"
+[ -n "$URL" ] || fail "no database URL (is this folder linked to the Railway project?)"
+export PGCONNECT_TIMEOUT=30
+
+umask 077
+mkdir -p "$DEST"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+TMP="$DEST/.in-progress-$STAMP.dump"
+trap 'rm -f "$TMP"; "$PG_BIN/dropdb" $LOCAL --if-exists "$CHECK_DB" 2>/dev/null || true' EXIT
+
+"$PG_BIN/pg_dump" -Fc --no-owner --no-privileges -f "$TMP" "$URL" || fail "pg_dump failed"
+
+counts() { # tables are listed so a new one doesn't change what a backup is compared on
+  "$PG_BIN/psql" "$@" -X -A -t -c "select (select count(*) from scrobbles), (select count(*) from listening_observations), (select count(*) from name_variants), (select count(*) from users), (select md5(coalesce(string_agg(id::text || played_at::text || seq::text || name_variant_id::text, ',' order by id), '')) from scrobbles where source = 'lastfm')"
+}
+
+"$PG_BIN/dropdb" $LOCAL --if-exists "$CHECK_DB"
+"$PG_BIN/createdb" $LOCAL "$CHECK_DB"
+"$PG_BIN/pg_restore" $LOCAL --no-owner --no-privileges --exit-on-error -d "$CHECK_DB" "$TMP" || fail "the dump did not restore"
+RESTORED=$(counts $LOCAL -d "$CHECK_DB")
+"$PG_BIN/dropdb" $LOCAL "$CHECK_DB"
+
+# Plays may arrive after the dump, so the restored Last.fm fingerprint and users must match exactly
+# and the source may only be ahead on the counts that grow.
+SOURCE=$(counts "$URL") || fail "could not read the source counts"
+[ "$(echo "$RESTORED" | cut -d'|' -f4,5)" = "$(echo "$SOURCE" | cut -d'|' -f4,5)" ] || fail "restored data differs from the source"
+[ "$(echo "$RESTORED" | cut -d'|' -f1)" -le "$(echo "$SOURCE" | cut -d'|' -f1)" ] || fail "restored data differs from the source"
+
+FINAL="$DEST/runout-railway-$STAMP.dump"
+mv "$TMP" "$FINAL"
+(cd "$DEST" && shasum -a 256 "$(basename "$FINAL")" > "$(basename "$FINAL").sha256")
+ls -1t "$DEST"/runout-railway-*.dump | tail -n +31 | while read -r old; do rm -f "$old" "$old.sha256"; done
+echo "backup-railway: OK $(basename "$FINAL") restored and checked: $(echo "$RESTORED" | cut -d'|' -f1) plays"

@@ -20,8 +20,8 @@ module Listening
       end
     end
 
-    def separate!(observation, by:)
-      decide(observation, by) do |o|
+    def separate!(observation, by:, at: nil, **details)
+      decide(observation, by, at: at, **details) do |o|
         played_at = Time.at(o.reported_at.to_i).utc
         taken = Scrobble.where(user_id: o.user_id, played_at: played_at).maximum(:seq)
         scrobble = Scrobble.create!(user_id: o.user_id, played_at: played_at, seq: taken ? taken + 1 : 0, name_variant_id: o.name_variant_id,
@@ -31,7 +31,7 @@ module Listening
       end
     end
 
-    def decide(observation, by)
+    def decide(observation, by, at: nil, **details)
       ListeningStorage.writing_for(observation.provider) do
         ApplicationRecord.transaction do
           ApplicationRecord.connection.execute(ApplicationRecord.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtext(?))", format(Recorder::LOCK, observation.user_id) ]))
@@ -39,7 +39,7 @@ module Listening
           raise Invalid, "already decided" unless o.link_state == "pending_review"
 
           action = yield(o)
-          ReviewDecision.record!(o, action, source: "person", by: by, scrobble_id: o.scrobble_id)
+          ReviewDecision.record!(o, action, source: "person", by: by, at: at, **details, scrobble_id: o.scrobble_id)
           action
         end
       end

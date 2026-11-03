@@ -58,3 +58,17 @@ jobs:
       - run: bin/rubocop
       - run: bin/brakeman --no-pager --quiet
       - run: bin/bundler-audit
+
+  image:
+    name: Production image (build, boot, end-to-end against a fake Spotify and Last.fm)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t runout:smoke .
+      - name: The image carries no local secrets, data or test code
+        run: docker run --rm --entrypoint sh runout:smoke -c '! ls -a /rails | grep -E "^\.env" && ! find /rails -name "*.dump" | grep . && ! test -e /rails/test && test -f /rails/frontend/index.html'
+      - name: With ingestion off, connecting stores no plays
+        run: INGESTION=false server/test/smoke/production/run.sh
+      - name: Sign-in, OAuth, polling, restarts, deduplication
+        run: server/test/smoke/production/run.sh
