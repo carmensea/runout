@@ -166,7 +166,14 @@ class Listening::ArchiveMergeTest < ActiveSupport::TestCase
     merge = Listening::ArchiveMerge.new(@file.path)
 
     assert_raises(Listening::ArchiveMerge::Refused) { merge.run!(confirm_database: "something_else") }
-    assert_includes Listening::ArchiveMerge::PROTECTED_DATABASES, "runout_development"
+    connection = ApplicationRecord.connection
+    connection.define_singleton_method(:current_database) { "runout_development" }
+    begin
+      error = assert_raises(Listening::ArchiveMerge::Refused) { merge.run!(confirm_database: "runout_development") }
+      assert_match(/protected/, error.message)
+    ensure
+      connection.singleton_class.remove_method(:current_database)
+    end
 
     File.write(@file.path, good.sub('"Song"', '"Sung"'))
     assert_raises(Listening::ArchiveMerge::Refused) { merge.run!(confirm_database: name) }
