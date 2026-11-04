@@ -53,7 +53,7 @@ docker run -d --name runout-smoke-stub --network "$NET" --network-alias accounts
 
 key() { openssl rand -hex 32; }
 docker run -d --name runout-smoke-app --network "$NET" --network-alias app -v "$STATE/stub.crt:/stub.crt:ro" \
-  -e PORT=3000 -e APP_ORIGIN=https://runout.test -e SSL_CERT_FILE=/stub.crt \
+  -e PORT=3000 -e APP_ORIGIN=https://runout.test -e APP_ORIGINS=https://old.runout.test -e SSL_CERT_FILE=/stub.crt \
   -e DATABASE_URL=postgresql://postgres:smoke@runout-smoke-pg:5432/railway \
   -e SECRET_KEY_BASE="$(key)" -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="$(key)" \
   -e ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY="$(key)" -e ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT="$(key)" \

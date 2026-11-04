@@ -95,4 +95,12 @@ end
 
 class ActionDispatch::IntegrationTest
   include SignInHelpers
+
+  # Requests arrive on the app's own origin, as they do from the browser (RequestForgeryProtection).
+  setup { host! "localhost:5173" }
+
+  def reset!
+    super
+    host! "localhost:5173"
+  end
 end

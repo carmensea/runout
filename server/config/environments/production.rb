@@ -63,6 +63,6 @@ Rails.application.configure do
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   # Only answer for the app's own host. The health check is exempt so Railway can reach it directly.
-  config.hosts = [ URI(ENV.fetch("APP_ORIGIN")).host ]
+  config.hosts = Runout::Origins.hosts
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end

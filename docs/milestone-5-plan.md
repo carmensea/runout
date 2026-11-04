@@ -479,7 +479,7 @@ chosen range and the diary, then offline diary writing with version-based sync.
 
 | # | PR | Phase | Deploy note |
 |---|---|---|---|
-| 0 | Custom domain on Railway: HTTPS, redirect, `APP_ORIGIN`, callbacks; deployment guide updated | 1 | owner's step; a docs PR |
+| 0 | Custom domain runout.idlewinny.com: `APP_ORIGINS` code (two hostnames, strict same-origin writes, sign-in on the canonical host), then DNS, certificate, `APP_ORIGIN`, callbacks (`docs/railway-deployment.md` §10) | 1 | code PR, then variables with separate approval; no redirect yet |
 | 1 | Passkeys, recovery codes, operator link, `GET /api/session`, sessions list (backend, flag off) | 1 | migration only; routes 404 |
 | 2 | Signed-out screen, Settings sign-in section (frontend) | 1 | hidden while flag off |
 | 3 | History without Last.fm: 401/409 split, gates on stored plays, deletion by display name | 1 | behaviour change, tested on the copy first |

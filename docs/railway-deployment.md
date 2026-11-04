@@ -377,6 +377,7 @@ into it, compare, then point `DATABASE_URL` at it. Keep the old service until yo
 | A bad migration | Fix forward, as `CLAUDE.md` says. Restore a backup only with your approval. |
 | Undo the archive move | Export the new plays first (`archive:export_spotify` on `runout`). Set `DATABASE_URL` back to `/railway`, restore the three keys from `ROLLBACK_ACTIVE_RECORD_ENCRYPTION_*`, redeploy. Then merge the export where it belongs. |
 | Abandon the cloud | Set the flag off, confirm no new cloud polls, set the local flag on, Resume, restart. Local catches up on the last 50 plays. Merge cloud-only plays by §6 before deleting the project. |
+| Undo the custom domain | §10 "Rollback": point `APP_ORIGIN` and `SPOTIFY_REDIRECT_URI` back at the Railway address, one redeploy. |
 
 Cutover never writes to the local database, so it's always there to return to.
 
@@ -420,3 +421,84 @@ estimate projects that earlier spending forward, so it overstates things.
 - Rate limits behind Railway's proxy: if it isn't a trusted proxy to Rails, limits count all visitors as one.
   Harmless for one person.
 - `/up` doesn't detect a stalled in-process Solid Queue. Settings shows the last successful check.
+
+## 10. Custom domain: runout.idlewinny.com
+
+Passkeys (`docs/milestone-5-plan.md` §2) are bound to the site's hostname, so Runout moves to
+**runout.idlewinny.com** before the first passkey exists. The Railway address keeps working
+throughout and is not redirected until the owner approves that separately.
+
+**Status:** code for two hostnames at once written 2026-11-04 (this section's "How the app
+handles hostnames"); the domain is not added yet. Each production step below needs the owner's
+approval first.
+
+### How the app handles hostnames
+
+- `APP_ORIGIN` is the canonical origin: the Last.fm callback, the Spotify Settings redirect and the
+  host authorization list come from it. Unchanged.
+- `APP_ORIGINS` (optional, comma-separated) adds other hostnames the app answers on while the domain
+  changes; `Runout::Origins` in `config/application.rb` always keeps the canonical one in the list.
+  Unset, nothing differs from before.
+- Writes stay strictly same-origin per request: the `Origin` header must equal the origin the
+  request arrived on, and that origin must be configured. The other configured hostname is refused
+  like any foreign site (`RequestForgeryProtection`, `test/integration/origins_test.rb`, the smoke
+  test's `old.runout.test` checks).
+- Cookies are per host (`__Host-` in production): a session exists on one hostname only, so you sign
+  in once on the new domain and the old one's session goes on working until it expires or you sign
+  out there. No session rows change.
+- Last.fm sign-in started on a non-canonical hostname redirects to the canonical `/api/auth/lastfm`
+  before any state cookie is written, so start and callback share a host. Spotify's begin and
+  callback already run on the redirect URI's origin and return to Settings on the canonical origin.
+- DNS for idlewinny.com is Namecheap BasicDNS. The apex and `www` point at Vercel; only the new
+  `runout` records are added. Last.fm's web auth takes the callback per request (`cb`), so nothing
+  changes on Last.fm's side. Spotify checks the redirect URI against the app's allowlist, so the new
+  one is added in the developer dashboard first; polling is unaffected either way, because token
+  refresh never sends a redirect URI.
+
+### Procedure
+
+1. **Deploy the code** (this PR). No behaviour change while `APP_ORIGINS` is unset.
+2. **Add the domain and the second origin** (from `server/`):
+   ```sh
+   railway domain runout.idlewinny.com --service runout      # prints the CNAME and TXT to create
+   railway variable set --service runout APP_ORIGINS=https://runout.idlewinny.com   # redeploys
+   railway domain list --service runout                     # both domains listed
+   ```
+3. **Owner, in Namecheap** (Domain List → idlewinny.com → Advanced DNS → Add New Record): the CNAME
+   with host `runout` and the target Railway printed, and the TXT exactly as printed. Both are
+   required; without the TXT Railway answers 404. Leave `@` and `www` alone.
+   **Owner, in the Spotify dashboard** (the Runout app → Settings → Redirect URIs): add
+   `https://runout.idlewinny.com/api/auth/spotify/callback`, keep the existing ones.
+4. **Verify the new hostname** (certificate within about an hour of the records resolving):
+   ```sh
+   dig +short CNAME runout.idlewinny.com
+   railway domain status runout.idlewinny.com --service runout
+   curl -s -o /dev/null -w '%{http_code}\n' https://runout.idlewinny.com/up          # 200
+   curl -s https://runout.idlewinny.com/api/connection                             # {"status":"none"}
+   curl -s -o /dev/null -w '%{http_code}\n' https://runout-production.up.railway.app/up   # still 200
+   ```
+   Open https://runout.idlewinny.com in a browser: the app loads, signed out.
+5. **Make it canonical:**
+   ```sh
+   railway variable set --service runout APP_ORIGIN=https://runout.idlewinny.com \
+     APP_ORIGINS=https://runout-production.up.railway.app \
+     SPOTIFY_REDIRECT_URI=https://runout.idlewinny.com/api/auth/spotify/callback
+   ```
+   Then: sign in with Last.fm on the new domain and sign out and in again; the Railway address
+   still shows the library with its own session; `/api/auth/lastfm` on the Railway address answers
+   302 to the new domain; Settings → connect Spotify reaches Spotify's consent page with the new
+   `redirect_uri` (cancel there, the account is already connected); Overview, Loved, Search and
+   Time Machine load; `listening_polls` keeps gaining rows every 5 minutes.
+6. Later, each with its own approval: redirect the Railway address to the domain; passkeys (`rp_id`
+   = `runout.idlewinny.com`).
+
+### Rollback
+
+Validated by the tests above and by the fact that the switch is variables only; production is not
+flipped back and forth to demonstrate it.
+
+| Situation | Do this |
+|---|---|
+| The new domain misbehaves after step 5 | `railway variable set --service runout APP_ORIGIN=https://runout-production.up.railway.app SPOTIFY_REDIRECT_URI=https://runout-production.up.railway.app/api/auth/spotify/callback` (one redeploy, about 2 minutes). Keep `APP_ORIGINS` so the domain still answers. Sessions and polling are untouched. |
+| Drop the domain entirely | After the above: `railway domain delete runout.idlewinny.com --service runout`, `railway variable delete APP_ORIGINS --service runout`, remove the two Namecheap records and the Spotify redirect URI. |
+| Undo the code | Reverting the PR restores single-origin behaviour; with `APP_ORIGINS` unset the code already behaves that way, so a revert is not needed for a rollback. |
