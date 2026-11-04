@@ -85,6 +85,15 @@
   white-space: nowrap;
 }
 
+/* Five columns don't fit a phone: the table scrolls sideways on its own, the page never does. */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  min-width: 640px;
+}
+
 .more {
   display: flex;
   justify-content: center;

@@ -208,6 +208,7 @@ function Body({ data }: { data: LovedLibrary }) {
         {filtered.length === 0 ? (
           <p className="caption" role="status">No loved songs match.</p>
         ) : (
+          <div className={styles.tableWrap}>
           <table className={genreStyles.table}>
             <caption className="sr-only">Loved songs</caption>
             <thead>
@@ -241,6 +242,7 @@ function Body({ data }: { data: LovedLibrary }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {filtered.length > shown && (
           <div className={styles.more}><button type="button" className={stateStyles.secondary} onClick={() => setShown(shown + PAGE)}>Show {fmt.count(Math.min(PAGE, filtered.length - shown))} more</button></div>
