@@ -16,7 +16,18 @@ Rails.application.routes.draw do
     get "listening-sources/reviews", to: "listening_sources#reviews", as: :listening_reviews
     post "listening-sources/reviews/:id/:decision", to: "listening_sources#decide", as: :listening_review_decision,
                                                     constraints: { id: /\d+/, decision: /link|separate/ }
-    resource :session, only: :destroy
+    resource :session, only: %i[show destroy]
+    # Runout's own sign-in (docs/milestone-5-plan.md §2.3); 404 while RUNOUT_PASSKEYS_ENABLED is off.
+    post "auth/passkey/options", to: "passkey_auth#options", as: :passkey_sign_in_options
+    post "auth/passkey", to: "passkey_auth#create", as: :passkey_sign_in
+    post "auth/recovery", to: "recovery_auth#create", as: :recovery_sign_in
+    get "auth/link/:token", to: "sign_in_links#show", as: :sign_in_link
+    get "passkeys", to: "passkeys#index", as: :passkeys
+    post "passkeys/options", to: "passkeys#options", as: :passkey_options
+    post "passkeys", to: "passkeys#create"
+    delete "passkeys/:id", to: "passkeys#destroy", as: :passkey, constraints: { id: /\d+/ }
+    post "recovery-codes", to: "recovery_codes#create", as: :recovery_codes
+    resources :sessions, only: %i[index destroy], controller: "browser_sessions"
     resource :account, only: :destroy
     resource :connection, only: :show
     resource :import, only: %i[show create] do

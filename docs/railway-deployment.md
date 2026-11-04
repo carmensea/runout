@@ -378,6 +378,8 @@ into it, compare, then point `DATABASE_URL` at it. Keep the old service until yo
 | Undo the archive move | Export the new plays first (`archive:export_spotify` on `runout`). Set `DATABASE_URL` back to `/railway`, restore the three keys from `ROLLBACK_ACTIVE_RECORD_ENCRYPTION_*`, redeploy. Then merge the export where it belongs. |
 | Abandon the cloud | Set the flag off, confirm no new cloud polls, set the local flag on, Resume, restart. Local catches up on the last 50 plays. Merge cloud-only plays by §6 before deleting the project. |
 | Undo the custom domain | §10 "Rollback": point `APP_ORIGIN` and `SPOTIFY_REDIRECT_URI` back at the Railway address, one redeploy. |
+| Locked out of Runout's own sign-in (no passkey, no recovery code) | The operator link, from `server/`: `railway ssh --service runout -- bin/rails 'auth:recovery_link[<user UUID>,<display name>]'`. It prints a link valid 15 minutes, single use, and logs that it was issued; the route answers 404 while `RUNOUT_PASSKEYS_ENABLED` is off. Open it, enrol a passkey, regenerate the recovery codes. No request can issue one. |
+| Switch Runout's own sign-in off | `RUNOUT_PASSKEYS_ENABLED=false` (or delete the variable): the passkey, recovery, link and session routes answer 404; Last.fm sign-in and every session are unaffected. The tables stay; their one migration is reversible on a disposable database. |
 
 Cutover never writes to the local database, so it's always there to return to.
 
