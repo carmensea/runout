@@ -44,12 +44,18 @@ Spotify or any other source attach to the same identity, so hearts and counts fo
 
 Repeating the import changes nothing. Existing plays, variants and catalogue rows are not edited.
 
-**Rehearsed 2026-11-04** on a copy of the merged archive: 859 songs, one request, 661 linked by
-MusicBrainz ID and 198 by name, 4 held for review (`possible_match`), 0 ambiguous; a second run kept
-all 859 and changed nothing. 12 loved songs have no plays by identity: 9 are Last.fm IDs for a
-different recording than the one scrobbled (for example Robyn "Dancing on My Own", 76 plays under the
-other recording), shown as "0 linked · n under this name"; 3 were never played under that exact
-title. Merging recordings is a catalogue decision for a person, not the import.
+**Imported into production 2026-11-04 17:14 UTC**, after a rehearsal on a copy of the merged archive:
+859 songs, one request, 663 linked by MusicBrainz ID and 196 by name, 3 held for review
+(`possible_match`: Sorcha Richardson "Illinois Again", The Beaches "Should've Known Better", Peter Bjorn
+and John "Objects Of My Affection"), 0 ambiguous. Every loved date equals Last.fm's; a second run kept
+all 859 and changed nothing; every pre-existing row in every table was unchanged and the Last.fm
+fingerprint intact (backups `backup/20261104T171424Z` before and `backup/20261104T171914Z` after, both
+restore-tested). Last.fm had added IDs for two songs since the rehearsal: The Proclaimers now links to
+its scrobbled recording, and The Cure "Just Like Heaven" to a new recording with no plays. 12 loved
+songs have no plays by identity: 9 are Last.fm IDs for a different recording than the one scrobbled
+(for example Robyn "Dancing on My Own", 76 plays under the other recording), shown as
+"0 linked · n under this name"; 3 were never played under that exact title. Merging recordings is a
+catalogue decision for a person, not the import.
 
 ## 3. The page and the hearts
 
