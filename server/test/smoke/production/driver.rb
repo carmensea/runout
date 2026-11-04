@@ -8,6 +8,7 @@ require "fileutils"
 
 $failures = 0
 HOST = "runout.test"
+OLD_HOST = "old.runout.test" # a second configured hostname (APP_ORIGINS), as during a domain change
 APP = "runout-smoke-app"
 PG = "runout-smoke-pg"
 STATE = ENV.fetch("STATE", "/state")
@@ -111,6 +112,12 @@ check("signed in reaches private data", req(:get, "/api/overview").code == "200"
   "no XHR header" => { "Origin" => "https://#{HOST}" } }.each do |name, headers|
   check("CSRF: POST with #{name} is refused", req(:post, "/api/listening-sources/spotify/pause", headers: headers).code == "403")
 end
+check("an unconfigured hostname is blocked", req(:get, "/api/connection", host: "evil.test").code == "403")
+check("the second configured hostname answers", req(:get, "/api/connection", host: OLD_HOST).code == "200")
+check("CSRF: POST on one hostname with the other's Origin is refused",
+      req(:post, "/api/listening-sources/spotify/pause", headers: { "Origin" => "https://#{HOST}", "X-Requested-With" => "XMLHttpRequest" }, host: OLD_HOST).code == "403")
+check("Last.fm sign-in on the second hostname moves to the canonical origin first",
+      req(:get, "/api/auth/lastfm?tz=UTC", host: OLD_HOST)["location"] == "https://#{HOST}/api/auth/lastfm?tz=UTC")
 
 start = URI(req(:get, "/api/auth/spotify")["location"])
 check("Spotify start stays on the origin", start.host == HOST && start.scheme == "https")

@@ -10,7 +10,7 @@ class SpotifyConnectionTest < ActionDispatch::IntegrationTest
   # this returns to the app's own host afterwards, as the browser does when it goes back to Settings.
   def on_callback_origin(path, **params)
     get "#{CALLBACK_ORIGIN}#{path}", params: params
-    host! "www.example.com"
+    host! "localhost:5173"
     response
   end
 

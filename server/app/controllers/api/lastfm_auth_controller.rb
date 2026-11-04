@@ -12,6 +12,9 @@ module Api
 
     def start
       return redirect_to("/overview?auth_error=unavailable") unless Lastfm::Config.configured?
+      # The state cookie and the session cookie are per host, and the callback lands on the canonical
+      # origin, so sign-in started on another configured hostname moves there before anything is set.
+      return redirect_to("#{app_origin}#{request.fullpath}", allow_other_host: true) if alternate_origin?
 
       nonce = SecureRandom.urlsafe_base64(32)
       cookies.encrypted[STATE_COOKIE] = {
@@ -22,7 +25,7 @@ module Api
         same_site: :lax,
         path: "/api/auth/lastfm"
       }
-      callback = "#{Rails.configuration.x.app_origin}/api/auth/lastfm/callback?#{URI.encode_www_form(state: nonce)}"
+      callback = "#{app_origin}/api/auth/lastfm/callback?#{URI.encode_www_form(state: nonce)}"
       redirect_to Lastfm::Config.client.authorization_url(callback), allow_other_host: true
     end
 
@@ -41,6 +44,12 @@ module Api
     end
 
     private
+
+    def app_origin = Rails.configuration.x.app_origin
+
+    def alternate_origin?
+      request.base_url != app_origin && Rails.configuration.x.app_origins.include?(request.base_url)
+    end
 
     def valid_state?(stored)
       stored.is_a?(Hash) && stored["nonce"].present? && params[:state].present? &&

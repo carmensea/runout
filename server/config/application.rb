@@ -19,6 +19,19 @@ require "rails/test_unit/railtie"
 Bundler.require(*Rails.groups)
 
 module Runout
+  # The browser-facing origins. APP_ORIGIN is the canonical one: the frontend and /api are served
+  # from it, OAuth callbacks land on it and sign-in starts there (in development the Vite server,
+  # which proxies /api to Rails). APP_ORIGINS (comma-separated) adds other hostnames the app answers
+  # on while a domain changes (docs/railway-deployment.md §10); the canonical one is always included.
+  module Origins
+    def self.list(env = ENV)
+      [ env.fetch("APP_ORIGIN", "http://localhost:5173"), *env.fetch("APP_ORIGINS", "").split(",") ]
+        .map(&:strip).reject(&:empty?).uniq
+    end
+
+    def self.hosts(env = ENV) = list(env).map { |origin| URI(origin).host }
+  end
+
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1
@@ -44,11 +57,9 @@ module Runout
     # Session and sign-in state live in cookies; API-only apps omit this middleware by default.
     config.middleware.use ActionDispatch::Cookies
 
-    # The browser-facing origin. The frontend and /api are served from it, so cookies stay
-    # first-party and Last.fm redirects back here. In development this is the Vite server,
-    # which proxies /api to Rails.
-    config.x.app_origin = ENV.fetch("APP_ORIGIN", "http://localhost:5173")
-    config.x.app_origins = [ config.x.app_origin ]
+    # See Runout::Origins above. Cookies are per host, so each origin has its own session.
+    config.x.app_origins = Origins.list
+    config.x.app_origin = config.x.app_origins.first
     # The built frontend's shell (put there by the Dockerfile; absent in development).
     config.x.frontend_index = Rails.root.join("frontend/index.html")
 
