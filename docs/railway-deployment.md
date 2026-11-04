@@ -428,9 +428,20 @@ Passkeys (`docs/milestone-5-plan.md` §2) are bound to the site's hostname, so R
 **runout.idlewinny.com** before the first passkey exists. The Railway address keeps working
 throughout and is not redirected until the owner approves that separately.
 
-**Status:** code for two hostnames at once written 2026-11-04 (this section's "How the app
-handles hostnames"); the domain is not added yet. Each production step below needs the owner's
-approval first.
+**Done 2026-11-04.** Runout runs at <https://runout.idlewinny.com> since 22:56 UTC. Each step below
+was approved separately and verified as written: code merged and deployed 22:19 (PR #13); domain
+added and `APP_ORIGINS` set 22:25; Namecheap CNAME `runout` → `h7iz1z3j.up.railway.app` and TXT
+`_railway-verify.runout` entered by the owner; Railway verified the domain and issued the Let's
+Encrypt certificate (valid to 2027-02-02) by 22:40; the three variables switched 22:56 (one redeploy).
+After each redeploy `/up` answered 200 on both hostnames, the scheduled Spotify poll ran `ok` on the
+new container, and the row counts (209,605 scrobbles, 859 loved, 2 sessions) were unchanged. The
+owner signed in on the new domain and confirmed Overview, Time Machine and Loved Songs.
+
+**Now:** `APP_ORIGIN=https://runout.idlewinny.com`, `APP_ORIGINS=https://runout-production.up.railway.app`,
+`SPOTIFY_REDIRECT_URI=https://runout.idlewinny.com/api/auth/spotify/callback`. The Railway address stays
+as the fallback: it answers with its own session, and sign-in started there moves to the domain. It is
+not redirected; removing it from `APP_ORIGINS`, redirecting it, or dropping the old Spotify redirect
+URI each need the owner's approval.
 
 ### How the app handles hostnames
 
@@ -457,7 +468,7 @@ approval first.
 
 ### Procedure
 
-1. **Deploy the code** (this PR). No behaviour change while `APP_ORIGINS` is unset.
+1. **Deploy the code** (PR #13). No behaviour change while `APP_ORIGINS` is unset.
 2. **Add the domain and the second origin** (from `server/`):
    ```sh
    railway domain runout.idlewinny.com --service runout      # prints the CNAME and TXT to create

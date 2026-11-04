@@ -63,6 +63,9 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   (`docs/railway-deployment.md` §6, "Done"). Production now runs on the database `runout` on the
   Railway Postgres service. The previous database `railway` is kept untouched as a fallback, and the
   previous encryption keys are kept as `ROLLBACK_*` variables: don't delete either without asking.
+  Since 2026-11-04 the app is served at `https://runout.idlewinny.com` (`docs/railway-deployment.md`
+  §10); the Railway address stays in `APP_ORIGINS` as the fallback. Don't remove or redirect it, and
+  don't change `APP_ORIGIN` or the OAuth callbacks, without asking.
   The local `runout_development` archive is unchanged and remains the owner's fallback; the rules
   above still apply to it, and now to the Railway copy too. It authorises nothing else: no Last.fm
   sync, no enrichment, no other account.
