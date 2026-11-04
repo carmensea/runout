@@ -66,6 +66,11 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   The local `runout_development` archive is unchanged and remains the owner's fallback; the rules
   above still apply to it, and now to the Railway copy too. It authorises nothing else: no Last.fm
   sync, no enrichment, no other account.
+- **One approved loved-songs import (2026-11-04):** the owner authorised importing their Last.fm
+  loved list into `loved_tracks` (`docs/loved-songs.md`), read-only towards Last.fm, run by hand with
+  `LASTFM_LOVED_IMPORT_ENABLED=true bin/rails loved:import` on Railway. It stores no plays and edits no
+  scrobble, variant or catalogue link. Not a recurring refresh, not writes to Last.fm: each needs
+  approval.
 - **Last.fm sync needs the reverse matching rule first.** Before Last.fm sync or import is ever
   switched on again, a Last.fm play matching a stored Spotify play must be linked, not inserted
   (`docs/spotify-plan.md` §5).

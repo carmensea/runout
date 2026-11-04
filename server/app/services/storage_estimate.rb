@@ -11,10 +11,10 @@ module StorageEstimate
        AND NOT EXISTS (SELECT 1 FROM import_runs) AND NOT EXISTS (SELECT 1 FROM name_variants) AND NOT EXISTS (SELECT 1 FROM mbid_disputes) AND NOT EXISTS (SELECT 1 FROM catalogue_inferences)
        AND NOT EXISTS (SELECT 1 FROM tracks) AND NOT EXISTS (SELECT 1 FROM albums) AND NOT EXISTS (SELECT 1 FROM artists)
        AND NOT EXISTS (SELECT 1 FROM catalogue_reviews) AND NOT EXISTS (SELECT 1 FROM artist_aliases)
-       AND NOT EXISTS (SELECT 1 FROM reconciliation_disputes) AND NOT EXISTS (SELECT 1 FROM review_decisions)
+       AND NOT EXISTS (SELECT 1 FROM reconciliation_disputes) AND NOT EXISTS (SELECT 1 FROM review_decisions) AND NOT EXISTS (SELECT 1 FROM loved_tracks)
   SQL
   TRUNCATE_SQL = <<~SQL.freeze
-    TRUNCATE listening_observations, catalogue_inferences, mbid_disputes, review_decisions, reconciliation_disputes, scrobble_removals, scrobble_corrections, scrobbles, import_window_rows, import_window_fetches,
+    TRUNCATE loved_tracks, listening_observations, catalogue_inferences, mbid_disputes, review_decisions, reconciliation_disputes, scrobble_removals, scrobble_corrections, scrobbles, import_window_rows, import_window_fetches,
              import_windows, import_runs, catalogue_reviews, artist_aliases, name_variants, tracks, albums, artists
   SQL
 

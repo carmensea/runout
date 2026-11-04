@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_01_000025) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -403,6 +403,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000025) do
     t.check_constraint "state::text = ANY (ARRAY['connected'::character varying, 'needs_reauth'::character varying, 'disconnected'::character varying]::text[])", name: "listening_sources_state"
   end
 
+  create_table "loved_tracks", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.bigint "name_variant_id", null: false
+    t.string "source", null: false
+    t.datetime "loved_at", null: false
+    t.text "source_url"
+    t.datetime "first_imported_at"
+    t.datetime "last_listed_at"
+    t.datetime "unloved_at"
+    t.boolean "manual", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name_variant_id"], name: "index_loved_tracks_on_name_variant_id"
+    t.index ["user_id", "loved_at"], name: "index_loved_tracks_on_user_id_and_loved_at"
+    t.index ["user_id", "name_variant_id", "source"], name: "index_loved_tracks_identity", unique: true
+    t.index ["user_id"], name: "index_loved_tracks_on_user_id"
+    t.check_constraint "source::text = ANY (ARRAY['lastfm'::character varying, 'runout'::character varying]::text[])", name: "loved_tracks_source"
+  end
+
   create_table "mbid_disputes", force: :cascade do |t|
     t.binary "strings_hash", null: false
     t.string "level", null: false
@@ -745,6 +764,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_01_000025) do
   add_foreign_key "listening_observations", "users", on_delete: :cascade
   add_foreign_key "listening_polls", "listening_sources", on_delete: :cascade
   add_foreign_key "listening_sources", "users", on_delete: :cascade
+  add_foreign_key "loved_tracks", "name_variants"
+  add_foreign_key "loved_tracks", "users", on_delete: :cascade
   add_foreign_key "mbid_disputes", "import_windows", column: "first_import_window_id", on_delete: :nullify
   add_foreign_key "name_variants", "albums"
   add_foreign_key "name_variants", "artists"
