@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Heart } from '../../components/ui/Heart';
 import { useAppData } from '../../data/AppDataContext';
 import type { Play, PlaysPage } from '../../data/types';
 import { useAsync } from '../../data/useAsync';
 import { addDays } from '../../lib/dates';
 import { longDate, serializePeriod, type Period } from '../../lib/period';
+import { useLoved } from '../../state/LovedContext';
 import { usePeriod } from '../../state/PeriodContext';
 import { LEVEL_NOUN, type Focus } from './model';
 import styles from './TimeMachine.module.css';
@@ -116,11 +118,12 @@ export function PlayLog({ focus, label, dayCounts, countsPerPage = false }: Prop
 }
 
 function PlayRow({ play, sameSecond }: { play: Play; sameSecond: boolean }) {
+  const { isLoved } = useLoved();
   return (
     <li className={styles.play}>
       <time className={`mono ${styles.playTime}`} dateTime={play.playedAt}>{play.time}</time>
       <span className={styles.playWhat}>
-        <span className={styles.playTrack}>{play.track.name}</span>
+        <span className={styles.playTrack}>{play.track.name}{isLoved(play.track.id) && <Heart />}</span>
         <span className={styles.playArtist}>{play.artist.name}</span>
       </span>
       <span className={styles.playAlbum}>{play.album?.name ?? ''}</span>

@@ -2,7 +2,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { TopEntry, TopKind } from '../../data/types';
 import type { Formatter } from '../../lib/format';
 import { approvedImage } from '../../lib/artwork';
+import { useLoved } from '../../state/LovedContext';
 import { Artwork } from '../ui/Artwork';
+import { Heart } from '../ui/Heart';
 import { Sparkline } from './Sparkline';
 import styles from './TopTable.module.css';
 
@@ -22,6 +24,7 @@ interface Props {
 /** Ranked table; the whole row opens the detail page, the name is the real link. */
 export function TopTable({ kind, entries, total, fmt, hrefFor, viewAllHref, panelId, labelledBy }: Props) {
   const navigate = useNavigate();
+  const { isLoved } = useLoved();
   return (
     <div id={panelId} role="tabpanel" aria-labelledby={labelledBy}>
       <div className={styles.wrap}>
@@ -46,7 +49,7 @@ export function TopTable({ kind, entries, total, fmt, hrefFor, viewAllHref, pane
                   <td style={{ width: 48 }}><Artwork src={e.imageUrl} name={e.name} /></td>
                   <td>
                     <Link to={href} className={styles.nameLink}>
-                      <span className={styles.name}>{e.name}</span>
+                      <span className={styles.name}>{e.name}{kind === 'tracks' && isLoved(e.id) && <Heart />}</span>
                       {sub && <span className={styles.sub}>{sub}</span>}
                     </Link>
                   </td>

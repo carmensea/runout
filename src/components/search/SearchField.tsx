@@ -4,7 +4,9 @@ import { NotConnectedError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { SearchResults } from '../../data/types';
 import { useDismiss } from '../../hooks/useDismiss';
+import { useLoved } from '../../state/LovedContext';
 import { usePeriod } from '../../state/PeriodContext';
+import { Heart } from '../ui/Heart';
 import { Icon } from '../ui/Icon';
 import styles from './SearchField.module.css';
 
@@ -25,13 +27,14 @@ interface Option {
   name: string;
   sub: string | null;
   path: string;
+  loved?: boolean;
 }
 
-function toOptions(r: SearchResults): Option[] {
+function toOptions(r: SearchResults, isLoved: (trackKey: string) => boolean): Option[] {
   return [
     ...r.artists.map((a) => ({ id: `artist-${a.id}`, group: 'Artists' as const, name: a.name, sub: null, path: `/artists/${encodeURIComponent(a.id)}` })),
     ...r.albums.map((a) => ({ id: `album-${a.id}`, group: 'Albums' as const, name: a.name, sub: a.artist, path: `/albums/${encodeURIComponent(a.id)}` })),
-    ...r.tracks.map((t) => ({ id: `track-${t.id}`, group: 'Tracks' as const, name: t.name, sub: t.artist, path: `/tracks/${encodeURIComponent(t.id)}` })),
+    ...r.tracks.map((t) => ({ id: `track-${t.id}`, group: 'Tracks' as const, name: t.name, sub: t.artist, path: `/tracks/${encodeURIComponent(t.id)}`, loved: isLoved(t.id) })),
   ];
 }
 
@@ -39,6 +42,7 @@ function toOptions(r: SearchResults): Option[] {
 export function SearchField({ className, autoFocus }: { className?: string; autoFocus?: boolean }) {
   const { api } = useAppData();
   const { withPeriod } = usePeriod();
+  const { isLoved } = useLoved();
   const navigate = useNavigate();
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +56,7 @@ export function SearchField({ className, autoFocus }: { className?: string; auto
   // Status derives from the query: results only count when they answer the current query.
   const state: SearchState =
     trimmed.length < MIN_QUERY ? { status: 'idle' } : settled?.query === trimmed ? settled.result : { status: 'loading' };
-  const options = state.status === 'done' ? toOptions(state.results) : [];
+  const options = state.status === 'done' ? toOptions(state.results, isLoved) : [];
 
   // "/" focuses search from anywhere except text inputs.
   useEffect(() => {
@@ -181,7 +185,7 @@ export function SearchField({ className, autoFocus }: { className?: string; auto
                   onClick={() => go(o)}
                   onPointerEnter={() => setActive(i)}
                 >
-                  <span className={styles.optionName}>{o.name}</span>
+                  <span className={styles.optionName}>{o.name}{o.loved && <Heart />}</span>
                   {o.sub && <span className={styles.optionSub}>{o.sub}</span>}
                 </div>
               </li>

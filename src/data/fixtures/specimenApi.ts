@@ -289,6 +289,16 @@ export const specimenApi: RunoutApi = {
   getCalendarDays: async (from, to) => specimenDays(from, to),
   getPlays: async (period, cursor) => specimenPlays(period, cursor),
   getOnThisDay: async (date) => specimenOnThisDay(date),
+  getLovedTracks: async () => ({
+    total: 12, recentDays: 90, generatedAt: '2026-01-01T00:00:00Z',
+    tracks: Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1, source: 'lastfm' as const, lovedAt: `${2010 + i}-03-0${(i % 9) + 1}T12:00:00Z`, unlovedAt: null, manual: false, url: null,
+      artist: { id: `artists-${(i % 4) + 1}`, name: placeholder('Artist', (i % 4) + 1) }, track: { id: `tracks-${i + 1}`, name: placeholder('Track title', i + 1) },
+      asLoved: { artist: placeholder('Artist', (i % 4) + 1), track: placeholder('Track title', i + 1) }, link: (i === 11 ? 'review' : 'linked') as 'review' | 'linked',
+      plays: (12 - i) * 7, firstPlayedAt: `${2010 + i}-01-01T00:00:00Z`, lastPlayedAt: `${2015 + (i % 11)}-06-01T00:00:00Z`, lastPlayedDate: `${2015 + (i % 11)}-06-01`,
+      previousPlayedAt: `${2012 + (i % 5)}-01-01T00:00:00Z`, namePlays: (12 - i) * 7,
+    })),
+  }),
   getGenre: async (slug, period) => ({
     period: serializePeriod(period),
     genre: { slug, name: placeholder('Genre', 1), level: 'broad', parent: null },

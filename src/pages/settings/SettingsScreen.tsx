@@ -45,7 +45,7 @@ export function SettingsScreen() {
 
   return (
     <main id="main" className={settings.main}>
-      <div className="eyebrow">07 / Settings</div>
+      <div className="eyebrow">08 / Settings</div>
       <h1 className={settings.title}>Settings</h1>
       {!signedIn && !deletedRevokeUrl && (
         <p className={settings.lede}>Sign in with Last.fm to import your listening history and manage it here.</p>

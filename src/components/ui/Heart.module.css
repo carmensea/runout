@@ -1,0 +1,8 @@
+/* A small heart in the accent colour, sitting on the text baseline. */
+.heart {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: var(--ac);
+  vertical-align: -1px;
+}

@@ -7,6 +7,7 @@ import { Module, ModuleRow } from '../../../components/layout/Module';
 import { Section } from '../../../components/layout/Section';
 import { Tabs } from '../../../components/ui/Tabs';
 import type { TopEntry, TopKind } from '../../../data/types';
+import { useLoved } from '../../../state/LovedContext';
 import { albumHref, artistHref, trackHref, type SectionProps } from '../view';
 
 const TABS: ReadonlyArray<{ id: TopKind; label: string }> = [
@@ -18,6 +19,7 @@ const TABS: ReadonlyArray<{ id: TopKind; label: string }> = [
 export function TopSection({ data, view }: SectionProps) {
   const { fmt } = view;
   const [tab, setTab] = useState<TopKind>('artists');
+  const { isLoved } = useLoved();
   const hrefFor = (e: TopEntry) => (tab === 'artists' ? artistHref(view, e.id) : tab === 'tracks' ? trackHref(view, e.id) : albumHref(view, e.id));
   const entries = data.top[tab];
 
@@ -74,6 +76,7 @@ export function TopSection({ data, view }: SectionProps) {
               key: r.trackId + r.date,
               href: trackHref(view, r.trackId),
               primary: r.name,
+              loved: isLoved(r.trackId),
               meta: `${fmt.count(r.plays)} plays · ${fmt.date(r.date)}`,
             }))}
           />
