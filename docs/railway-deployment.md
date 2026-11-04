@@ -1,8 +1,8 @@
 # Deploying Runout to Railway
 
-Status: **live, Spotify-first** (cutover 2026-11-03, 04:14 UTC). Railway polls Spotify every 5 minutes
-and local polling is stopped. The Last.fm archive is still only on this Mac: copying it needs the
-owner's approval (`CLAUDE.md`). Still to confirm: a recording made with the Mac asleep (§5, step 10).
+Status: **live, one archive** (cutover 2026-11-03, 04:14 UTC; archive merged 2026-11-04, 02:00 UTC).
+Railway polls Spotify every 5 minutes and holds the full Last.fm archive merged with the Spotify plays
+(§6). Local polling is stopped. The local archive on this Mac is unchanged, as a fallback.
 Known limit: Spotify's feed omits some plays (§4).
 
 ## 1. What runs
@@ -102,8 +102,8 @@ on this). This is not legal advice.
 5. **Whether a sign-in-gated site is "public access"** under §2.7.
 6. **Whether derived data counts:** the catalogue, matches and genre results built from it.
 
-**Where the data sits doesn't change items 1, 2, 3 or 6.** They apply to the archive on this Mac
-today. Cloud hosting adds items 4 and 5.
+**Where the data sits doesn't change items 1, 2, 3 or 6.** They applied to the archive on this Mac and
+apply to the Railway copy since 2026-11-04. Cloud hosting adds items 4 and 5.
 
 **The data, measured separately** (read-only, 209,383 Last.fm plays):
 
@@ -127,11 +127,9 @@ Path B.
 
 ## 4. Chosen path: Spotify-first
 
-The Last.fm archive stays on this Mac. The cloud app shows plays from cutover, plus Spotify's last 50,
-and Time Machine shows only those until a merge. Your older history stays in the local app.
-
-The alternative, copying the archive first, stays available (§6) but needs your approval and carries
-the added licence questions in §3.
+At cutover the Last.fm archive stayed on this Mac, and the cloud app showed only plays from cutover plus
+Spotify's last 50. The owner approved the merge on 2026-11-04, so the cloud app now shows the full history
+(§6). The licence questions in §3 apply to the Railway copy as they did to the local one.
 
 **Known limit: Spotify's feed omits some plays.** On 2026-11-03, 12 of the 62 plays Last.fm held since
 22:10 UTC the day before weren't in Spotify's Recently Played. Polling succeeded throughout, and local
@@ -139,8 +137,9 @@ polling missed the same older plays, so it isn't Runout or Railway. The cause is
 repeats, but not all. It's one day's sample, matched by name and time. Spotify can also date a play much
 later than Last.fm does (one play: Last.fm 03:16, Spotify 04:16), which matters for matching in §6.
 
-The owner chose to leave this as it is for now. Last.fm still records these plays, so they can be added at
-the merge, which means Runout isn't yet independent of Last.fm. Alternatives if that changes: poll
+The owner chose to leave this as it is for now. Last.fm still records these plays, so a later Last.fm sync
+could add them, which means Runout isn't yet independent of Last.fm. The 2026-11-04 merge didn't add them:
+the archive's Last.fm history ends on 2026-10-31. Alternatives if that changes: poll
 Spotify's currently-playing endpoint (new scope, unproven), or add recent Last.fm plays to Railway (needs
 the approval and matching rule in `CLAUDE.md`).
 
@@ -218,7 +217,7 @@ Then record the approval in `CLAUDE.md`, replacing the local-only record.
 - With the Mac asleep overnight, play something on your phone. Confirm it's there in the morning.
 - After a day: `railway metrics --service runout --memory --cpu`, and Settings' recent checks.
 
-## 6. The future merge: one archive
+## 6. The merge: one archive (done 2026-11-04)
 
 **The tools:** `archive:export_spotify`, `archive:merge_spotify` and `script/verify_archive_merge.rb`.
 
@@ -250,8 +249,10 @@ Then record the approval in `CLAUDE.md`, replacing the local-only record.
 8. Check Time Machine and Overview on the copy. Decide separately whether it goes to Railway.
 
 **Moving a merged archive to Railway** (separate approval; Last.fm data leaves the Mac):
-- Restore into a **new** Railway Postgres service, with `pg_restore --no-owner --no-privileges --exit-on-error`.
-- Repeat the verifier against it.
+- Restore into a **new database** on the existing Postgres service, or a new service, with
+  `pg_restore --no-owner --no-privileges --exit-on-error`. Never over the current database.
+  The dump can be streamed in over `railway ssh --service Postgres`, which forwards stdin.
+- Repeat the verifier against it (over SSH, with a `psql` shim that forwards each query).
 - Give production the local encryption keys, so restored tokens decrypt:
   ```sh
   for pair in ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:primary_key ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:deterministic_key \
@@ -260,8 +261,12 @@ Then record the approval in `CLAUDE.md`, replacing the local-only record.
       | railway variable set --service runout --skip-deploys "${pair%%:*}" --stdin
   done
   ```
-- That replaces the production keys, so anything encrypted with the old ones needs reconnecting: sign in and connect Spotify again.
-- Then point `DATABASE_URL` at the new service. The start-up release marks it as production and adds any new migrations.
+- That replaces the production keys. The restored archive's own Last.fm and Spotify credentials then decrypt, so
+  nothing needs reconnecting. Save the old keys first (`ROLLBACK_ACTIVE_RECORD_ENCRYPTION_*`) for the old database.
+- Then point `DATABASE_URL` at the new database and redeploy. The start-up release marks it as production and adds
+  any new migrations. Also set the backup job's `BACKUP_DATABASE_URL` and **redeploy the backup service**: a cron
+  service picks up variable changes only on its next deployment.
+- Sessions don't carry: sign in again.
 
 **Rehearsed 2026-11-03** on scratch copies, with the local archive as the target:
 
@@ -274,6 +279,25 @@ Then record the approval in `CLAUDE.md`, replacing the local-only record.
 | Deliberate damage: renamed artist, moved Last.fm play, changed genre, deleted observation | All 4 caught |
 
 The verifier shares no code with the merge and doesn't load Rails.
+
+**Done 2026-11-04, 01:46 to 02:03 UTC**, with the owner's written approval of the procedure and of two choices:
+a new database `runout` on the existing Postgres service rather than a new service, and the local encryption
+keys rather than reconnecting Spotify.
+
+| Step | Result |
+|---|---|
+| Polling paused and drained | 01:46:05 to 01:58:06 UTC; no poll ran in between, the old database received nothing after |
+| Final export from Railway | 102 observations, 258 polls |
+| Merge into a fresh restore of the local backup | 53 created, 49 already present (locally polled while both pollers overlapped), 0 linked, 0 held, 0 conflicts |
+| Verifier | `VERIFIED` twice; merged again, nothing changed |
+| Restore into `runout` | all 38 tables checksum-identical to the merged copy; Last.fm fingerprint unchanged |
+| First poll after resume | 02:00:03 UTC, 3 plays, no duplicates; Spotify's window reached back 8 hours, so nothing was lost |
+| Verifier against production | 44 of 45; the one difference was the owner's own sign-in at 02:02 UTC |
+| Post-migration backup | `backup/20261104T020227Z`, 209,558 plays, decrypted and restored on this Mac |
+
+0 linked is expected: the archive's Last.fm history ends on 2026-10-31 02:40 UTC and Railway's plays start on
+2026-11-02. The old database `railway` (102 plays) and the local archive are untouched. The first post-migration
+backup run had to be repeated: the backup service's new URL applied only after a redeploy.
 
 **Plays that can't be recovered:** anything older than Spotify's last 50 when polling starts, or lost during an
 outage long enough for 50 newer plays to push it out. Those periods show as gaps, never as made-up plays.
@@ -302,8 +326,7 @@ failure logs the step name only. `deploy/backup/test.sh` runs all of this in CI,
 
 **Why a repository for now:** it's free, already private, and needs no new account or paid service. Deleted
 branches free space only when GitHub cleans up, and a file can't exceed 100 MB (the job refuses at 95 MB).
-Spotify-only backups are tiny. With the full archive at about 11 MB each, 42 backups would be about
-460 MB, near GitHub's suggested 1 GB. **If it outgrows that,** move to object storage such as Cloudflare
+Each backup of the full archive is about 11 MB, so 42 backups are about 460 MB, near GitHub's suggested 1 GB. **If it outgrows that,** move to object storage such as Cloudflare
 R2, at about $0.015 per GB a month with a free allowance: check current prices, and it needs a new account.
 The deploy key could also delete backups if it leaked, while object storage can make them immutable.
 
@@ -347,6 +370,7 @@ into it, compare, then point `DATABASE_URL` at it. Keep the old service until yo
 | Stop polling now | Pause in Settings, or `SPOTIFY_INGESTION_ENABLED=false` |
 | A bad deploy | Dashboard → Deployments → redeploy the previous one. A failed release never takes over, because the health check doesn't pass. |
 | A bad migration | Fix forward, as `CLAUDE.md` says. Restore a backup only with your approval. |
+| Undo the archive move | Export the new plays first (`archive:export_spotify` on `runout`). Set `DATABASE_URL` back to `/railway`, restore the three keys from `ROLLBACK_ACTIVE_RECORD_ENCRYPTION_*`, redeploy. Then merge the export where it belongs. |
 | Abandon the cloud | Set the flag off, confirm no new cloud polls, set the local flag on, Resume, restart. Local catches up on the last 50 plays. Merge cloud-only plays by §6 before deleting the project. |
 
 Cutover never writes to the local database, so it's always there to return to.

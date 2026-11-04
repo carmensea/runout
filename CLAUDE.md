@@ -56,9 +56,16 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   (`docs/railway-deployment.md` §5). It's on: don't switch it off or pause it without asking. This
   replaces the local approval of 2026-11-02: local polling is stopped (`SPOTIFY_INGESTION_ENABLED=false`
   in `server/.env`, source paused, no Solid Queue worker), so don't turn it back on without asking;
-  two pollers would split new plays between two databases. It authorises nothing else. Copying the
-  Last.fm archive to Railway, enrichment in production, Render, Neon or another account each need
-  the owner's explicit approval.
+  two pollers would split new plays between two databases. It authorises nothing else. Enrichment
+  in production, Render, Neon or another account each need the owner's explicit approval.
+- **One approved archive move (2026-11-04):** the owner explicitly authorised merging the local
+  Last.fm archive with Railway's Spotify plays and running production from the result
+  (`docs/railway-deployment.md` §6, "Done"). Production now runs on the database `runout` on the
+  Railway Postgres service. The previous database `railway` is kept untouched as a fallback, and the
+  previous encryption keys are kept as `ROLLBACK_*` variables: don't delete either without asking.
+  The local `runout_development` archive is unchanged and remains the owner's fallback; the rules
+  above still apply to it, and now to the Railway copy too. It authorises nothing else: no Last.fm
+  sync, no enrichment, no other account.
 - **Last.fm sync needs the reverse matching rule first.** Before Last.fm sync or import is ever
   switched on again, a Last.fm play matching a stored Spotify play must be linked, not inserted
   (`docs/spotify-plan.md` §5).
