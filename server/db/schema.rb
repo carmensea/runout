@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -419,7 +419,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_000001) do
     t.index ["user_id", "loved_at"], name: "index_loved_tracks_on_user_id_and_loved_at"
     t.index ["user_id", "name_variant_id", "source"], name: "index_loved_tracks_identity", unique: true
     t.index ["user_id"], name: "index_loved_tracks_on_user_id"
-    t.check_constraint "source::text = ANY (ARRAY['lastfm'::character varying, 'runout'::character varying]::text[])", name: "loved_tracks_source"
+    t.check_constraint "source::text = ANY (ARRAY['lastfm'::text, 'runout'::text])", name: "loved_tracks_source"
   end
 
   create_table "mbid_disputes", force: :cascade do |t|

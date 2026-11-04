@@ -322,6 +322,11 @@ finished, and can't run longer than 30 minutes. Each run, over the private netwo
 If any step fails, nothing further is kept. Tool errors aren't logged, because they can quote rows: a
 failure logs the step name only. `deploy/backup/test.sh` runs all of this in CI, including every failure.
 
+**Schema gotcha:** a check constraint written `column IN ('a', 'b')` on a string column is deparsed
+differently after `pg_restore`, so the job's schema comparison fails on the first backup after such a
+migration (it did on 2026-11-04 for `loved_tracks`). Write `column::text IN ('a', 'b')` instead; that form
+survives a restore unchanged.
+
 **Retention:** the newest 30 backups, plus the newest of each older month for 12 months.
 
 **Why a repository for now:** it's free, already private, and needs no new account or paid service. Deleted
