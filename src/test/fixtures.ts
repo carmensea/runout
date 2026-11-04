@@ -2,7 +2,7 @@
 import type { HistoryApi, RunoutApi, SourcesApi } from '../data/api';
 import { NotConnectedError, noHistoryApi, noSourcesApi } from '../data/api';
 import type {
-  ArtistKindKey, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
+  ArtistKindKey, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, LovedLibrary, LovedTrack, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
 } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
@@ -25,6 +25,22 @@ export function makeGenreDetail(slug = 'rock', overrides: Partial<GenreDetail> =
     methodology: { level: 'artist', provider: 'MusicBrainz', license: 'CC BY-NC-SA 3.0', url: 'https://musicbrainz.org' },
     ...overrides,
   };
+}
+
+/** A loved song; `track.id` is the identity key hearts match on. */
+export function makeLoved(i: number, overrides: Partial<LovedTrack> = {}): LovedTrack {
+  return {
+    id: i, source: 'lastfm', lovedAt: `2015-0${(i % 9) + 1}-01T12:00:00Z`, unlovedAt: null, manual: false, url: `https://www.last.fm/music/x/_/${i}`,
+    artist: { id: `a${i}`, name: `Loved Artist ${i}` }, track: { id: `t${i}`, name: `Loved Track ${i}` },
+    asLoved: { artist: `Loved Artist ${i}`, track: `Loved Track ${i}` }, link: 'linked',
+    plays: 10 * i, firstPlayedAt: '2014-01-01T00:00:00Z', lastPlayedAt: '2024-06-01T00:00:00Z', lastPlayedDate: '2024-06-01',
+    previousPlayedAt: '2020-01-01T00:00:00Z', namePlays: 10 * i,
+    ...overrides,
+  };
+}
+
+export function makeLovedLibrary(tracks: LovedTrack[] = [makeLoved(1), makeLoved(2)]): LovedLibrary {
+  return { total: tracks.length, recentDays: 90, generatedAt: '2026-11-04T12:00:00Z', tracks };
 }
 
 export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewData {
@@ -100,6 +116,7 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     getPlays: async (p) => ({ period: serializePeriod(p), total: 0, plays: [], nextCursor: null, coverage: { status: 'none', missing: [] } }),
     getOnThisDay: async (date) => ({ date, leapDay: false, years: [] }),
     getGenre: async (slug) => makeGenreDetail(slug),
+    getLovedTracks: async () => makeLovedLibrary([]),
     signInUrl: () => '/api/auth/lastfm',
     signOut: async () => {},
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
@@ -198,6 +215,9 @@ export function fakeHistoryApi(overrides: Partial<HistoryApi> & { calls?: string
 
 export const notConnectedApi: RunoutApi = {
   getConnection: async () => ({ status: 'none' }),
+  getLovedTracks: async () => {
+    throw new NotConnectedError();
+  },
   getOverview: async () => {
     throw new NotConnectedError();
   },

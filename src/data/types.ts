@@ -293,6 +293,46 @@ export interface SearchResults {
   tracks: Array<{ id: string; name: string; artist: string }>;
 }
 
+/* ---- Loved songs (GET /api/loved-tracks) ---- */
+
+/** How a loved song reaches the catalogue: linked to a track, held for a person's review, or not linked. */
+export type LovedLink = 'linked' | 'review' | 'unlinked';
+
+/**
+ * One loved song with its listening. `lovedAt` is when the song was loved (never a play); the
+ * `*PlayedAt` fields are plays, counted by the same identity (`track.id`) as the Overview, Search
+ * and Time Machine. `namePlays` counts plays stored under the same names whatever their catalogue
+ * link, so "no linked plays" can be told from "never played".
+ */
+export interface LovedTrack {
+  id: number;
+  source: 'lastfm' | 'runout';
+  lovedAt: string;
+  unlovedAt: string | null;
+  manual: boolean;
+  url: string | null;
+  artist: PlayRef;
+  track: PlayRef;
+  /** The exact strings the source sent. */
+  asLoved: { artist: string; track: string };
+  link: LovedLink;
+  plays: number;
+  firstPlayedAt: string | null;
+  lastPlayedAt: string | null;
+  /** Local date of the last play, for Time Machine links. */
+  lastPlayedDate: string | null;
+  /** The last play before the recent window (`recentDays`), for "back in rotation". */
+  previousPlayedAt: string | null;
+  namePlays: number;
+}
+
+export interface LovedLibrary {
+  total: number;
+  recentDays: number;
+  generatedAt: string;
+  tracks: LovedTrack[];
+}
+
 /* ---- Listening-history import, sync and review (GET /api/import, /api/sync, /api/reviews) ---- */
 
 /** UTC instants, ISO 8601, half-open [from, to). */

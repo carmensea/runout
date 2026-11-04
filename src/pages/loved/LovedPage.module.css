@@ -1,0 +1,151 @@
+/* Loved songs: the Overview's layout and tokens, the genre page's bars and table, plus controls. */
+
+.controls {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.controlLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.yearButton:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+
+.yearButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yearButton[aria-pressed='true'] {
+  color: var(--ac);
+}
+
+.song {
+  display: inline-flex;
+  align-items: center;
+}
+
+.asLoved,
+.flag {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--mu);
+}
+
+.flag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.unloved td {
+  color: var(--mu);
+}
+
+.date {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 0;
+}
+
+.insight {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insightRow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ln2);
+  font-size: 14px;
+}
+
+.rank {
+  font-size: 12px;
+  color: var(--mu);
+}
+
+.insightWhat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.insightWhat a {
+  color: var(--fg);
+}
+
+.insightArtist {
+  font-size: 13px;
+  color: var(--mu) !important;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--mu);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .insightRow {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .meta {
+    grid-column: 2;
+    text-align: left;
+    white-space: normal;
+  }
+}

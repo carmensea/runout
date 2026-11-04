@@ -1,6 +1,6 @@
 import { serializePeriod, type Period } from '../lib/period';
 import type {
-  CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
+  CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, LovedLibrary, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
   ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
 } from './types';
 
@@ -19,6 +19,8 @@ export interface RunoutApi {
   getOnThisDay(date: string, signal?: AbortSignal): Promise<OnThisDay>;
   /** One genre in a period (GET /api/genres/:slug). */
   getGenre(slug: string, period: Period, signal?: AbortSignal): Promise<GenreDetail>;
+  /** Loved songs with their listening (GET /api/loved-tracks). */
+  getLovedTracks(signal?: AbortSignal): Promise<LovedLibrary>;
   /** Where to send the browser to sign in with Last.fm, or null when no server is configured. */
   signInUrl(): string | null;
   signOut(): Promise<void>;
@@ -171,6 +173,7 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     getPlays: (period, cursor, signal) => get<PlaysPage>('/plays', { period: serializePeriod(period), ...(cursor ? { cursor } : {}) }, signal),
     getOnThisDay: (date, signal) => get<OnThisDay>('/on-this-day', { date }, signal),
     getGenre: (slug, period, signal) => get<GenreDetail>(`/genres/${encodeURIComponent(slug)}`, { period: serializePeriod(period) }, signal),
+    getLovedTracks: (signal) => get<LovedLibrary>('/loved-tracks', {}, signal),
     signInUrl: () => {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       return `${root}/auth/lastfm${tz ? `?${new URLSearchParams({ tz })}` : ''}`;
@@ -249,6 +252,7 @@ export const disconnectedApi: RunoutApi = {
   getPlays: notConnected,
   getOnThisDay: notConnected,
   getGenre: notConnected,
+  getLovedTracks: notConnected,
   signInUrl: () => null,
   signOut: async () => {},
   deleteAccount: async () => {
