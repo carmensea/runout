@@ -78,6 +78,9 @@ module Runout
     # set for the one command that runs it. Nothing else writes Last.fm data.
     config.x.lastfm_loved_import_enabled = ENV.fetch("LASTFM_LOVED_IMPORT_ENABLED", "false")
     # The Spotify app's credentials are read from the environment when used (Spotify::Config).
+    # Runout's own sign-in: passkeys, recovery codes, the operator link (docs/milestone-5-plan.md §2).
+    # Off unless "true" or "1": the routes answer 404 and nothing can be enrolled.
+    config.x.passkeys_enabled = ENV.fetch("RUNOUT_PASSKEYS_ENABLED", "false")
 
     # Ongoing synchronisation (HistoryImport::Sync, docs/milestone-2-plan.md §5.2). The recurring
     # tick (config/recurring.yml) starts whichever kind is due; these say how often each is due.

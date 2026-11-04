@@ -480,7 +480,7 @@ chosen range and the diary, then offline diary writing with version-based sync.
 | # | PR | Phase | Deploy note |
 |---|---|---|---|
 | 0 | Custom domain runout.idlewinny.com: `APP_ORIGINS` code (two hostnames, strict same-origin writes, sign-in on the canonical host), then DNS, certificate, `APP_ORIGIN`, callbacks (`docs/railway-deployment.md` §10) | 1 | **done 2026-11-04** (PR #13, variables switched 22:56 UTC); Railway address kept as fallback, no redirect |
-| 1 | Passkeys, recovery codes, operator link, `GET /api/session`, sessions list (backend, flag off) | 1 | migration only; routes 404 |
+| 1 | Passkeys, recovery codes, operator link, `GET /api/session`, sessions list (backend, flag off) | 1 | migration only; routes 404. **Built 2026-11-04** (PR 15): `users.webauthn_handle` is a string (the gem's base64url user id) rather than binary; the recovery sign-in's \"needs a passkey\" is the `methods.passkeys` count in the response, not a session flag; `GET /api/session` and `GET /api/passkeys` are behind the flag too. |
 | 2 | Signed-out screen, Settings sign-in section (frontend) | 1 | hidden while flag off |
 | 3 | History without Last.fm: 401/409 split, gates on stored plays, deletion by display name | 1 | behaviour change, tested on the copy first |
 | — | Rehearsal on the restored copy, then flag on, enrol, verify, one week | 1 | owner's go at each step |

@@ -3,6 +3,10 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_one :lastfm_connection, dependent: :destroy
   has_one :lastfm_identity, -> { where(provider: Identity::LASTFM) }, class_name: "Identity"
+  # Runout's own sign-in (docs/milestone-5-plan.md §2); deleted with the user by the database.
+  has_many :webauthn_credentials, dependent: nil
+  has_many :recovery_codes, dependent: nil
+  has_many :sign_in_links, dependent: nil
 
   # Listening history. Deleting a user removes these through database cascades (no callbacks), so
   # a large history is deleted in one statement.

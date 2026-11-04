@@ -83,6 +83,14 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   with Last.fm's terms. Future measurements must include staging, reconciliation and metadata
   tables, not just scrobbles.
 
+## Authentication
+
+- **Runout's own sign-in is behind `RUNOUT_PASSKEYS_ENABLED`** (`docs/milestone-5-plan.md` §2): passkeys,
+  recovery codes, the operator link (`bin/rails auth:recovery_link`) and the session routes answer 404
+  while it is off. Don't switch it on in production, enrol a passkey for the real account, or remove
+  Last.fm sign-in without the owner's explicit approval; the Last.fm fallback stays at least seven
+  days after the first passkey and is retired only on the owner's say-so.
+
 ## Secrets
 
 - **Where secrets live.** Credentials go in `server/.env` (git-ignored). Never print, log or
