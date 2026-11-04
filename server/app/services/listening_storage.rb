@@ -1,6 +1,7 @@
 # Which source may write listening history right now (docs/spotify-plan.md §2;
 # docs/long-term-architecture.md §9 #1). Last.fm history is gated by LASTFM_HISTORY_STORAGE_ENABLED
-# (HistoryImport), Spotify's by SPOTIFY_INGESTION_ENABLED: each source has its own switch, so
+# (HistoryImport), Spotify's by SPOTIFY_INGESTION_ENABLED, the Last.fm loved list by
+# LASTFM_LOVED_IMPORT_ENABLED (`lastfm_loved`): each source has its own switch, so
 # directly scrobbled plays never depend on Last.fm's terms, and turning Spotify on never lets
 # Last.fm history in.
 #
@@ -18,6 +19,7 @@ module ListeningStorage
     case provider.to_s
     when "lastfm" then HistoryImport.enabled?
     when "spotify" then ENABLED_VALUES.include?(Rails.configuration.x.spotify_ingestion_enabled.to_s.strip.downcase)
+    when "lastfm_loved" then ENABLED_VALUES.include?(Rails.configuration.x.lastfm_loved_import_enabled.to_s.strip.downcase)
     else false
     end
   end

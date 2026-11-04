@@ -113,6 +113,14 @@ module Lastfm
       Digest::MD5.hexdigest("#{payload}#{@shared_secret}".encode(Encoding::UTF_8))
     end
 
+    # One page of a user's loved tracks, newest first. Read-only: returns a LovedTracksPage and stores
+    # nothing. Public data; no session key needed.
+    def loved_tracks(username:, page: 1, limit: 1000)
+      raise ArgumentError, "limit must be 1..1000" unless (1..1000).cover?(limit)
+
+      LovedTracksPage.parse(call("user.getLovedTracks", { user: username, page: page, limit: limit }))
+    end
+
     private
 
     def parse_user(body)
