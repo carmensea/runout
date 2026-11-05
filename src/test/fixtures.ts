@@ -285,6 +285,8 @@ export function fakeAuthApi(initial: { session?: SessionInfo | null; passkeys?: 
       const first = passkeys.length === 0;
       const passkey = makePasskey(passkeys.length + 1, { nickname: nickname || null });
       passkeys = [...passkeys, passkey];
+      // The session's methods follow, as GET /api/session would report them.
+      if (session?.signedIn) session = { ...session, methods: { ...session.methods, passkeys: passkeys.length, recoveryCodes: first ? 10 : session.methods.recoveryCodes } };
       return { passkey, recoveryCodes: first ? codes() : null };
     },
     removePasskey: async (id) => {

@@ -1,0 +1,48 @@
+/* Onboarding: the three steps as a short list above the current step's panel. */
+
+.steps {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  max-width: 760px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--mu);
+  font-size: 14px;
+}
+
+.current {
+  color: var(--fg);
+}
+
+.done {
+  color: var(--fg2);
+}
+
+.stepNumber {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  font-size: 11px;
+}
+
+.current .stepNumber {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.done .stepNumber {
+  background: var(--s2);
+  border-color: var(--s2);
+}

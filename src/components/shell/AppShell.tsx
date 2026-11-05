@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAppData } from '../../data/AppDataContext';
 import { useAccountTheme } from '../../theme/useTheme';
@@ -11,7 +11,14 @@ import styles from './AppShell.module.css';
 
 export function AppShell() {
   const compact = useMediaQuery('(max-width: 767px)');
+  const { auth } = useAppData();
+  const { pathname } = useLocation();
   useAccountTheme();
+  // An invited account is complete only once it has a passkey (and so its recovery codes): until
+  // then every page is the onboarding page. Accounts with Last.fm sign-in are never sent there.
+  const session = auth.status === 'success' ? auth.data : null;
+  const onboarding = session?.signedIn === true && session.methods.passkeys === 0 && !session.methods.lastfm;
+  if (onboarding && pathname !== '/welcome') return <Navigate to="/welcome" replace />;
   return (
     <div className={styles.shell}>
       <Sky />
