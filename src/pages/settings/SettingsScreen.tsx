@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Tabs } from '../../components/ui/Tabs';
 import { SignIn } from '../../components/auth/SignIn';
 import stateStyles from '../../components/states/States.module.css';
 import { useAppData } from '../../data/AppDataContext';
@@ -13,15 +14,34 @@ import { AppearancePanel } from './AppearancePanel';
 import { SourcesSection } from './SourcesSection';
 import settings from './Settings.module.css';
 
+const TABS = [
+  { id: 'sources', label: 'Sources' },
+  { id: 'history', label: 'History' },
+  { id: 'review', label: 'Review' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'account', label: 'Account' },
+] as const;
+type Tab = (typeof TABS)[number]['id'];
+/** Hashes that links elsewhere in the app use; each opens the tab that holds that panel. */
+const HASH_TAB: Record<string, Tab> = {
+  spotify: 'sources', 'sign-in': 'account', passkeys: 'account', 'recovery-codes': 'account', sessions: 'account', lastfm: 'account', data: 'account',
+};
+const isTab = (h: string): h is Tab => TABS.some((t) => t.id === h);
+
 /**
  * Settings: listening sources (Last.fm, Spotify), the listening-history import and sync,
- * differences to review, and the account
- * (sign out, delete). Preferences, metadata coverage and export arrive later.
+ * differences to review, appearance, and the account (sign-in, sign out, delete): one tab each,
+ * chosen by the URL hash. Preferences, metadata coverage and export arrive later.
  */
 export function SettingsScreen() {
   const { api, connection, auth } = useAppData();
   const navigate = useNavigate();
+  const location = useLocation();
   const { withPeriod } = usePeriod();
+  // The hash is the tab, so links like /settings#review open the right one and reload keeps it.
+  const hash = location.hash.slice(1);
+  const tab: Tab = HASH_TAB[hash] ?? (isTab(hash) ? hash : 'sources');
+  const openTab = (id: Tab) => navigate({ search: location.search, hash: `#${id}` }, { replace: true });
 
   useEffect(() => {
     document.title = 'Settings · Runout';
@@ -33,6 +53,7 @@ export function SettingsScreen() {
   const [lastKnown, setLastKnown] = useState<ConnectedState | null>(null);
   if (current !== undefined && current !== lastKnown) setLastKnown(current);
   const signedIn = current === undefined ? lastKnown : current;
+  const attention = signedIn && 'attention' in signedIn ? signedIn.attention : undefined;
   // Likewise for Runout's own sign-in: while it reloads after an action, keep the section mounted.
   const [authOn, setAuthOn] = useState(false);
   if (auth.status === 'success' && (auth.data !== null) !== authOn) setAuthOn(auth.data !== null);
@@ -63,34 +84,48 @@ export function SettingsScreen() {
         </div>
       )}
       {signedIn && (
+        <Tabs
+          idBase="settings"
+          label="Settings"
+          className={settings.tabs}
+          tabs={TABS.map((t) => (t.id === 'review' && attention ? { ...t, label: `Review ${attention}` } : t))}
+          value={tab}
+          onChange={openTab}
+        />
+      )}
+      <div id="settings-panel" role={signedIn ? 'tabpanel' : undefined} aria-labelledby={signedIn ? `settings-tab-${tab}` : undefined} className={signedIn ? settings.tabpanel : undefined}>
+      {signedIn && tab === 'sources' && (
         <section className={settings.section} id="sources" aria-labelledby="sources-title">
           <h2 id="sources-title" className={settings.h2}>Listening sources</h2>
           <SourcesSection />
         </section>
       )}
-      {signedIn && (
+      {signedIn && tab === 'history' && (
         <section className={settings.section} id="history" aria-labelledby="history-title">
           <h2 id="history-title" className={settings.h2}>Listening history</h2>
           <HistorySection onChanged={connection.retry} />
         </section>
       )}
-      {signedIn && (
+      {signedIn && tab === 'review' && (
         <section className={settings.section} id="review" aria-labelledby="review-title">
           <h2 id="review-title" className={settings.h2}>To review</h2>
           <ReviewSection onChanged={connection.retry} />
         </section>
       )}
-      {signedIn && authOn && (
-        <section className={settings.section} id="sign-in" aria-labelledby="sign-in-title">
-          <h2 id="sign-in-title" className={settings.h2}>Sign-in</h2>
-          <SignInSection />
-        </section>
-      )}
+      {(!signedIn || tab === 'appearance') && (
       <section className={settings.section} id="appearance" aria-labelledby="appearance-title">
         <h2 id="appearance-title" className={settings.h2}>Appearance</h2>
         <p className={settings.lede}>Five looks for the same Runout. The choice is kept in this browser.</p>
         <AppearancePanel />
       </section>
+      )}
+      {signedIn && authOn && tab === 'account' && (
+        <section className={settings.section} id="sign-in" aria-labelledby="sign-in-title">
+          <h2 id="sign-in-title" className={settings.h2}>Sign-in</h2>
+          <SignInSection />
+        </section>
+      )}
+      {(!signedIn || tab === 'account') && (
       <section className={settings.section} aria-labelledby="account-title">
         <h2 id="account-title" className={settings.h2}>Account</h2>
       {deletedRevokeUrl && (
@@ -124,6 +159,8 @@ export function SettingsScreen() {
         />
       )}
       </section>
+      )}
+      </div>
       <p className={settings.note} style={{ marginTop: 32 }}>Preferences, metadata coverage and data export arrive in later versions.</p>
       <Link to={withPeriod('/overview')} className={styles.back}>Back to Overview</Link>
     </main>

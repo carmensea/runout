@@ -5,7 +5,6 @@ import styles from './Appearance.module.css';
 /**
  * Settings → Appearance: pick one of the four themes. Each tile is rendered from the theme's own
  * tokens (data-theme scopes the custom properties), so the preview is the real palette.
- * Temporary home until Settings gets its Appearance tab.
  */
 export function AppearancePanel() {
   const [theme, setTheme] = useTheme();

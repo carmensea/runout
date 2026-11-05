@@ -10,7 +10,7 @@ export const location = { current: '' };
 function LocationProbe() {
   const l = useLocation();
   useEffect(() => {
-    location.current = `${l.pathname}${l.search}`;
+    location.current = `${l.pathname}${l.search}${l.hash}`;
   }, [l]);
   return null;
 }

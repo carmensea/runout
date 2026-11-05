@@ -5,7 +5,7 @@ import { ApiError, NotAvailableError, ReviewChangedError, type RunoutApi } from 
 import type { ImportStatus, ReviewItem, ReviewQueue } from '../../data/types';
 import { usePolling } from '../../hooks/usePolling';
 import { connectedApi, fakeHistoryApi, fakeSourcesApi, makeImportStatus, makeSources, makeSyncHealth } from '../../test/fixtures';
-import { renderApp } from '../../test/renderApp';
+import { location, renderApp } from '../../test/renderApp';
 
 beforeEach(() => localStorage.clear());
 
@@ -47,7 +47,7 @@ describe('Settings: import', () => {
         });
       },
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#history');
     const start = await screen.findByRole('button', { name: 'Start import' });
     await user.dblClick(start);
     expect(await screen.findByText('Importing your history')).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('Settings: import', () => {
       importStatus: async () => makeImportStatus({ enabled: false, state: 'not_started', complete: false, canStart: false }),
       syncHealth: async () => makeSyncHealth({ enabled: false, importComplete: false, connectionState: 'not_started' }),
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#history');
     expect(await screen.findByText(/History storage is switched off on this server, so nothing can be imported yet/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start import' })).not.toBeInTheDocument();
   });
@@ -74,7 +74,7 @@ describe('Settings: import', () => {
       importStatus: async () => makeImportStatus({ state: 'running', complete: false, activity: 'importing', percent: 10 }),
       syncHealth: async () => makeSyncHealth({ importComplete: false }),
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#history');
     await user.click(await screen.findByRole('button', { name: 'Pause import' }));
     await waitFor(() => expect(history.calls).toContain('pauseImport'));
 
@@ -104,7 +104,7 @@ describe('Settings: sync', () => {
         throw new ApiError(429, 'too soon', 'too_soon', { retryAfter: '2026-10-29T09:35:00Z' });
       },
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#history');
     expect(await screen.findByText('12 in the last 24 hours')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Check now' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Checked moments ago. You can check again at 09:35.');
@@ -127,7 +127,7 @@ describe('Settings: sync', () => {
         ],
       }),
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#history');
     expect(await screen.findByText(/One period has no imported scrobbles. Charts treat it as incomplete/)).toBeInTheDocument();
     expect(screen.getByText('Last.fm returned plays without a date, so this period was not saved.')).toBeInTheDocument();
     expect(screen.getByText('Will try again automatically')).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('Settings: review', () => {
         return { result: 'approved', item: null };
       },
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#review');
     const card = await screen.findByRole('article', { name: /Missing from Last.fm/ });
     expect(within(card).getByText('Gone Track')).toBeInTheDocument();
     expect(within(card).getByText('Not found in two separate checks')).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe('Settings: review', () => {
   it('keeps a scrobble without confirmation: nothing is removed', async () => {
     const user = userEvent.setup();
     const history = fakeHistoryApi({ reviews: async () => queue([removal]) });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#review');
     await user.click(await screen.findByRole('button', { name: 'Keep it' }));
     await waitFor(() => expect(history.calls).toEqual(['decide:removal:7:dismiss:{}']));
   });
@@ -185,7 +185,7 @@ describe('Settings: review', () => {
         throw new ReviewChangedError({ ...removal, version: 'v2' });
       },
     });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#review');
     await user.click(await screen.findByRole('button', { name: 'Keep it' }));
     expect(await screen.findByText(/This item changed while it was open, so nothing was decided/)).toBeInTheDocument();
     expect(screen.getByRole('article', { name: /Missing from Last.fm/ })).toBeInTheDocument();
@@ -194,7 +194,7 @@ describe('Settings: review', () => {
   it('pairs a correction explicitly, previews the outcome, and applies it with confirmation', async () => {
     const user = userEvent.setup();
     const history = fakeHistoryApi({ reviews: async () => queue([dispute]) });
-    renderApp(api(history), '/settings');
+    renderApp(api(history), '/settings#review');
     const card = await screen.findByRole('article', { name: /Different on Last.fm/ });
     expect(within(card).getByText(/“Old Name” stays, and is checked again/)).toBeInTheDocument();
     expect(within(card).getByText(/“New Name” \(Test Artist\) is added as a new scrobble/)).toBeInTheDocument();
@@ -204,6 +204,21 @@ describe('Settings: review', () => {
     await user.click(within(card).getByRole('button', { name: 'Apply' }));
     await user.click(screen.getByRole('button', { name: 'Confirm changes' }));
     await waitFor(() => expect(history.calls).toEqual(['decide:dispute:9:resolve:{"confirm":true,"pairs":[[90,0]]}']));
+  });
+});
+
+describe('Settings: tabs', () => {
+  it('opens the tab the hash names, keeps it when the period is written, and puts the chosen tab in the hash', async () => {
+    const user = userEvent.setup();
+    const base = { status: 'synced' as const, username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
+    renderApp(api(fakeHistoryApi(), { ...base, attention: 3 }), '/settings#lastfm');
+    expect(await screen.findByRole('tab', { name: 'Account', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Account' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Listening sources' })).not.toBeInTheDocument();
+    await waitFor(() => expect(location.current).toBe('/settings?period=all#lastfm'));
+    await user.click(screen.getByRole('tab', { name: 'Review 3' }));
+    expect(await screen.findByRole('region', { name: 'To review' })).toBeInTheDocument();
+    expect(location.current).toBe('/settings?period=all#review');
   });
 });
 

@@ -27,7 +27,7 @@ Settings panel; no change to layout, typography, routes, data or integrations.
 - **Component changes, all no-ops in Original:** `body` and the shell take `--shell`; dashboard
   sections, Settings panels and the Time Machine's blocks take `--panel`; the activity chart's bars
   take `--c1` instead of the accent.
-- **Settings → Appearance** (temporary until the Settings tabs): a radio group of tiles, each
+- **Settings → Appearance** tab: a radio group of tiles, each
   rendered from its theme's own tokens by scoping `data-theme` on the tile.
 
 ## The five
@@ -49,4 +49,4 @@ if the cost ever demands it). The capture scripts set them; nothing in the app d
 ## Not done, on purpose
 
 Account-level persistence (one column and one endpoint, when a preference must follow an account),
-the Settings redesign into tabs, and the Idle Winny falling stars and cloud.
+and the Idle Winny falling stars and cloud.
