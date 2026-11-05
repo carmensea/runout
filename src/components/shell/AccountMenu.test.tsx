@@ -40,6 +40,17 @@ describe('Account menu', () => {
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('verdant'));
   });
 
+  it('saves this browser’s theme on an account that has none yet', async () => {
+    localStorage.setItem('runout:theme', 'cotton-candy');
+    document.documentElement.dataset.theme = 'cotton-candy';
+    const setTheme = vi.fn(async () => {});
+    const api = { ...connectedApi(), setTheme, getConnection: async () => ({ status: 'connected' as const, username: 'test-user', timezone: 'Europe/London', theme: null }) };
+    renderApp(api, '/overview?period=all');
+    await waitFor(() => expect(setTheme).toHaveBeenCalledWith('cotton-candy'));
+    expect(setTheme).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.dataset.theme).toBe('cotton-candy');
+  });
+
   it('signs out and lands on the signed-out Overview', async () => {
     const user = userEvent.setup();
     let signedIn = true;
