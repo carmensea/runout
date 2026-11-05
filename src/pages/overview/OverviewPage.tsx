@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { SignIn } from '../../components/auth/SignIn';
 import { LoadingState, MessageState } from '../../components/states/States';
 import stateStyles from '../../components/states/States.module.css';
 import { NotAvailableError, NotConnectedError } from '../../data/api';
@@ -112,7 +113,7 @@ interface BodyProps {
 
 function Body({ connection, overview, view, compact = false }: BodyProps) {
   const { withPeriod, today, current } = view;
-  const { api } = useAppData();
+  const { api, auth } = useAppData();
   const [params] = useSearchParams();
 
   if (connection.status === 'loading') return <LoadingState label="Checking your Last.fm connection" />;
@@ -136,14 +137,18 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
         detail="Runout imports your scrobble history from Last.fm and builds every chart on this page from it. Nothing is shown until an account is connected and imported."
       >
         {authError && <p className={stateStyles.technical} role="alert" style={{ color: 'var(--err)' }}>{authError}</p>}
-        <div className={stateStyles.actions}>
-          {signIn ? (
-            // A full page navigation: the server redirects to Last.fm.
-            <a href={signIn} className={stateStyles.primary}>Connect Last.fm</a>
-          ) : (
-            <Link to={withPeriod('/connect')} className={stateStyles.primary}>Connect Last.fm</Link>
-          )}
-        </div>
+        {auth.status === 'success' && auth.data ? (
+          <SignIn lastfmUrl={signIn} />
+        ) : (
+          <div className={stateStyles.actions}>
+            {signIn ? (
+              // A full page navigation: the server redirects to Last.fm.
+              <a href={signIn} className={stateStyles.primary}>Connect Last.fm</a>
+            ) : (
+              <Link to={withPeriod('/connect')} className={stateStyles.primary}>Connect Last.fm</Link>
+            )}
+          </div>
+        )}
       </MessageState>
     );
   }

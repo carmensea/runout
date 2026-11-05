@@ -1,7 +1,8 @@
 import { serializePeriod, type Period } from '../lib/period';
+import { createPasskey, getPasskey } from '../lib/webauthn';
 import type {
-  CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, LovedLibrary, OnThisDay, OverviewData, PlaysPage, ReviewDecisionName,
-  ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SyncHealth,
+  BrowserSession, CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, LovedLibrary, OnThisDay, OverviewData, Passkey, PlaysPage,
+  ReviewDecisionName, ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SessionInfo, SyncHealth,
 } from './types';
 
 /**
@@ -30,6 +31,23 @@ export interface RunoutApi {
   history: HistoryApi;
   /** Listening sources: Last.fm as the archive, Spotify connected directly (Settings). */
   sources: SourcesApi;
+  /** Runout's own sign-in: passkeys, recovery codes, other browsers (Settings, signed-out screen). */
+  auth: AuthApi;
+}
+
+export interface AuthApi {
+  /** Who is signed in and how they can sign in; null while Runout's own sign-in is switched off on the server. */
+  status(signal?: AbortSignal): Promise<SessionInfo | null>;
+  passkeys(signal?: AbortSignal): Promise<Passkey[]>;
+  /** Enrols a passkey through the browser. The first one comes with recovery codes, shown once. */
+  addPasskey(nickname: string): Promise<{ passkey: Passkey; recoveryCodes: string[] | null }>;
+  /** ApiError code `last_passkey`: the only passkey can't go while there are no recovery codes. */
+  removePasskey(id: number): Promise<void>;
+  regenerateRecoveryCodes(): Promise<string[]>;
+  signInWithPasskey(): Promise<SessionInfo>;
+  signInWithRecoveryCode(code: string): Promise<SessionInfo>;
+  sessions(signal?: AbortSignal): Promise<BrowserSession[]>;
+  revokeSession(id: number): Promise<void>;
 }
 
 export interface SourcesApi {
@@ -126,6 +144,40 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     return data as T;
   }
 
+  async function del(path: string): Promise<void> {
+    const res = await fetch(`${root}${path}`, { method: 'DELETE', credentials: 'include', headers: WRITE_HEADERS });
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) throw new ApiError(res.status, `Request to ${path} failed with HTTP ${res.status}.`, data?.error ?? null, data);
+  }
+
+  const auth: AuthApi = {
+    status: async (signal) => {
+      try {
+        return await get<SessionInfo>('/session', {}, signal);
+      } catch (e) {
+        // 404: RUNOUT_PASSKEYS_ENABLED is off on the server.
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    passkeys: async (signal) => (await get<{ passkeys: Passkey[] }>('/passkeys', {}, signal)).passkeys,
+    addPasskey: async (nickname) => {
+      const options = await post<PublicKeyCredentialCreationOptionsJSON>('/passkeys/options');
+      const credential = await createPasskey(options);
+      return post('/passkeys', { credential, nickname });
+    },
+    removePasskey: (id) => del(`/passkeys/${id}`),
+    regenerateRecoveryCodes: async () => (await post<{ recoveryCodes: string[] }>('/recovery-codes')).recoveryCodes,
+    signInWithPasskey: async () => {
+      const options = await post<PublicKeyCredentialRequestOptionsJSON>('/auth/passkey/options');
+      const credential = await getPasskey(options);
+      return post<SessionInfo>('/auth/passkey', { credential });
+    },
+    signInWithRecoveryCode: (code) => post<SessionInfo>('/auth/recovery', { code }),
+    sessions: async (signal) => (await get<{ sessions: BrowserSession[] }>('/sessions', {}, signal)).sessions,
+    revokeSession: (id) => del(`/sessions/${id}`),
+  };
+
   // GET /sync answers 304 while nothing changed; the previous answer is reused.
   let syncCache: { etag: string; data: SyncHealth } | null = null;
   async function syncHealth(signal?: AbortSignal): Promise<SyncHealth> {
@@ -197,6 +249,7 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       return (await res.json()) as { revokeAccessUrl: string };
     },
     history,
+    auth,
     sources: {
       status: (signal) => get<ListeningSources>('/listening-sources', {}, signal),
       connectSpotifyUrl: () => `${root}/auth/spotify`,
@@ -237,6 +290,19 @@ export const noSourcesApi: SourcesApi = {
   decide: notConnected,
 };
 
+/** Runout's own sign-in when there is no server: switched off, every call says so. */
+export const noAuthApi: AuthApi = {
+  status: async () => null,
+  passkeys: notConnected,
+  addPasskey: notConnected,
+  removePasskey: notConnected,
+  regenerateRecoveryCodes: notConnected,
+  signInWithPasskey: notConnected,
+  signInWithRecoveryCode: notConnected,
+  sessions: notConnected,
+  revokeSession: notConnected,
+};
+
 /**
  * Used when no API is configured. Reports the true state: nothing is connected and
  * no listening data exists. It never fabricates data.
@@ -260,4 +326,5 @@ export const disconnectedApi: RunoutApi = {
   },
   history: noHistoryApi,
   sources: noSourcesApi,
+  auth: noAuthApi,
 };

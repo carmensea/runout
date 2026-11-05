@@ -1,8 +1,8 @@
 /** Test-only data. Small, obviously synthetic values used to exercise rendering paths. */
-import type { HistoryApi, RunoutApi, SourcesApi } from '../data/api';
-import { NotConnectedError, noHistoryApi, noSourcesApi } from '../data/api';
+import type { AuthApi, HistoryApi, RunoutApi, SourcesApi } from '../data/api';
+import { NotConnectedError, noAuthApi, noHistoryApi, noSourcesApi } from '../data/api';
 import type {
-  ArtistKindKey, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, LovedLibrary, LovedTrack, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
+  ArtistKindKey, BrowserSession, Passkey, SessionInfo, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, LovedLibrary, LovedTrack, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
 } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
@@ -122,6 +122,7 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
     history: fakeHistoryApi(),
     sources: fakeSourcesApi(),
+    auth: noAuthApi,
   };
 }
 
@@ -246,4 +247,65 @@ export const notConnectedApi: RunoutApi = {
   },
   history: noHistoryApi,
   sources: noSourcesApi,
+  auth: noAuthApi,
 };
+
+export function makeSession(overrides: Partial<Extract<SessionInfo, { signedIn: true }>> = {}): SessionInfo {
+  return { signedIn: true, user: { displayName: 'test-user', timezone: 'Europe/London' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: true }, ...overrides };
+}
+
+export function makePasskey(i: number, overrides: Partial<Passkey> = {}): Passkey {
+  return { id: i, nickname: `Device ${i}`, createdAt: '2026-11-01T10:00:00Z', lastUsedAt: null, transports: ['internal'], ...overrides };
+}
+
+export function makeBrowserSession(i: number, overrides: Partial<BrowserSession> = {}): BrowserSession {
+  return {
+    id: i, current: i === 1, createdAt: '2026-11-01T10:00:00Z', lastSeenAt: '2026-11-04T09:00:00Z', ipAddress: '203.0.113.5',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 Safari/605.1.15', ...overrides,
+  };
+}
+
+/** Runout's own sign-in, switched on, with in-memory passkeys, codes and sessions. */
+export function fakeAuthApi(initial: { session?: SessionInfo | null; passkeys?: Passkey[]; sessions?: BrowserSession[] } = {}): AuthApi & { calls: string[] } {
+  const calls: string[] = [];
+  let session: SessionInfo | null = initial.session === undefined ? makeSession() : initial.session;
+  let passkeys = initial.passkeys ?? [makePasskey(1)];
+  let sessions = initial.sessions ?? [makeBrowserSession(1), makeBrowserSession(2)];
+  const codes = () => Array.from({ length: 10 }, (_, i) => `code${i}-abcde`);
+  const signedIn = (): SessionInfo => makeSession({ methods: { passkeys: passkeys.length, recoveryCodes: 9, lastfm: true } });
+  return {
+    calls,
+    status: async () => session,
+    passkeys: async () => passkeys,
+    addPasskey: async (nickname) => {
+      calls.push(`addPasskey:${nickname}`);
+      const first = passkeys.length === 0;
+      const passkey = makePasskey(passkeys.length + 1, { nickname: nickname || null });
+      passkeys = [...passkeys, passkey];
+      return { passkey, recoveryCodes: first ? codes() : null };
+    },
+    removePasskey: async (id) => {
+      calls.push(`removePasskey:${id}`);
+      passkeys = passkeys.filter((p) => p.id !== id);
+    },
+    regenerateRecoveryCodes: async () => {
+      calls.push('regenerateRecoveryCodes');
+      return codes();
+    },
+    signInWithPasskey: async () => {
+      calls.push('signInWithPasskey');
+      session = signedIn();
+      return session;
+    },
+    signInWithRecoveryCode: async (code) => {
+      calls.push(`signInWithRecoveryCode:${code}`);
+      session = makeSession({ methods: { passkeys: 0, recoveryCodes: 9, lastfm: true } });
+      return session;
+    },
+    sessions: async () => sessions,
+    revokeSession: async (id) => {
+      calls.push(`revokeSession:${id}`);
+      sessions = sessions.filter((s) => s.id !== id);
+    },
+  };
+}

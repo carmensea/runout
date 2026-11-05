@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { SignIn } from '../../components/auth/SignIn';
 import stateStyles from '../../components/states/States.module.css';
 import { useAppData } from '../../data/AppDataContext';
 import type { ConnectedState } from '../../data/types';
@@ -7,6 +8,7 @@ import { usePeriod } from '../../state/PeriodContext';
 import styles from '../PendingScreen.module.css';
 import { HistorySection } from './HistorySection';
 import { ReviewSection } from './ReviewSection';
+import { SignInSection } from './SignInSection';
 import { SourcesSection } from './SourcesSection';
 import settings from './Settings.module.css';
 
@@ -16,7 +18,7 @@ import settings from './Settings.module.css';
  * (sign out, delete). Preferences, metadata coverage and export arrive later.
  */
 export function SettingsScreen() {
-  const { api, connection } = useAppData();
+  const { api, connection, auth } = useAppData();
   const navigate = useNavigate();
   const { withPeriod } = usePeriod();
 
@@ -30,6 +32,9 @@ export function SettingsScreen() {
   const [lastKnown, setLastKnown] = useState<ConnectedState | null>(null);
   if (current !== undefined && current !== lastKnown) setLastKnown(current);
   const signedIn = current === undefined ? lastKnown : current;
+  // Likewise for Runout's own sign-in: while it reloads after an action, keep the section mounted.
+  const [authOn, setAuthOn] = useState(false);
+  if (auth.status === 'success' && (auth.data !== null) !== authOn) setAuthOn(auth.data !== null);
   const [deletedRevokeUrl, setDeletedRevokeUrl] = useState<string | null>(null);
 
   async function signOut() {
@@ -37,6 +42,7 @@ export function SettingsScreen() {
     try {
       await api.signOut();
       connection.retry();
+      auth.retry();
       navigate('/overview');
     } catch {
       setState('error');
@@ -48,7 +54,12 @@ export function SettingsScreen() {
       <div className="eyebrow">08 / Settings</div>
       <h1 className={settings.title}>Settings</h1>
       {!signedIn && !deletedRevokeUrl && (
-        <p className={settings.lede}>Sign in with Last.fm to import your listening history and manage it here.</p>
+        <p className={settings.lede}>Sign in to see your listening history and manage it here.</p>
+      )}
+      {!signedIn && !deletedRevokeUrl && authOn && (
+        <div className={settings.panel} id="sign-in">
+          <SignIn lastfmUrl={api.signInUrl()} align="left" />
+        </div>
       )}
       {signedIn && (
         <section className={settings.section} id="sources" aria-labelledby="sources-title">
@@ -66,6 +77,12 @@ export function SettingsScreen() {
         <section className={settings.section} id="review" aria-labelledby="review-title">
           <h2 id="review-title" className={settings.h2}>To review</h2>
           <ReviewSection onChanged={connection.retry} />
+        </section>
+      )}
+      {signedIn && authOn && (
+        <section className={settings.section} id="sign-in" aria-labelledby="sign-in-title">
+          <h2 id="sign-in-title" className={settings.h2}>Sign-in</h2>
+          <SignInSection />
         </section>
       )}
       <section className={settings.section} aria-labelledby="account-title">

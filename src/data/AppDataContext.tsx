@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { browserTimeZone } from '../lib/dates';
 import { realFormatter, specimenFormatter, type Formatter } from '../lib/format';
 import { createHttpApi, disconnectedApi, type RunoutApi } from './api';
-import type { ConnectionState } from './types';
+import type { ConnectionState, SessionInfo } from './types';
 import { useAsync, type AsyncState } from './useAsync';
 
 interface AppData {
@@ -11,6 +11,8 @@ interface AppData {
   specimen: boolean;
   fmt: Formatter;
   connection: AsyncState<ConnectionState> & { retry: () => void };
+  /** Runout's own sign-in; `data` is null while the server has it switched off. */
+  auth: AsyncState<SessionInfo | null> & { retry: () => void };
   /** User timezone setting once connected, otherwise the browser's. */
   timeZone: string;
 }
@@ -53,14 +55,15 @@ export function AppDataProvider({ children, api: injected }: { children: ReactNo
   const api = injected ?? resolved.api;
   const specimen = !injected && resolved.specimen;
   const connection = useAsync(api ? `connection:${specimen}` : null, (signal) => api!.getConnection(signal));
+  const auth = useAsync(api ? `auth:${specimen}` : null, (signal) => api!.auth.status(signal));
 
   const value = useMemo<AppData | null>(() => {
     if (!api) return null;
     const timeZone = connection.status === 'success' && connection.data.status !== 'none'
       ? connection.data.timezone
       : browserTimeZone();
-    return { api, specimen, fmt: specimen ? specimenFormatter : realFormatter, connection, timeZone };
-  }, [api, specimen, connection]);
+    return { api, specimen, fmt: specimen ? specimenFormatter : realFormatter, connection, auth, timeZone };
+  }, [api, specimen, connection, auth]);
 
   if (!value) return null;
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
