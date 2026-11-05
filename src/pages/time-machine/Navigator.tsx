@@ -230,7 +230,7 @@ export function MonthCalendar({ year, month, days, statusOf, selectedDate, fmt, 
               const outside = date < from || date > to;
               return (
                 <span key={date} role="gridcell" aria-selected={date === selectedDate ? 'true' : undefined}>
-                  <DayPlaysHover date={date} count={n} alignRight={col >= 4}>
+                  <DayPlaysHover date={date} count={n} label={countText(fmt, n, status)} alignRight={col >= 4}>
                   <Link
                     to={hrefFor({ kind: 'day', date })}
                     className={`${styles.calDay} ${outside ? styles.outside : ''} ${statusClass(status) ?? ''} ${date === selectedDate ? styles.selected : ''}`}
@@ -239,9 +239,6 @@ export function MonthCalendar({ year, month, days, statusOf, selectedDate, fmt, 
                     {...itemProps(date)}
                   >
                     <span className={styles.calDate}>{parseIsoDate(date).getUTCDate()}</span>
-                    <span className={`mono ${styles.calCount}`} aria-hidden="true">
-                      {n > 0 ? fmt.count(n) : status === 'none' ? 'n/a' : status === 'complete' && !outside ? '0' : ''}
-                    </span>
                   </Link>
                   </DayPlaysHover>
                 </span>
@@ -271,7 +268,7 @@ export function WeekDays({ week, days, statusOf, fmt, hrefFor }: Common & {
         const status = statusOf(date);
         const d = parseIsoDate(date);
         return (
-          <DayPlaysHover key={date} date={date} count={n} alignRight={i >= 4}>
+          <DayPlaysHover key={date} date={date} count={n} label={countText(fmt, n, status)} alignRight={i >= 4}>
           <Link to={hrefFor({ kind: 'day', date })} className={`${styles.weekDay} ${statusClass(status) ?? ''}`}
                 aria-label={`${longDate(date)}, ${countText(fmt, n, status)}`} {...itemProps(date)}>
             <span className="eyebrow" aria-hidden="true">{WEEKDAY_SHORT[i]}</span>

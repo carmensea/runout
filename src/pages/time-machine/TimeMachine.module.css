@@ -388,10 +388,6 @@
   font-size: 13px;
 }
 
-.calCount {
-  align-self: flex-end;
-  font-size: 11px;
-}
 
 .outside {
   background: none;
@@ -822,9 +818,6 @@
     padding: 5px;
   }
 
-  .calCount {
-    font-size: 10px;
-  }
 
   .weekDays {
     grid-template-columns: minmax(0, 1fr);

@@ -10,17 +10,17 @@ const DELAY_MS = 200;
 const cache = new Map<string, Promise<PlaysPage>>();
 
 /**
- * Wraps a calendar day: hovering with a mouse shows the first plays of that day. Decorative:
+ * Wraps a calendar day: hovering with a mouse shows the day's count and its first plays. Decorative:
  * the link's own label carries the count, and the play log below lists everything.
  */
-export function DayPlaysHover({ date, count, alignRight, children }: { date: string; count: number; alignRight?: boolean; children: ReactNode }) {
+export function DayPlaysHover({ date, count, label, alignRight, children }: { date: string; count: number; label: string; alignRight?: boolean; children: ReactNode }) {
   const { api } = useAppData();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<PlaysPage | 'error' | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function enter(e: PointerEvent) {
-    if (e.pointerType !== 'mouse' || count === 0) return;
+    if (e.pointerType !== 'mouse') return;
     timer.current = setTimeout(() => setOpen(true), DELAY_MS);
   }
   function leave() {
@@ -29,7 +29,7 @@ export function DayPlaysHover({ date, count, alignRight, children }: { date: str
   }
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || count === 0) return;
     let live = true;
     if (!cache.has(date)) cache.set(date, api.getPlays({ kind: 'day', date }, null));
     cache.get(date)!.then((p) => live && setPage(p), () => {
@@ -39,17 +39,17 @@ export function DayPlaysHover({ date, count, alignRight, children }: { date: str
     return () => {
       live = false;
     };
-  }, [open, date, api]);
+  }, [open, count, date, api]);
 
   return (
     <span className={styles.hoverWrap} onPointerEnter={enter} onPointerLeave={leave}>
       {children}
       {open && (
         <span className={`${styles.hoverCard} ${alignRight ? styles.hoverCardRight : ''}`} aria-hidden="true" data-testid={`day-plays-${date}`}>
-          <span className={styles.hoverTitle}>{longDate(date)}</span>
-          {page === null && <span className={styles.hoverMuted}>Loading plays</span>}
+          <span className={styles.hoverTitle}>{longDate(date)} · {label}</span>
+          {count > 0 && page === null && <span className={styles.hoverMuted}>Loading plays</span>}
           {page === 'error' && <span className={styles.hoverMuted}>Plays could not be loaded.</span>}
-          {page !== null && page !== 'error' && (
+          {count > 0 && page !== null && page !== 'error' && (
             <>
               {page.plays.slice(0, SHOWN).map((p) => (
                 <span key={p.id} className={styles.hoverPlay}>
