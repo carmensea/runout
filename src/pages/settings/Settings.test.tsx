@@ -114,6 +114,14 @@ describe('Settings: sync', () => {
     expect(screen.getByText(/nothing was cancelled or deleted/)).toBeInTheDocument();
   });
 
+  it('offers no check or pause while history storage is off', async () => {
+    const history = fakeHistoryApi({ syncHealth: async () => makeSyncHealth({ enabled: false }) });
+    renderApp(api(history), '/settings#history');
+    expect(await screen.findByText(/History storage is switched off on this server, so nothing is checked/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check now' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pause automatic sync' })).not.toBeInTheDocument();
+  });
+
   it('lists missing and stopped periods; only those needing a person offer Try again', async () => {
     const user = userEvent.setup();
     const history = fakeHistoryApi({
