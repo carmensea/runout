@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { ActivityBucket } from '../../data/types';
 import type { Formatter } from '../../lib/format';
 import { niceCeil, ratio, ticksFromTop } from '../../lib/scale';
@@ -22,25 +22,25 @@ interface Props {
 const TICKS = 4;
 
 /**
- * Scrobbles per bucket. Hover previews a bar; click, tap or Enter pins its tooltip, which links
- * into Time Machine. Arrow keys move between bars while the plot has focus.
+ * Scrobbles per bucket. Hover previews a bar; click, tap or Enter opens it in Time Machine.
+ * Arrow keys move between bars while the plot has focus.
  */
 export function ActivityChart({ buckets, granularity, fmt, labelFor, tickFor, hrefFor }: Props) {
+  const navigate = useNavigate();
   const [hover, setHover] = useState<number | null>(null);
   const [focusIdx, setFocusIdx] = useState<number | null>(null);
-  const [pinned, setPinned] = useState<number | null>(null);
 
   const n = buckets.length;
   const max = Math.max(0, ...buckets.map((b) => b.scrobbles));
   const ceil = niceCeil(max);
   const ticks = ticksFromTop(ceil, TICKS);
   const gap = n > 50 ? 1 : 6;
-  const shown = pinned ?? hover ?? focusIdx;
+  const shown = hover ?? focusIdx;
   const shownBucket = shown !== null ? buckets[shown] : undefined;
   const peak = buckets.reduce((best, b, i) => (b.scrobbles > (buckets[best]?.scrobbles ?? -1) ? i : best), 0);
 
   function onKeyDown(e: KeyboardEvent) {
-    const cur = pinned ?? focusIdx ?? -1;
+    const cur = focusIdx ?? -1;
     let next: number | null = null;
     if (e.key === 'ArrowRight') next = Math.min(n - 1, cur + 1);
     else if (e.key === 'ArrowLeft') next = Math.max(0, cur < 0 ? n - 1 : cur - 1);
@@ -48,23 +48,19 @@ export function ActivityChart({ buckets, granularity, fmt, labelFor, tickFor, hr
     else if (e.key === 'End') next = n - 1;
     else if ((e.key === 'Enter' || e.key === ' ') && cur >= 0) {
       e.preventDefault();
-      setPinned(pinned === cur ? null : cur);
-      return;
-    } else if (e.key === 'Escape') {
-      setPinned(null);
+      navigate(hrefFor(buckets[cur]!.key));
       return;
     }
     if (next === null) return;
     e.preventDefault();
     setFocusIdx(next);
-    if (pinned !== null) setPinned(next);
   }
 
   const leftPct = (i: number) => ((i + 0.5) / n) * 100;
   const tipOnLeft = shown !== null && leftPct(shown) > 70;
   const unit = granularity;
   const summary = n
-    ? `Bar chart of scrobbles per ${unit}, ${n} ${unit}s. Highest: ${labelFor(buckets[peak]!.key)} with ${fmt.count(buckets[peak]!.scrobbles)} scrobbles. Use arrow keys to move between bars and Enter to pin details.`
+    ? `Bar chart of scrobbles per ${unit}, ${n} ${unit}s. Highest: ${labelFor(buckets[peak]!.key)} with ${fmt.count(buckets[peak]!.scrobbles)} scrobbles. Use arrow keys to move between bars and Enter to open one in Time Machine.`
     : `No scrobbles to chart.`;
 
   return (
@@ -95,7 +91,7 @@ export function ActivityChart({ buckets, granularity, fmt, labelFor, tickFor, hr
               key={b.key}
               className={`${styles.slot} ${i === shown ? styles.active : ''}`}
               onPointerEnter={() => setHover(i)}
-              onClick={() => setPinned(pinned === i ? null : i)}
+              onClick={() => navigate(hrefFor(b.key))}
             >
               <div className={styles.bar} style={{ height: `${ratio(b.scrobbles, ceil) * 100}%` }} />
             </div>
@@ -107,21 +103,18 @@ export function ActivityChart({ buckets, granularity, fmt, labelFor, tickFor, hr
             <div
               className={styles.tooltip}
               style={tipOnLeft ? { right: `calc(${100 - leftPct(shown)}% + 10px)` } : { left: `calc(${leftPct(shown)}% + 10px)` }}
-              role={pinned !== null ? 'dialog' : undefined}
-              aria-label={pinned !== null ? `${labelFor(shownBucket.key)} details` : undefined}
-              aria-hidden={pinned === null ? true : undefined}
+              aria-hidden="true"
             >
               <span className={styles.tooltipTitle}>{labelFor(shownBucket.key)}</span>
               <span className={styles.tooltipValue}>
                 {fmt.count(shownBucket.scrobbles)} <small>scrobbles</small>
               </span>
               {shownBucket.topArtist && <span>Top artist: {shownBucket.topArtist}</span>}
-              <Link to={hrefFor(shownBucket.key)} tabIndex={pinned !== null ? 0 : -1}>Open in Time Machine</Link>
             </div>
           </>
         )}
         <p className="sr-only" aria-live="polite">
-          {shownBucket ? `${labelFor(shownBucket.key)}: ${fmt.count(shownBucket.scrobbles)} scrobbles${shownBucket.topArtist ? `, top artist ${shownBucket.topArtist}` : ''}.${pinned !== null ? ' Pinned. Tab to Open in Time Machine.' : ''}` : ''}
+          {shownBucket ? `${labelFor(shownBucket.key)}: ${fmt.count(shownBucket.scrobbles)} scrobbles${shownBucket.topArtist ? `, top artist ${shownBucket.topArtist}` : ''}.` : ''}
         </p>
       </div>
       <div />
