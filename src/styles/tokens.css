@@ -77,11 +77,35 @@
   }
 }
 
-/* ---- Themes (src/theme/theme.ts sets data-theme on <html>; Original is :root above) ---- */
+/* ---- Themes. src/theme/theme.ts sets data-theme on <html>; a Settings tile sets it on itself to
+   preview a palette, so the blocks match any element. Original is the :root block above, repeated
+   here by name only so a tile can show it inside another theme. ---- */
+[data-theme='original'] {
+  --shell: #17191a;
+  --bg: #17191a;
+  --s1: #1e2122;
+  --s2: #272b2c;
+  --ln: #373b3d;
+  --ln2: #26292a;
+  --fg: #f5f2eb;
+  --fg2: #c8c5bd;
+  --mu: #8c918f;
+  --ac: #e4653d;
+  --acfg: #17191a;
+  --err: #e8735a;
+  --c1: #e4653d;
+  --c2: #d9a73e;
+  --c3: #5da99b;
+  --c4: #7e9dcb;
+  --c5: #c98b9c;
+  --c6: #a3ad63;
+  --c7: #8c918f;
+  --panel: transparent;
+}
 
 /* Moss: a dark botanical reading room. Page ground a step deeper than sidebar and bars; a richer
    green for interactive states; the data stays pale sage. */
-:root[data-theme='moss'] {
+[data-theme='moss'] {
   --shell: #141d18;
   --bg: #1a2821;
   --s1: #243329;
@@ -105,7 +129,7 @@
 
 /* Cotton Candy: the Idle Winny sky (idlewinny.com, components/rotating-background.tsx), drawn by
    the Sky component from these tokens: its conic gradient, blur, turn and overlay, verbatim. */
-:root[data-theme='cotton-candy'] {
+[data-theme='cotton-candy'] {
   --shell: transparent;
   --sky-ground: #7b68ee;
   --sky-conic: conic-gradient(from 0deg, #ff6ad5, #c27dff, #7b68ee, #8a2be2, #6959cd, #4169e1, #ff6ad5);
@@ -135,7 +159,7 @@
 }
 
 /* Midnight Candy: the same sky at night. Deeper stops, a stronger overlay, a slower turn. */
-:root[data-theme='midnight-candy'] {
+[data-theme='midnight-candy'] {
   --shell: transparent;
   --sky-ground: #171331;
   --sky-conic: conic-gradient(from 0deg, #8a3f9e, #5b3b9c, #2f2a7a, #4a1f7e, #2a2560, #233a8f, #8a3f9e);
@@ -167,7 +191,7 @@
 /* Verdant: the same moving sky as a forest aurora. Deep forest, emerald, dark teal, muted
    turquoise, sea-glass and pine flow into each other under the dark overlay; Moss stays the
    still, editorial green. */
-:root[data-theme='verdant'] {
+[data-theme='verdant'] {
   --shell: transparent;
   --sky-ground: #11291f;
   --sky-conic: conic-gradient(from 0deg, #1f4d3a, #2f8f6a, #1b5f66, #3f9a9a, #8fd3c0, #0f2a22, #1f4d3a);

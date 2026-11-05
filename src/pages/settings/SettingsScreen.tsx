@@ -88,7 +88,7 @@ export function SettingsScreen() {
       )}
       <section className={settings.section} id="appearance" aria-labelledby="appearance-title">
         <h2 id="appearance-title" className={settings.h2}>Appearance</h2>
-        <p className={settings.lede}>Four looks for the same Runout. The choice is kept in this browser.</p>
+        <p className={settings.lede}>Five looks for the same Runout. The choice is kept in this browser.</p>
         <AppearancePanel />
       </section>
       <section className={settings.section} aria-labelledby="account-title">
