@@ -94,6 +94,19 @@ describe('Time Machine', () => {
     expect(screen.queryByRole('button', { name: /more/ })).not.toBeInTheDocument();
   });
 
+  it('shows the first plays of a day on hover', async () => {
+    const user = userEvent.setup();
+    renderApp(api(), '/time-machine?at=2016-03-15&period=day%3A2016-03-15');
+    const day = await screen.findByRole('link', { name: /Tuesday 15 March 2016/ });
+    await user.hover(day);
+    const card = await screen.findByTestId('day-plays-2016-03-15');
+    await waitFor(() => expect(card).toHaveTextContent('Morning Song'));
+    expect(card).toHaveTextContent('08:00');
+    expect(card).toHaveTextContent('and 2 more');
+    await user.unhover(day);
+    expect(screen.queryByTestId('day-plays-2016-03-15')).not.toBeInTheDocument();
+  });
+
   it('opens a deep link, with a calendar whose days open the day', async () => {
     const user = userEvent.setup();
     const fake = api();
