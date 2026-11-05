@@ -9,7 +9,7 @@
       // The chosen theme before the first paint (src/theme/theme.ts owns the rest).
       try {
         var t = localStorage.getItem('runout:theme');
-        var c = { moss: '#141d18', 'cotton-candy': '#7b68ee', 'midnight-candy': '#171331' };
+        var c = { moss: '#141d18', 'cotton-candy': '#7b68ee', 'midnight-candy': '#171331', verdant: '#11291f' };
         if (t && c[t]) { document.documentElement.dataset.theme = t; document.querySelector('meta[name="theme-color"]').content = c[t]; }
       } catch (e) {}
     </script>

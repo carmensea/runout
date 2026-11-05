@@ -13,12 +13,12 @@ afterEach(() => {
 });
 
 describe('Settings: appearance', () => {
-  it('offers the four themes as a radio group with Original selected by default', async () => {
+  it('offers the five themes as a radio group with Original selected by default', async () => {
     renderApp(connectedApi(), '/settings');
     const group = await screen.findByRole('radiogroup', { name: 'Theme' });
     const radios = within(group).getAllByRole('radio');
     expect(radios.map((r) => r.textContent)).toEqual([
-      expect.stringContaining('Original'), expect.stringContaining('Moss'), expect.stringContaining('Cotton Candy'), expect.stringContaining('Midnight Candy'),
+      expect.stringContaining('Original'), expect.stringContaining('Moss'), expect.stringContaining('Cotton Candy'), expect.stringContaining('Midnight Candy'), expect.stringContaining('Verdant'),
     ]);
     expect(within(group).getByRole('radio', { name: /Original/ })).toHaveAttribute('aria-checked', 'true');
     expect(within(group).getByRole('radio', { name: /Moss/ })).toHaveAttribute('aria-checked', 'false');

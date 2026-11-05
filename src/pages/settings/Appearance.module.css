@@ -29,6 +29,10 @@
   background: linear-gradient(135deg, #8a3f9e, #2f2a7a 50%, #171331);
 }
 
+.tile[data-theme='verdant'] {
+  background: linear-gradient(135deg, #2f8f6a, #1b5f66 50%, #11291f);
+}
+
 .tile:hover {
   border-color: var(--mu);
 }

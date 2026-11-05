@@ -16,8 +16,8 @@ describe('theme store', () => {
     expect(currentTheme()).toBe(DEFAULT_THEME);
   });
 
-  it('offers exactly the four themes', () => {
-    expect(THEMES.map((t) => t.id)).toEqual(['original', 'moss', 'cotton-candy', 'midnight-candy']);
+  it('offers exactly the five themes', () => {
+    expect(THEMES.map((t) => t.id)).toEqual(['original', 'moss', 'cotton-candy', 'midnight-candy', 'verdant']);
     expect(isThemeId('moss')).toBe(true);
     expect(isThemeId('solarized')).toBe(false);
   });

@@ -163,3 +163,35 @@
   --c7: #a194c6;
   --panel: rgba(20, 14, 40, 0.6);
 }
+
+/* Verdant: the same moving sky as a forest aurora. Deep forest, emerald, dark teal, muted
+   turquoise, sea-glass and pine flow into each other under the dark overlay; Moss stays the
+   still, editorial green. */
+:root[data-theme='verdant'] {
+  --shell: transparent;
+  --sky-ground: #11291f;
+  --sky-conic: conic-gradient(from 0deg, #1f4d3a, #2f8f6a, #1b5f66, #3f9a9a, #8fd3c0, #0f2a22, #1f4d3a);
+  --sky-blur: 30px;
+  --sky-turn: 18s;
+  --sky-overlay: radial-gradient(circle at center, rgba(6, 18, 14, 0.3) 0%, rgba(6, 18, 14, 0.5) 70%, rgba(6, 18, 14, 0.68) 100%);
+  --sky-star-opacity: 0.55;
+  --bg: rgba(10, 26, 22, 0.88);
+  --s1: rgba(26, 58, 48, 0.6);
+  --s2: rgba(34, 76, 62, 0.8);
+  --ln: rgba(190, 230, 215, 0.24);
+  --ln2: rgba(190, 230, 215, 0.12);
+  --fg: #ebf5ef;
+  --fg2: #c7dcd2;
+  --mu: #93b3a7;
+  --ac: #6ecf9c;
+  --acfg: #0b1f18;
+  --err: #f0a08c;
+  --c1: #8fd3c0;
+  --c2: #e0c56a;
+  --c3: #5fb8b0;
+  --c4: #7fa6d6;
+  --c5: #c995b6;
+  --c6: #a9c472;
+  --c7: #93b3a7;
+  --panel: rgba(8, 24, 20, 0.55);
+}

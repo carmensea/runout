@@ -9,16 +9,16 @@ import styles from './Sky.module.css';
  * theme's tokens (src/styles/tokens.css). Nothing renders in Original and Moss.
  *
  * Prototype knobs on <html>, read once: data-sky-turn (seconds), data-sky-stars (count),
- * data-sky-mode ("faithful" draws the blurred layer at 200% like the original; the default draws
- * it at 100% and scales it, which looks the same and costs a quarter of the pixels).
+ * data-sky-mode ("scaled" draws the blurred layer at 100% and scales it by two, a quarter of the
+ * pixels for the same picture; the default is the original's 200% layer).
  */
 export function Sky() {
   const [theme] = useTheme();
-  if (theme !== 'cotton-candy' && theme !== 'midnight-candy') return null;
+  if (theme !== 'cotton-candy' && theme !== 'midnight-candy' && theme !== 'verdant') return null;
   const knobs = document.documentElement.dataset;
   const turn = knobs.skyTurn ? `${Number(knobs.skyTurn)}s` : undefined;
   const count = knobs.skyStars === undefined ? 40 : Number(knobs.skyStars);
-  const faithful = knobs.skyMode === 'faithful';
+  const faithful = knobs.skyMode !== 'scaled';
   return (
     <div className={styles.sky} aria-hidden="true" data-testid="sky">
       <div className={faithful ? styles.gradientFaithful : styles.gradient} style={turn ? { animationDuration: turn } : undefined} />

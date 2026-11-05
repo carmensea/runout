@@ -7,6 +7,7 @@ export const THEMES = [
   { id: 'moss', name: 'Moss', description: 'Dark botanical green and sage.' },
   { id: 'cotton-candy', name: 'Cotton Candy', description: 'The Idle Winny sky, in motion.' },
   { id: 'midnight-candy', name: 'Midnight Candy', description: 'The same sky at night.' },
+  { id: 'verdant', name: 'Verdant', description: 'A forest aurora, in motion.' },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];
@@ -20,6 +21,7 @@ export const THEME_COLORS: Record<ThemeId, string> = {
   moss: '#141d18',
   'cotton-candy': '#7b68ee',
   'midnight-candy': '#171331',
+  verdant: '#11291f',
 };
 
 export function isThemeId(value: unknown): value is ThemeId {
