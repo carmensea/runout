@@ -1,7 +1,7 @@
 # Multi-user beta: collecting a tester's YouTube Music listens through ListenBrainz
 
-Feasibility assessment and MVP sequence, 2026-11-05. **Nothing here is implemented or deployed
-until the owner approves.** The tester never needs Last.fm or Spotify; Runout uses ListenBrainz's
+Feasibility assessment and MVP sequence, 2026-11-05. **Approved by the owner 2026-11-05 (§11); no
+production deployment and no real invitation without the owner's separate approval.** The tester never needs Last.fm or Spotify; Runout uses ListenBrainz's
 official API only, with a token the tester issues and can revoke.
 
 ## 1. Verdict
@@ -58,10 +58,14 @@ into `name_variants` as a MusicBrainz ID: Runout's catalogue keeps its own conse
   account (the existing unique index on `provider, external_account_id`).
 - **Incremental polling.** A Solid Queue job per source, every 10 minutes (ListenBrainz asks for
   one request per second; Runout's pacer gets a `listenbrainz` key at 1 s): `GET
-  /1/user/{name}/listens?min_ts=<high water>&count=100`, paging forward until a short page, with
-  the token sent for the relaxed limit. The high-water mark is the newest `listened_at` stored;
-  because `min_ts` is exclusive and a scrobbler can submit a listen late with an earlier timestamp
-  (offline phone), each poll also re-reads a 24-hour overlap window and relies on dedup (§5).
+  /1/user/{name}/listens?min_ts=<cursor>&count=100`, paging forward until a short page, with the
+  token sent for the relaxed limit. The **cursor** is durable: `listening_sources.high_water_at`
+  (the column Spotify already uses) advances only after a page is fully recorded, so a poll that
+  fails or a worker that dies leaves it where the last success put it, and the next poll resumes
+  from there whether the outage lasted ten minutes or ten days. The 24-hour **overlap** is
+  separate: each poll starts its read 24 hours before the cursor, so a listen a scrobbler submitted
+  late with an earlier timestamp (an offline phone) is still picked up; dedup (§5) makes the
+  re-read harmless. The overlap never limits recovery; the cursor does the recovery.
 - **Backfill at connect.** The listens endpoint is documented as not for crawling full history.
   First connect reads the last 30 days through it; anything older comes from the export API
   (`POST /1/export/`, then poll and download a ZIP of `listens/<year>/<month>.jsonl`), which needs
@@ -144,7 +148,7 @@ deployed and the owner switches the flag on for the beta.
 
 Estimates: PR 1 one day, PR 2 one and a half days, PR 3 half a day, PR 4 one day.
 
-## 10. Decisions for the owner
+## 10. Decisions for the owner (approved 2026-11-05, see §11)
 
 1. Run step 0 with the tester before PR 1, so the phone leg is proven. Proposed: yes.
 2. Invitations by operator link (no self-service sign-up) for the beta. Proposed: yes.
@@ -152,3 +156,57 @@ Estimates: PR 1 one day, PR 2 one and a half days, PR 3 half a day, PR 4 one day
 4. Initial backfill: 30 days through the listens endpoint at connect, full history through the
    export API in PR 3. Proposed: yes.
 5. Poll every 10 minutes with a 24-hour overlap window. Proposed: yes; both are constants.
+
+## 11. Owner's approval (2026-11-05)
+
+All five decisions in §10 approved as proposed, with one clarification and six safeguards:
+
+- **Clarification:** the 24-hour overlap must not limit outage recovery. A durable cursor is
+  persisted and catch-up resumes from the last successful position after outages of any length
+  (§4, "Incremental polling").
+- ListenBrainz tokens are encrypted at rest and never appear in logs or exceptions (the Spotify
+  credential rules and the client's redaction apply).
+- Strict isolation between users: every endpoint, job and task scoped to one user; two-user tests.
+- Onboarding explains that ListenBrainz listening history is public by default, before the tester
+  connects.
+- Genuine repeated plays are preserved, including same-second listens (the `seq` slot).
+- Overlapping Spotify, Last.fm, Takeout and ListenBrainz observations are never counted twice
+  (`Listening::CrossSource`, extended to same-provider near-duplicates).
+- The owner's production archive and Spotify polling stay unchanged; the new flag starts off.
+
+Order: step 0 first. If either device fails to capture YouTube Music reliably, the findings are
+reported before anything is built. If both work: the multi-user architecture and security audit,
+then the first implementation PR is proposed. Registration stays invitation-only. No production
+deployment or real invitation without the owner's approval. PR #26 (playlists) remains parked.
+
+## 12. Step 0 checklist (the tester, about 30 minutes; nothing in Runout changes)
+
+Before starting: the tester creates a ListenBrainz account (a MusicBrainz login) and reads the
+note that ListenBrainz listening history is public by default. Their user token is at
+listenbrainz.org → Settings.
+
+**Phone (Android, YouTube Music app):**
+1. Install Pano Scrobbler (Play Store or GitHub release), grant notification access when asked.
+2. Add an account: ListenBrainz, paste the token.
+3. In Pano's app list, make sure YouTube Music is enabled; set YouTube (the video app) to blocked
+   or disabled, so videos are not scrobbled.
+4. Play three full songs in the YouTube Music app, one of them twice in a row.
+5. Play one non-music YouTube video in the YouTube app.
+
+**PC (browser, music.youtube.com):**
+6. Install Web Scrobbler (Chrome, Edge or Firefox), open its settings → Accounts → ListenBrainz,
+   sign in or use Properties to enter the token.
+7. Play three full songs on music.youtube.com, one of them twice in a row.
+
+**Check (owner or tester, in a browser, no login needed):**
+8. Open `https://api.listenbrainz.org/1/user/<listenbrainz name>/listens?count=20`.
+9. Expected: the six songs, each with `artist_name`, `track_name`, a `listened_at`, and in
+   `additional_info` a `music_service` of `music.youtube.com` (PC) or the phone's equivalent, and a
+   `submission_client` naming Pano or Web Scrobbler. The repeated songs appear twice. The video
+   from step 5 does not appear.
+10. Send the owner that page's JSON (or the listenbrainz.org listens page) and a note of anything
+    that did not appear or appeared wrong (artist as a channel name, title with "(Official Video)",
+    duplicates).
+
+Pass: all six listens present and correct on both legs. Partial: one leg missing or wrong → report
+before building. Either way the JSON tells Runout exactly which fields each scrobbler sends.
