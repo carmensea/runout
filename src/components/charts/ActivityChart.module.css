@@ -110,19 +110,6 @@
   font-size: 12px;
 }
 
-.tooltip a {
-  color: var(--bg);
-  text-decoration: underline;
-}
-
-.tooltip a:hover {
-  color: var(--ac);
-}
-
-.tooltip a:focus-visible {
-  outline-color: var(--bg);
-}
-
 .xAxis {
   position: relative;
   height: 18px;

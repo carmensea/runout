@@ -183,16 +183,14 @@ describe('Overview, connected', () => {
     expect(screen.getByRole('button', { name: 'Previous period' })).toBeDisabled();
   });
 
-  it('pins an activity bar from the keyboard and links into Time Machine', async () => {
+  it('opens an activity bar in Time Machine from the keyboard', async () => {
     renderApp(connectedApi());
     await screen.findByText('4,321');
     const plot = screen.getByRole('group', { name: /Bar chart of scrobbles per month/ });
     act(() => plot.focus());
     fireEvent.keyDown(plot, { key: 'ArrowRight' });
     fireEvent.keyDown(plot, { key: 'Enter' });
-    const tip = await screen.findByRole('dialog', { name: 'January 2020 details' });
-    const link = within(tip).getByRole('link', { name: 'Open in Time Machine' });
-    expect(link.getAttribute('href')).toContain('/time-machine?at=2020-01&period=month%3A2020-01');
+    await waitFor(() => expect(location.current).toContain('/time-machine?at=2020-01&period=month%3A2020-01'));
   });
 
   it('switches the activity chart to a table and back', async () => {
