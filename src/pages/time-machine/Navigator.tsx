@@ -6,6 +6,7 @@ import { longDate } from '../../lib/period';
 import { HEAT_RAMP, quantileBucketer, ratio } from '../../lib/scale';
 import { STATUS_TEXT, monthShort, monthWeeks, weekDates, type DayStatus, type Focus } from './model';
 import { calendarMove, gridMove, useRoving } from './useRovingGrid';
+import { DayPlaysHover } from './DayPlaysHover';
 import styles from './TimeMachine.module.css';
 
 interface Common {
@@ -223,12 +224,13 @@ export function MonthCalendar({ year, month, days, statusOf, selectedDate, fmt, 
             <span role="rowheader" className={styles.weekHead}>
               <Link to={hrefFor({ kind: 'week', ...w })} className={styles.weekLink} aria-label={`Week ${w.week}, ${w.isoYear}`}>{w.week}</Link>
             </span>
-            {week.map((date) => {
+            {week.map((date, col) => {
               const n = days.get(date) ?? 0;
               const status = statusOf(date);
               const outside = date < from || date > to;
               return (
                 <span key={date} role="gridcell" aria-selected={date === selectedDate ? 'true' : undefined}>
+                  <DayPlaysHover date={date} count={n} label={countText(fmt, n, status)} alignRight={col >= 4}>
                   <Link
                     to={hrefFor({ kind: 'day', date })}
                     className={`${styles.calDay} ${outside ? styles.outside : ''} ${statusClass(status) ?? ''} ${date === selectedDate ? styles.selected : ''}`}
@@ -237,10 +239,8 @@ export function MonthCalendar({ year, month, days, statusOf, selectedDate, fmt, 
                     {...itemProps(date)}
                   >
                     <span className={styles.calDate}>{parseIsoDate(date).getUTCDate()}</span>
-                    <span className={`mono ${styles.calCount}`} aria-hidden="true">
-                      {n > 0 ? fmt.count(n) : status === 'none' ? 'n/a' : status === 'complete' && !outside ? '0' : ''}
-                    </span>
                   </Link>
+                  </DayPlaysHover>
                 </span>
               );
             })}
@@ -268,13 +268,15 @@ export function WeekDays({ week, days, statusOf, fmt, hrefFor }: Common & {
         const status = statusOf(date);
         const d = parseIsoDate(date);
         return (
-          <Link key={date} to={hrefFor({ kind: 'day', date })} className={`${styles.weekDay} ${statusClass(status) ?? ''}`}
+          <DayPlaysHover key={date} date={date} count={n} label={countText(fmt, n, status)} alignRight={i >= 4}>
+          <Link to={hrefFor({ kind: 'day', date })} className={`${styles.weekDay} ${statusClass(status) ?? ''}`}
                 aria-label={`${longDate(date)}, ${countText(fmt, n, status)}`} {...itemProps(date)}>
             <span className="eyebrow" aria-hidden="true">{WEEKDAY_SHORT[i]}</span>
             <span className={styles.weekDate} aria-hidden="true">{d.getUTCDate()} {monthShort(d.getUTCMonth() + 1)}</span>
             <span className={`mono ${styles.weekCount}`} aria-hidden="true">{n > 0 ? fmt.count(n) : status === 'complete' ? '0' : STATUS_TEXT[status]}</span>
             <span className={styles.weekBar} aria-hidden="true"><span style={{ width: `${ratio(n, max) * 100}%` }} /></span>
           </Link>
+          </DayPlaysHover>
         );
       })}
     </nav>

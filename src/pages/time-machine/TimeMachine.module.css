@@ -388,10 +388,6 @@
   font-size: 13px;
 }
 
-.calCount {
-  align-self: flex-end;
-  font-size: 11px;
-}
 
 .outside {
   background: none;
@@ -822,9 +818,6 @@
     padding: 5px;
   }
 
-  .calCount {
-    font-size: 10px;
-  }
 
   .weekDays {
     grid-template-columns: minmax(0, 1fr);
@@ -851,4 +844,70 @@
   .sameSecond {
     grid-column: 2;
   }
+}
+
+/* Hover card: the first plays of a day, under its cell. Pointer-events off so leaving the cell closes it. */
+.hoverWrap {
+  position: relative;
+  display: block;
+}
+
+.hoverWrap > a {
+  display: flex;
+}
+
+.hoverCard {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: 260px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.hoverCardRight {
+  left: auto;
+  right: 0;
+}
+
+.hoverTitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.hoverPlay {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hoverTime {
+  flex: none;
+  font-size: 11px;
+  opacity: 0.7;
+  padding-top: 1px;
+}
+
+.hoverTrack {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hoverMuted {
+  opacity: 0.7;
 }
