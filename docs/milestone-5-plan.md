@@ -52,7 +52,8 @@ added later for friends.**
   (`resident_key: "required"`, `user_verification: "required"`) so sign-in needs no username: the
   passkey identifies the user.
 - Recovery codes: ten single-use codes generated when the first passkey is enrolled, shown once,
-  stored as SHA-256 digests like session tokens. A code signs in normally and the page insists on
+  stored as SHA-256 digests like session tokens. Enrolling a passkey never replaces usable codes: a
+  new set is made only when none is left; replacing a set is always a deliberate action in Settings. A code signs in normally and the page insists on
   enrolling a new passkey.
 - Operator recovery: `bin/rails auth:recovery_link[user]` prints a one-time sign-in link valid 15
   minutes, run over `railway ssh`. The owner is the operator, so losing every device and every code
