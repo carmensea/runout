@@ -40,17 +40,27 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
     assert_equal 1, Session.count
   end
 
-  test "sign-out ends the session server-side" do
+  test "sign-out ends this session server-side, clears the cookie, keeps other sessions and the connections" do
+    sign_in_via_lastfm(username: "listener")
+    other_token = session_cookie
+    cookies.delete(Authentication::COOKIE_NAME)
     sign_in_via_lastfm(username: "listener")
     token = session_cookie
+    assert_equal 2, Session.count
 
     delete "/api/session", headers: same_origin_headers
     assert_response :no_content
     assert_nil Session.find_by_token(token)
+    assert_predicate cookies[Authentication::COOKIE_NAME], :blank?, "the cookie is cleared"
 
     cookies[Authentication::COOKIE_NAME] = token
     get "/api/connection"
     assert_equal({ "status" => "none" }, response.parsed_body)
+    get "/api/overview"
+    assert_response :unauthorized, "protected data is closed to the ended session"
+
+    assert_not_nil Session.find_by_token(other_token), "another browser's session survives"
+    assert_equal [ 1, 1 ], [ Identity.where(revoked_at: nil).count, LastfmConnection.count ], "sign-out touches no connection"
   end
 
   test "sign-out without a session is unauthorized" do

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import stateStyles from '../../components/states/States.module.css';
 import { ApiError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
@@ -208,9 +208,26 @@ function RecoveryCodesPanel({ remaining, codes, onCodes, onDismiss }: {
 }
 
 function SessionsPanel({ sessions, onChanged }: { sessions: ReturnType<typeof useAsync<BrowserSession[]>>; onChanged(): void }) {
-  const { api, fmt, timeZone } = useAppData();
+  const { api, fmt, timeZone, connection, auth } = useAppData();
+  const navigate = useNavigate();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // This browser: the server ends the session and clears the cookie (DELETE /api/session); the app
+  // then reloads who is signed in and shows the signed-out Overview. Other browsers keep their sessions.
+  async function signOutHere(id: number) {
+    setBusy(id);
+    setError(null);
+    try {
+      await api.signOut();
+      connection.retry();
+      auth.retry();
+      navigate('/overview');
+    } catch (e) {
+      setError(describe(e));
+      setBusy(null);
+    }
+  }
 
   async function revoke(id: number) {
     setBusy(id);
@@ -228,6 +245,7 @@ function SessionsPanel({ sessions, onChanged }: { sessions: ReturnType<typeof us
   return (
     <section className={styles.panel} aria-labelledby="sessions-title" id="sessions">
       <span id="sessions-title" className={styles.panelTitle}>Signed-in browsers</span>
+      <span>Sign out here, or sign another browser out. Your Last.fm and Spotify connections stay as they are.</span>
       {sessions.status === 'loading' && <p className={stateStyles.statusText} role="status">Loading your sessions</p>}
       {sessions.status === 'error' && <p className={styles.error} role="alert">Your sessions couldn’t be loaded.</p>}
       {sessions.status === 'success' && (
@@ -238,7 +256,11 @@ function SessionsPanel({ sessions, onChanged }: { sessions: ReturnType<typeof us
                 <span className={styles.rowTitle}>{s.current ? 'This browser' : describeAgent(s.userAgent)}</span>
                 <span className={styles.note}>Last seen {fmt.dateTime(s.lastSeenAt, timeZone)}{s.ipAddress ? ` from ${s.ipAddress}` : ''}. Signed in {fmt.dateTime(s.createdAt, timeZone)}.</span>
               </div>
-              {!s.current && (
+              {s.current ? (
+                <button type="button" className={stateStyles.primary} disabled={busy !== null} onClick={() => signOutHere(s.id)}>
+                  {busy === s.id ? 'Signing out' : 'Sign out'}
+                </button>
+              ) : (
                 <button type="button" className={stateStyles.secondary} disabled={busy !== null} onClick={() => revoke(s.id)}>
                   {busy === s.id ? 'Signing out' : 'Sign out'}
                 </button>

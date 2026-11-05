@@ -2,8 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiError, type RunoutApi } from '../../data/api';
+import type { ConnectionState } from '../../data/types';
 import { connectedApi, fakeAuthApi, makePasskey } from '../../test/fixtures';
-import { renderApp } from '../../test/renderApp';
+import { location, renderApp } from '../../test/renderApp';
 
 function supportPasskeys() {
   Object.defineProperty(globalThis, 'PublicKeyCredential', {
@@ -91,6 +92,28 @@ describe('Settings: sign-in', () => {
     expect(await screen.findByRole('region', { name: 'Your new recovery codes' })).toBeInTheDocument();
   });
 
+  it('signs this browser out from the Sign-in section and lands on the signed-out Overview', async () => {
+    const user = userEvent.setup();
+    const auth = fakeAuthApi();
+    let signedOut = false;
+    const base = connectedApi();
+    const calls: string[] = [];
+    const apiWithSignOut: RunoutApi = {
+      ...base,
+      getConnection: async (): Promise<ConnectionState> => (signedOut ? { status: 'none' } : base.getConnection()),
+      signOut: async () => { calls.push('signOut'); signedOut = true; },
+      auth: { ...auth, status: async () => (signedOut ? { signedIn: false } : auth.status()) },
+    };
+    renderApp(apiWithSignOut, '/settings');
+    const list = await screen.findByRole('list', { name: 'Signed-in browsers' });
+    const mine = within(list).getByText('This browser').closest('li')!;
+    await user.click(within(mine).getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(calls).toEqual(['signOut']));
+    await waitFor(() => expect(location.current).toBe('/overview'));
+    expect(await screen.findByRole('button', { name: 'Sign in with a passkey' })).toBeInTheDocument();
+    expect(auth.calls).toEqual([]);
+  });
+
   it('lists signed-in browsers and signs another one out', async () => {
     const user = userEvent.setup();
     const auth = fakeAuthApi();
@@ -98,8 +121,9 @@ describe('Settings: sign-in', () => {
     const list = await screen.findByRole('list', { name: 'Signed-in browsers' });
     expect(within(list).getByText('This browser')).toBeInTheDocument();
     expect(within(list).getByText('Safari on iOS')).toBeInTheDocument();
-    expect(within(list).getAllByRole('button', { name: 'Sign out' })).toHaveLength(1);
-    await user.click(within(list).getByRole('button', { name: 'Sign out' }));
+    expect(within(list).getAllByRole('button', { name: 'Sign out' })).toHaveLength(2);
+    const other = within(list).getByText('Safari on iOS').closest('li')!;
+    await user.click(within(other).getByRole('button', { name: 'Sign out' }));
     await waitFor(() => expect(auth.calls).toEqual(['revokeSession:2']));
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Signed-in browsers' })).queryByText('Safari on iOS')).not.toBeInTheDocument());
   });
