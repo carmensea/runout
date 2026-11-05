@@ -237,14 +237,15 @@ function SyncPanel({ health, onChanged }: { health: SyncHealth; onChanged(): voi
         <dd>{when(health.syncedThrough)}</dd>
         <dt>New scrobbles</dt>
         <dd>{fmt.count(health.newScrobbles.last24Hours)} in the last 24 hours</dd>
-        {!health.syncPaused && nextChecks[0] && (
+        {health.enabled && !health.syncPaused && nextChecks[0] && (
           <>
             <dt>Next check</dt>
             <dd>{fmt.dateTime(nextChecks[0], timeZone)}</dd>
           </>
         )}
       </dl>
-      <div className={styles.actions}>
+      {!health.enabled && <span className={styles.note}>History storage is switched off on this server, so nothing is checked and nothing can be changed here.</span>}
+      {health.enabled && <div className={styles.actions}>
         {!health.syncPaused && !accountProblem && (
           <button type="button" className={stateStyles.primary} disabled={!!pending} onClick={() => run('refresh', api.history.refreshSync)}>
             {pending === 'refresh' ? 'Checking' : 'Check now'}
@@ -259,7 +260,7 @@ function SyncPanel({ health, onChanged }: { health: SyncHealth; onChanged(): voi
             {pending === 'pause' ? 'Pausing' : 'Pause automatic sync'}
           </button>
         )}
-      </div>
+      </div>}
       {error && <p role="alert" className={styles.error}>{error}</p>}
     </section>
   );
