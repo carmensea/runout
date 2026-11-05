@@ -66,6 +66,9 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
           // A full page navigation: the server redirects to Last.fm.
           <a href={lastfmUrl} className={stateStyles.secondary}>Sign in with Last.fm</a>
         )}
+        {lastfmUrl && (
+          <span className="caption">Last.fm sign-in is for the archive’s owner. Invited people sign in with a passkey.</span>
+        )}
       </div>
       {!supported && <p className={styles.error}>This browser can’t use passkeys here. Use a recovery code or Last.fm.</p>}
       {showCode ? (

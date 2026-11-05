@@ -1,28 +1,14 @@
 import { useId, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import stateStyles from '../../components/states/States.module.css';
-import { ApiError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { BrowserSession, Passkey } from '../../data/types';
 import { useAsync } from '../../data/useAsync';
-import { PasskeyCancelledError, PasskeyUnsupportedError, passkeysSupported } from '../../lib/webauthn';
+import { describeAuthError as describe } from '../../lib/authErrors';
+import { passkeysSupported } from '../../lib/webauthn';
 import pending from '../PendingScreen.module.css';
 import styles from './Settings.module.css';
 
-const ERRORS: Record<string, string> = {
-  passkey_rejected: 'The browser’s passkey wasn’t accepted. Try again.',
-  challenge_expired: 'That took too long. Try again.',
-  last_passkey: 'This is your only passkey and you have no recovery codes, so it has to stay. Generate recovery codes first.',
-  rate_limited: 'Too many attempts. Wait a while and try again.',
-};
-
-function describe(e: unknown): string {
-  if (e instanceof PasskeyCancelledError) return 'The passkey prompt was closed before it finished.';
-  if (e instanceof PasskeyUnsupportedError) return e.message;
-  const known = e instanceof ApiError && e.code ? ERRORS[e.code] : undefined;
-  if (known) return known;
-  return 'That didn’t work. Check your connection and try again.';
-}
 
 /**
  * Settings → Sign-in: passkeys (add, remove), recovery codes (shown once, regenerable) and other

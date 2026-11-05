@@ -159,3 +159,23 @@ test database; `ListeningStorage.enabled?("listenbrainz")` stays false); `attent
 health count a source in `needs_reauth`; `GET /api/import` gains `stored`; Settings → History shows
 "Stored plays" to every account and the Last.fm panels only with a connection; source-neutral copy
 on Overview, Time Machine, the sidebar, account deletion and the `/connect` placeholder.
+
+**PR 2 (branch `invitations`) contains:** `sign_in_links.kind` (`recovery` 15 minutes, `invitation`
+24 hours; additive migration `20261105000003`); `bin/rails auth:invite_link[display_name,timezone]`
+creates the account and prints the link (reuses an unfinished invitation's empty account, never one
+with a passkey or an identity; refuses a bad timezone, an empty name, or the passkeys flag off); an
+invitation is single use, expiring, and scoped to enrolment (dead once the account has a passkey,
+even unopened); redeeming it lands on `/welcome`; the recovery link is unchanged. Frontend: the
+onboarding page (`/welcome`: add a passkey, save the recovery codes shown once, connect Spotify or
+skip; the known Recently Played gap and the beta note stated), the shell sends an account with no
+passkey and no Last.fm to `/welcome` from every page until it has one, and the signed-out screen
+says Last.fm sign-in is the owner's. Tests: `invitations_test.rb` (6), `OnboardingPage.test.tsx` (3).
+
+**Operator runbook (production, only with the owner's approval):**
+```
+railway ssh -s runout -- bin/rails "auth:invite_link[Dana,America/Los_Angeles]"
+```
+Send the printed link to the person over a private channel with the beta note. It is valid for 24
+hours and works once. If it expires unopened, run the task again with the same name. Before they
+connect Spotify, add their Spotify email under User Management in the Spotify dashboard
+(Development Mode, 5 users).
