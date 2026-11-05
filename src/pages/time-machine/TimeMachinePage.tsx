@@ -171,7 +171,7 @@ function Body({ connected, history, focus, hrefFor }: {
   const { connection } = useAppData();
   const { withPeriod } = usePeriod();
 
-  if (connection.status === 'loading') return <LoadingState label="Checking your Last.fm connection" />;
+  if (connection.status === 'loading') return <LoadingState label="Checking your account" />;
   if (connection.status === 'error') {
     return (
       <MessageState icon="error" tone="error" message="Runout could not be reached." detail="Your listening data is safe. Check your connection and try again.">

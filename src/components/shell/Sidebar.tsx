@@ -65,7 +65,7 @@ function AccountStatus() {
       <div className={styles.account} role="status">
         <div className={styles.who}>
           <div className={styles.avatar} />
-          <div className={styles.whoText}><span className={styles.status}>Checking Last.fm</span></div>
+          <div className={styles.whoText}><span className={styles.status}>Checking your account</span></div>
         </div>
       </div>
     );

@@ -151,7 +151,8 @@ const specimenState = () => new URLSearchParams(window.location.search).get('his
 const specimenImport = (): ImportStatus => {
   const state = specimenState();
   const imported: ImportStatus = {
-    enabled: true, state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 0,
+    enabled: true, stored: { plays: 0, firstPlayedAt: null, lastPlayedAt: null, sources: {} },
+    state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 0,
     lastfmPlaycount: 0, historyFrom: '2006-01-01T00:00:00Z', cutoffAt: '2026-01-01T00:00:00Z', currentPeriod: null,
     periods: { pending: 0, processing: 0, committed: 0, failed: 0, review: 1 }, startedAt: null, finishedAt: null, lastImportedAt: null,
     error: null, failures: [], missingPeriods: [], attention: 2, canStart: false,

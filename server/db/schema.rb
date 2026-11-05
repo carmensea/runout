@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_05_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -346,7 +346,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_000001) do
     t.index ["user_id"], name: "index_listening_observations_on_user_id"
     t.check_constraint "(link_state::text = 'pending_review'::text) = (scrobble_id IS NULL)", name: "listening_observations_scrobble"
     t.check_constraint "link_state::text = ANY (ARRAY['created'::character varying::text, 'linked'::character varying::text, 'pending_review'::character varying::text])", name: "listening_observations_link_state"
-    t.check_constraint "provider::text = 'spotify'::text", name: "listening_observations_provider"
+    t.check_constraint "provider::text = ANY (ARRAY['spotify'::character varying, 'listenbrainz'::character varying]::text[])", name: "listening_observations_provider"
   end
 
   create_table "listening_polls", force: :cascade do |t|
@@ -399,7 +399,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_000001) do
     t.index ["provider", "external_account_id"], name: "index_listening_sources_on_provider_and_external_account_id", unique: true
     t.index ["user_id", "provider"], name: "index_listening_sources_on_user_id_and_provider"
     t.index ["user_id"], name: "index_listening_sources_on_user_id"
-    t.check_constraint "provider::text = 'spotify'::text", name: "listening_sources_provider"
+    t.check_constraint "provider::text = ANY (ARRAY['spotify'::character varying, 'listenbrainz'::character varying]::text[])", name: "listening_sources_provider"
     t.check_constraint "state::text = ANY (ARRAY['connected'::character varying::text, 'needs_reauth'::character varying::text, 'disconnected'::character varying::text])", name: "listening_sources_state"
   end
 
@@ -683,7 +683,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_000001) do
     t.index ["name_variant_id"], name: "index_scrobbles_on_name_variant_id"
     t.index ["user_id", "played_at", "seq"], name: "index_scrobbles_identity", unique: true
     t.check_constraint "seq >= 0", name: "scrobbles_seq_non_negative"
-    t.check_constraint "source::text = ANY (ARRAY['lastfm'::character varying::text, 'spotify'::character varying::text])", name: "scrobbles_source"
+    t.check_constraint "source::text = ANY (ARRAY['lastfm'::character varying, 'spotify'::character varying, 'listenbrainz'::character varying]::text[])", name: "scrobbles_source"
   end
 
   create_table "sessions", force: :cascade do |t|

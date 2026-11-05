@@ -69,7 +69,7 @@ export function OverviewPage() {
           <div className="eyebrow">Overview · {eyebrowPeriod}</div>
           <h1 className={styles.title}>Your listening, at a glance</h1>
           <p className={styles.intro}>
-            Every scrobble in your Last.fm history for the selected period. Times use your timezone, {timeZone.replace(/_/g, ' ')}.
+            Every play in your listening history for the selected period. Times use your timezone, {timeZone.replace(/_/g, ' ')}.
           </p>
         </div>
         {ready && <SectionNav />}

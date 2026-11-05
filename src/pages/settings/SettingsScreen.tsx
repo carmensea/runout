@@ -101,7 +101,7 @@ export function SettingsScreen() {
       {signedIn && tab === 'history' && (
         <section className={settings.section} id="history" aria-labelledby="history-title">
           <h2 id="history-title" className={settings.h2}>Listening history</h2>
-          <HistorySection onChanged={connection.retry} />
+          <HistorySection onChanged={connection.retry} lastfm={signedIn.status !== 'none'} />
         </section>
       )}
       {signedIn && tab === 'history' && (
@@ -189,7 +189,7 @@ function DeleteAccount({ name, onDeleted }: { name: string; onDeleted(revokeUrl:
     <section className={settings.panel} id="data" aria-labelledby={`${inputId}-title`}>
       <strong id={`${inputId}-title`} style={{ color: 'var(--fg)', fontWeight: 600 }}>Delete account</strong>
       <span>
-        Deletes your Runout account and everything stored for it, including the Last.fm access key. This cannot be undone.
+        Deletes your Runout account and everything stored for it, including the keys of any connected account. This cannot be undone.
       </span>
       <label className={styles.field} htmlFor={inputId}>
         Type your name, {name}, to confirm

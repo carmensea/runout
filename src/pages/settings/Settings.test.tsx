@@ -90,6 +90,24 @@ describe('Settings: import', () => {
   });
 });
 
+describe('Settings: history without Last.fm', () => {
+  it('shows what is stored and no Last.fm controls', async () => {
+    const history = fakeHistoryApi({ importStatus: async () => makeImportStatus({ stored: { plays: 2, firstPlayedAt: '2026-01-02T03:00:00Z', lastPlayedAt: '2026-01-02T04:00:00Z', sources: { spotify: 2 } } }) });
+    const connection = { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London' };
+    renderApp(api(history, connection), '/settings#history');
+    const panel = await screen.findByRole('region', { name: 'Stored plays' });
+    expect(panel).toHaveTextContent('Spotify 2');
+    expect(screen.queryByRole('region', { name: 'Import from Last.fm' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check now' })).not.toBeInTheDocument();
+  });
+
+  it('says so when nothing is stored yet', async () => {
+    const history = fakeHistoryApi({ importStatus: async () => makeImportStatus({ stored: { plays: 0, firstPlayedAt: null, lastPlayedAt: null, sources: {} } }) });
+    renderApp(api(history, { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London' }), '/settings#history');
+    expect(await screen.findByText(/Nothing is stored yet/)).toBeInTheDocument();
+  });
+});
+
 describe('Settings: sync', () => {
   it('pauses automatic sync, and says when a manual check is too soon', async () => {
     const user = userEvent.setup();

@@ -165,7 +165,8 @@ export function fakeSourcesApi(initial: ListeningSources = makeSources(), review
 
 export function makeImportStatus(overrides: Partial<ImportStatus> = {}): ImportStatus {
   return {
-    enabled: true, state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 4321,
+    enabled: true, stored: { plays: 4321, firstPlayedAt: '2020-01-01T00:00:00Z', lastPlayedAt: '2026-10-29T08:00:00Z', sources: { lastfm: 4321 } },
+    state: 'completed', complete: true, stalled: false, activity: 'idle', percent: 100, importedScrobbles: 4321,
     lastfmPlaycount: 4321, historyFrom: '2020-01-01T00:00:00Z', cutoffAt: '2026-10-29T08:00:00Z', currentPeriod: null,
     periods: { pending: 0, processing: 0, committed: 82, failed: 0, review: 0 }, startedAt: '2026-10-29T07:00:00Z',
     finishedAt: '2026-10-29T08:00:00Z', lastImportedAt: '2026-10-29T08:00:00Z', error: null, failures: [], missingPeriods: [],

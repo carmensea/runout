@@ -28,7 +28,7 @@ export function App() {
           <Route path="/lyrics" element={<PendingScreen eyebrow="06 / Lyrics" title="Lyrics" planned description="Lyrics search across songs in your own history, with excerpts only where a licensed provider allows them." />} />
           <Route path="/mood" element={<PendingScreen eyebrow="07 / Mood" title="Mood" planned description="How the music you played shifts over time, from fixed and visible tag lists. It describes the music, not you." />} />
           <Route path="/settings" element={<SettingsScreen />} />
-          <Route path="/connect" element={<PendingScreen eyebrow="Onboarding" title="Connect Last.fm" description="Check your Last.fm username, confirm your timezone and approve read access to your scrobbles." />} />
+          <Route path="/connect" element={<PendingScreen eyebrow="Onboarding" title="Connect a listening source" description="Connect Spotify, or Last.fm for the archive's owner, and Runout records what it reports." />} />
           <Route path="*" element={<PendingScreen eyebrow="Not found" title="Page not found" description="There is no page at this address." />} />
         </Route>
       </Routes>
