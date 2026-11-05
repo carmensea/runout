@@ -107,7 +107,8 @@ File.write("#{STATE}/stub_user", "listener\n")
 lastfm_sign_in
 cookie = $set["__Host-runout_session"].to_s.downcase
 check("session cookie: __Host-, Secure, HttpOnly, Lax", cookie.include?("secure") && cookie.include?("httponly") && cookie.include?("samesite=lax") && cookie.include?("path=/"))
-check("signed in reaches private data", req(:get, "/api/overview").code == "200")
+check("signed in reaches private data", req(:get, "/api/listening-sources").code == "200")
+check("the archive waits for stored plays: 409, not 401", req(:get, "/api/overview").code == "409")
 { "no Origin" => {}, "wrong Origin" => { "Origin" => "https://evil.example", "X-Requested-With" => "XMLHttpRequest" },
   "no XHR header" => { "Origin" => "https://#{HOST}" } }.each do |name, headers|
   check("CSRF: POST with #{name} is refused", req(:post, "/api/listening-sources/spotify/pause", headers: headers).code == "403")
