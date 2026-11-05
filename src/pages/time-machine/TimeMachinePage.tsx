@@ -34,7 +34,7 @@ export function TimeMachinePage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   // A signed-in account can hold plays without a Last.fm import: Spotify records them directly.
-  const connected = connection.status === 'success' && connection.data.status !== 'none';
+  const connected = connection.status === 'success' && connection.data.status !== 'signed_out';
   const history = useAsync(connected ? 'time-machine:calendar' : null, (signal) => api.getCalendar(signal));
 
   // The URL is consistent when `at` matches the period; only then is a place shown. Arriving, the
@@ -180,11 +180,11 @@ function Body({ connected, history, focus, hrefFor }: {
     );
   }
   if (!connected) {
-    return <MessageState icon="link_off" message="Connect your Last.fm account to see your listening." detail={<Link to={withPeriod('/overview')}>Connect on the Overview</Link>} />;
+    return <MessageState icon="lock" message="Sign in to see your listening." detail={<Link to={withPeriod('/overview')}>Sign in on the Overview</Link>} />;
   }
   if (history.status === 'error') {
     if (history.error instanceof NotConnectedError) {
-      return <MessageState icon="link_off" message="Your Last.fm account is no longer connected." detail={<Link to={withPeriod('/settings#lastfm')}>Reconnect in Settings</Link>} />;
+      return <MessageState icon="link_off" message="No listening history is stored yet." detail={<Link to={withPeriod('/settings#sources')}>Connect Last.fm in Settings</Link>} />;
     }
     return (
       <MessageState icon="error" tone="error" message="Your listening history could not be loaded.">

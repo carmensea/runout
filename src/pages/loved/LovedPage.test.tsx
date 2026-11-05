@@ -116,7 +116,7 @@ describe('Loved songs page', () => {
     renderApp(api([]), '/loved');
     expect(await screen.findByText('No loved songs yet.')).toBeInTheDocument();
     renderApp(api([], { getLovedTracks: async () => { throw new NotConnectedError(); } }), '/loved');
-    expect(await screen.findByText('Your Last.fm account is no longer connected.')).toBeInTheDocument();
+    expect(await screen.findByText('No listening history is stored yet.')).toBeInTheDocument();
   });
 
   it('is reachable from the navigation', async () => {

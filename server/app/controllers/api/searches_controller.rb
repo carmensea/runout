@@ -3,10 +3,9 @@ module Api
   # (Analytics::Search). Never anything only another user played.
   class SearchesController < ApplicationController
     require_authentication
+    before_action :require_stored_plays
 
     def show
-      return render(json: { error: "not_connected" }, status: :conflict) unless Current.user.lastfm_connection
-
       render json: Analytics::Search.new(user: Current.user, query: params[:q].to_s).call
     end
   end

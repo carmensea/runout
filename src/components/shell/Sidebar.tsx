@@ -90,27 +90,28 @@ function AccountStatus() {
     const day = fmt.dateTime(at, timeZone).slice(0, 10);
     return day === todayIn(timeZone) ? `Synced today, ${fmt.time(at, timeZone)}` : `Synced ${fmt.dateTime(at, timeZone)}`;
   };
-  if (c.status === 'none') {
+  if (c.status === 'signed_out') {
     return (
-      <Link to={to} className={styles.account} title="Last.fm not connected">
+      <Link to={withPeriod('/overview')} className={styles.account} title="Not signed in">
         <div className={styles.who}>
-          <div className={styles.avatar}><Icon name="link_off" size={16} /></div>
+          <div className={styles.avatar}><Icon name="person_off" size={16} /></div>
           <div className={styles.whoText}>
-            <span className={styles.username}>No account</span>
-            <span className={styles.status}>Last.fm not connected</span>
+            <span className={styles.username}>Not signed in</span>
+            <span className={styles.status}>Sign in to see your listening</span>
           </div>
         </div>
       </Link>
     );
   }
 
+  const lastfm = c.status === 'none' ? 'Last.fm not connected' : 'Last.fm connected';
   return (
-    <Link to={to} className={styles.account} title={`${c.username}, Last.fm connected`}>
+    <Link to={to} className={styles.account} title={`${c.displayName}, ${lastfm}`}>
       <div className={styles.who}>
-        <div className={styles.avatar} aria-hidden="true">{c.username.charAt(0).toUpperCase()}</div>
+        <div className={styles.avatar} aria-hidden="true">{c.displayName.charAt(0).toUpperCase()}</div>
         <div className={styles.whoText}>
-          <span className={styles.username}>{c.username}</span>
-          <span className={styles.status}>Last.fm connected</span>
+          <span className={styles.username}>{c.displayName}</span>
+          <span className={styles.status}>{lastfm}</span>
         </div>
       </div>
       {c.status === 'synced' && (

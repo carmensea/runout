@@ -59,7 +59,7 @@ export function LovedPage() {
 function Failure({ error, retry }: { error: Error; retry(): void }) {
   const { withPeriod } = usePeriod();
   if (error instanceof NotConnectedError) {
-    return <MessageState icon="link_off" message="Your Last.fm account is no longer connected." detail={<Link to={withPeriod('/settings#lastfm')}>Reconnect in Settings</Link>} />;
+    return <MessageState icon="link_off" message="No listening history is stored yet." detail={<Link to={withPeriod('/settings#sources')}>Connect Last.fm in Settings</Link>} />;
   }
   return (
     <MessageState icon="error" tone="error" message="Your loved songs could not be loaded.">

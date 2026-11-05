@@ -14,7 +14,7 @@ const LovedContext = createContext<LovedState | null>(null);
 /** Loads the loved library once per signed-in session; hearts and the Loved page read it. */
 export function LovedProvider({ children }: { children: ReactNode }) {
   const { api, connection } = useAppData();
-  const connected = connection.status === 'success' && connection.data.status !== 'none';
+  const connected = connection.status === 'success' && connection.data.status !== 'signed_out';
   const library = useAsync(connected ? 'loved' : null, (signal) => api.getLovedTracks(signal));
   const keys = useMemo(
     () => new Set(library.status === 'success' ? library.data.tracks.filter((t) => !t.unlovedAt).map((t) => t.track.id) : []),

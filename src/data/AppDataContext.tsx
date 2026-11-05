@@ -59,7 +59,7 @@ export function AppDataProvider({ children, api: injected }: { children: ReactNo
 
   const value = useMemo<AppData | null>(() => {
     if (!api) return null;
-    const timeZone = connection.status === 'success' && connection.data.status !== 'none'
+    const timeZone = connection.status === 'success' && connection.data.status !== 'signed_out'
       ? connection.data.timezone
       : browserTimeZone();
     return { api, specimen, fmt: specimen ? specimenFormatter : realFormatter, connection, auth, timeZone };

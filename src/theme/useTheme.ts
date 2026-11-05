@@ -10,7 +10,7 @@ import { currentTheme, DEFAULT_THEME, isThemeId, setTheme, subscribe, type Theme
 export function useTheme(): [ThemeId, (id: ThemeId) => void] {
   const { api, connection } = useAppData();
   const theme = useSyncExternalStore(subscribe, currentTheme, () => 'original' as ThemeId);
-  const signedIn = connection.status === 'success' && connection.data.status !== 'none';
+  const signedIn = connection.status === 'success' && connection.data.status !== 'signed_out';
   const choose = useCallback((id: ThemeId) => {
     setTheme(id);
     if (signedIn) api.setTheme(id).catch(() => {});
@@ -25,7 +25,7 @@ export function useTheme(): [ThemeId, (id: ThemeId) => void] {
  */
 export function useAccountTheme(): void {
   const { api, connection } = useAppData();
-  const account = connection.status === 'success' && connection.data.status !== 'none' ? connection.data.theme : undefined;
+  const account = connection.status === 'success' && connection.data.status !== 'signed_out' ? connection.data.theme : undefined;
   useEffect(() => {
     if (isThemeId(account) && account !== currentTheme()) setTheme(account);
     else if (account === null && currentTheme() !== DEFAULT_THEME) api.setTheme(currentTheme()).catch(() => {});

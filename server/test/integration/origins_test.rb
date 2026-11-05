@@ -60,7 +60,7 @@ class OriginsTest < ActionDispatch::IntegrationTest
     with_origins(NEW, OLD) do
       host! "runout.test"
       get "/api/connection"
-      assert_equal({ "status" => "none" }, response.parsed_body)
+      assert_equal({ "status" => "signed_out" }, response.parsed_body)
     end
   end
 

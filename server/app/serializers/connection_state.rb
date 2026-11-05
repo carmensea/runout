@@ -1,4 +1,5 @@
-# Shapes the ConnectionState union from src/data/types.ts.
+# Shapes the ConnectionState union from src/data/types.ts. `signed_out` for no session; `none` for a
+# signed-in account without a Last.fm connection (the archive still opens on stored plays).
 #
 # `attention` counts what needs the owner (HistoryImport::Attention): review items, periods
 # stopped for an integrity reason, count discrepancies, an account problem. Background work and
@@ -7,11 +8,14 @@ module ConnectionState
   module_function
 
   def for(user)
-    identity = user&.lastfm_identity
-    connection = user&.lastfm_connection
-    return { status: "none" } if identity.nil? || identity.revoked_at || connection.nil?
+    return { status: "signed_out" } if user.nil?
 
-    base = { username: identity.username, timezone: user.reporting_timezone, theme: user.theme }
+    account = { displayName: user.display_name, timezone: user.reporting_timezone, theme: user.theme }
+    identity = user.lastfm_identity
+    connection = user.lastfm_connection
+    return account.merge(status: "none") if identity.nil? || identity.revoked_at || connection.nil?
+
+    base = account.merge(username: identity.username)
     case connection.history_state
     when "not_started" then base.merge(status: "connected")
     when "failed"

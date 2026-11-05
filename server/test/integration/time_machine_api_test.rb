@@ -51,6 +51,7 @@ class TimeMachineApiTest < ActionDispatch::IntegrationTest
 
   test "input it can't read is refused" do
     sign_in_via_lastfm(username: "listener")
+    scrobble(User.sole, at: Time.utc(2014, 3, 15, 20))
     { "/api/calendar" => { from: "2014-03-01", to: "2014-02-01" }, "/api/plays" => { period: "day:2014-13-01" },
       "/api/on-this-day" => { date: "yesterday" } }.each do |path, params|
       get path, params: params

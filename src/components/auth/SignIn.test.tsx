@@ -16,7 +16,7 @@ function supportPasskeys() {
 
 /** Signed out until a sign-in succeeds, then the connected account. */
 function signedOutApi(auth = fakeAuthApi({ session: { signedIn: false } })): RunoutApi {
-  let connection: ConnectionState = { status: 'none' };
+  let connection: ConnectionState = { status: 'signed_out' };
   const connected = connectedApi();
   return {
     ...connected,

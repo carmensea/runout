@@ -26,7 +26,7 @@ export interface RunoutApi {
   signInUrl(): string | null;
   signOut(): Promise<void>;
   /** Erases the signed-in account and its data. `confirmUsername` must match the Last.fm username. */
-  deleteAccount(confirmUsername: string): Promise<{ revokeAccessUrl: string }>;
+  deleteAccount(confirmName: string): Promise<{ revokeAccessUrl: string }>;
   /** Saves the theme on the account, so it follows the owner between browsers and sign-ins. */
   setTheme(theme: string): Promise<void>;
   /** Listening-history import, sync and review controls (Settings). */
@@ -249,12 +249,12 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       });
       if (!res.ok) throw new ApiError(res.status, `Saving the theme failed with HTTP ${res.status}.`);
     },
-    deleteAccount: async (confirmUsername) => {
+    deleteAccount: async (confirmName) => {
       const res = await fetch(`${root}/account`, {
         method: 'DELETE',
         credentials: 'include',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ confirm_username: confirmUsername }),
+        body: JSON.stringify({ confirm_name: confirmName }),
       });
       if (!res.ok) throw new ApiError(res.status, `Account deletion failed with HTTP ${res.status}.`);
       return (await res.json()) as { revokeAccessUrl: string };
@@ -319,7 +319,7 @@ export const noAuthApi: AuthApi = {
  * no listening data exists. It never fabricates data.
  */
 export const disconnectedApi: RunoutApi = {
-  getConnection: async () => ({ status: 'none' }),
+  getConnection: async () => ({ status: 'signed_out' }),
   getOverview: async () => {
     throw new NotConnectedError();
   },

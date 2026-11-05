@@ -100,7 +100,7 @@ describe('Settings: sign-in', () => {
     const calls: string[] = [];
     const apiWithSignOut: RunoutApi = {
       ...base,
-      getConnection: async (): Promise<ConnectionState> => (signedOut ? { status: 'none' } : base.getConnection()),
+      getConnection: async (): Promise<ConnectionState> => (signedOut ? { status: 'signed_out' } : base.getConnection()),
       signOut: async () => { calls.push('signOut'); signedOut = true; },
       auth: { ...auth, status: async () => (signedOut ? { signedIn: false } : auth.status()) },
     };
