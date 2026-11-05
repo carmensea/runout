@@ -30,10 +30,11 @@ function actionError(e: unknown, fmt: (iso: string) => string): string {
 }
 
 /**
- * Settings → Listening history: what Runout is doing, import progress and controls, sync controls,
- * and the periods that are missing or stopped. `onChanged` refreshes the connection banner.
+ * Settings → Listening history: what is stored (every account), then, for an account with a Last.fm
+ * connection, what Runout is doing, import progress and controls, sync controls, and the periods
+ * that are missing or stopped. `onChanged` refreshes the connection banner.
  */
-export function HistorySection({ onChanged }: { onChanged(): void }) {
+export function HistorySection({ onChanged, lastfm = true }: { onChanged(): void; lastfm?: boolean }) {
   const { api } = useAppData();
   const pace = (data: { activity: ImportStatus['activity'] } | null) => (data && BUSY.has(data.activity) ? BUSY_INTERVAL : IDLE_INTERVAL);
   const imp = usePolling((signal) => api.history.importStatus(signal), pace);
@@ -60,11 +61,39 @@ export function HistorySection({ onChanged }: { onChanged(): void }) {
   }
   return (
     <>
-      <NowLine imp={imp.data} health={health.data} />
-      <ImportPanel imp={imp.data} onChanged={refresh} />
-      {health.data.importComplete && <SyncPanel health={health.data} onChanged={refresh} />}
-      <PeriodsPanel problems={health.data.problemPeriods} missing={health.data.missingPeriods} onChanged={refresh} />
+      {lastfm && <NowLine imp={imp.data} health={health.data} />}
+      <StoredPanel stored={imp.data.stored} />
+      {lastfm && <ImportPanel imp={imp.data} onChanged={refresh} />}
+      {lastfm && health.data.importComplete && <SyncPanel health={health.data} onChanged={refresh} />}
+      {lastfm && <PeriodsPanel problems={health.data.problemPeriods} missing={health.data.missingPeriods} onChanged={refresh} />}
     </>
+  );
+}
+
+const SOURCE_NAMES: Record<string, string> = { lastfm: 'Last.fm', spotify: 'Spotify', listenbrainz: 'ListenBrainz' };
+
+/** What the archive holds, whatever recorded it. */
+function StoredPanel({ stored }: { stored: ImportStatus['stored'] }) {
+  const { fmt, timeZone } = useAppData();
+  const sources = Object.entries(stored.sources).filter(([, n]) => n);
+  return (
+    <section className={styles.panel} aria-labelledby="stored-title">
+      <span id="stored-title" className={styles.panelTitle}>Stored plays</span>
+      {stored.plays === 0 ? (
+        <span>Nothing is stored yet. Plays appear here as a connected source reports them.</span>
+      ) : (
+        <dl className={styles.facts}>
+          <dt>Plays</dt>
+          <dd>{fmt.count(stored.plays)}</dd>
+          <dt>From</dt>
+          <dd>{stored.firstPlayedAt ? fmt.dateTime(stored.firstPlayedAt, timeZone) : ''}</dd>
+          <dt>Latest</dt>
+          <dd>{stored.lastPlayedAt ? fmt.dateTime(stored.lastPlayedAt, timeZone) : ''}</dd>
+          <dt>Recorded by</dt>
+          <dd>{sources.map(([k, n]) => `${SOURCE_NAMES[k] ?? k} ${fmt.count(n ?? 0)}`).join(', ')}</dd>
+        </dl>
+      )}
+    </section>
   );
 }
 

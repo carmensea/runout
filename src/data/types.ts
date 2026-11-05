@@ -404,6 +404,8 @@ export interface MissingPeriod extends PeriodRange {
 export interface ImportStatus {
   /** History storage is switched on for this server. */
   enabled: boolean;
+  /** The archive as stored, whatever recorded it: shown to every account, with or without Last.fm. */
+  stored: { plays: number; firstPlayedAt: string | null; lastPlayedAt: string | null; sources: Partial<Record<'lastfm' | 'spotify' | 'listenbrainz', number>> };
   state: 'not_started' | 'planning' | 'running' | 'paused' | 'needs_review' | 'completed' | 'failed' | 'cancelled';
   complete: boolean;
   /** The import has gone quiet; it restarts automatically. */

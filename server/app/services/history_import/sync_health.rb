@@ -42,7 +42,8 @@ module HistoryImport
                   pendingRemovals: months.sum(&:pending_removals), reappeared: months.sum(&:reappeared) }
       actionable_reviews = reviews[:disputes] + reviews[:pendingRemovals] + reviews[:reappeared]
       actionable_periods = months.count { |m| Attention.actionable_period?(m) }
-      account_problem = connection&.history_state == "failed" ? 1 : 0
+      # A failed Last.fm connection, or a listening source whose permission was lost (Attention).
+      account_problem = (connection&.history_state == "failed" ? 1 : 0) + ListeningSource.where(user_id: user.id, state: "needs_reauth").count
       coverage = covered_ranges(months)
       {
         enabled: HistoryImport.enabled?,
