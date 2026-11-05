@@ -1,0 +1,81 @@
+/* idlewinny.com's background, from its recovered source: a fixed container, a 200% conic layer
+   blurred 30px and turning, a radial overlay, twinkling stars. Transform-only animations. */
+
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--sky-ground);
+}
+
+/* The original: the layer itself is 200% wide and tall, blurred at full size. */
+.gradientFaithful {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--sky-conic);
+  filter: blur(var(--sky-blur));
+  transform-origin: center center;
+  animation: sky-turn var(--sky-turn) linear infinite;
+  will-change: transform;
+}
+
+/* The same picture at a quarter of the pixels: drawn at 100%, blurred at half the radius, then
+   scaled by two in the composited transform. */
+.gradient {
+  position: absolute;
+  inset: 0;
+  background: var(--sky-conic);
+  filter: blur(calc(var(--sky-blur) / 2));
+  transform-origin: center center;
+  animation: sky-turn-scaled var(--sky-turn) linear infinite;
+  will-change: transform;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--sky-overlay);
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+  opacity: var(--sky-star-opacity);
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: 0 0 3px 1px rgba(255, 255, 255, 0.3);
+  animation: sky-twinkle 2s ease-in-out infinite alternate;
+}
+
+@keyframes sky-turn {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sky-turn-scaled {
+  from { transform: scale(2) rotate(0deg); }
+  to { transform: scale(2) rotate(360deg); }
+}
+
+@keyframes sky-twinkle {
+  0% { opacity: 0.2; transform: scale(0.8); box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.1); }
+  100% { opacity: 1; transform: scale(1); box-shadow: 0 0 4px 2px rgba(255, 255, 255, 0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradient,
+  .gradientFaithful,
+  .star {
+    animation: none;
+  }
+  .gradient {
+    transform: scale(2);
+  }
+}

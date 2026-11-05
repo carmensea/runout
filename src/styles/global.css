@@ -7,13 +7,13 @@
 }
 
 html {
-  background: var(--bg);
+  background: var(--shell);
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--shell);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 14px;

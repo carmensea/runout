@@ -61,7 +61,7 @@
 
 .bar {
   width: 100%;
-  background: var(--ac);
+  background: var(--c1);
 }
 
 .slot:hover .bar,

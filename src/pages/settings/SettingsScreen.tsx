@@ -9,6 +9,7 @@ import styles from '../PendingScreen.module.css';
 import { HistorySection } from './HistorySection';
 import { ReviewSection } from './ReviewSection';
 import { SignInSection } from './SignInSection';
+import { AppearancePanel } from './AppearancePanel';
 import { SourcesSection } from './SourcesSection';
 import settings from './Settings.module.css';
 
@@ -85,6 +86,11 @@ export function SettingsScreen() {
           <SignInSection />
         </section>
       )}
+      <section className={settings.section} id="appearance" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" className={settings.h2}>Appearance</h2>
+        <p className={settings.lede}>Five looks for the same Runout. The choice is kept in this browser.</p>
+        <AppearancePanel />
+      </section>
       <section className={settings.section} aria-labelledby="account-title">
         <h2 id="account-title" className={settings.h2}>Account</h2>
       {deletedRevokeUrl && (

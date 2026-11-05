@@ -2,6 +2,7 @@
   margin-top: 72px;
   border-top: 1px solid var(--fg);
   padding-top: 20px;
+  background: var(--panel);
   scroll-margin-top: calc(var(--bar-h) + 16px);
 }
 
