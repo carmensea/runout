@@ -18,6 +18,29 @@ export type ConnectionState =
 
 export type ConnectedState = Exclude<ConnectionState, { status: 'none' }>;
 
+/** GET /api/session: Runout's own sign-in (passkeys, recovery codes) beside the Last.fm fallback. */
+export type SessionInfo =
+  | { signedIn: false }
+  | { signedIn: true; user: { displayName: string; timezone: string }; methods: { passkeys: number; recoveryCodes: number; lastfm: boolean } };
+
+export interface Passkey {
+  id: number;
+  nickname: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  transports: string[];
+}
+
+/** A signed-in browser; `current` is the one asking. */
+export interface BrowserSession {
+  id: number;
+  current: boolean;
+  createdAt: string;
+  lastSeenAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
 export interface ActivityBucket {
   key: string;
   scrobbles: number;

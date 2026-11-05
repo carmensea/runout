@@ -9,7 +9,7 @@
  */
 import { serializePeriod, type Period } from '../../lib/period';
 import type { HistoryApi, RunoutApi } from '../api';
-import { noSourcesApi } from '../api';
+import { noAuthApi, noSourcesApi } from '../api';
 import { addDays, daysBetween } from '../../lib/dates';
 import type { ActivityBucket, CalendarDays, GenreBreakdown, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, TopEntry } from '../types';
 
@@ -316,4 +316,5 @@ export const specimenApi: RunoutApi = {
   },
   history: specimenHistory,
   sources: noSourcesApi,
+  auth: noAuthApi,
 };
