@@ -1,8 +1,28 @@
-import { useSyncExternalStore } from 'react';
-import { currentTheme, setTheme, subscribe, type ThemeId } from './theme';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useAppData } from '../data/AppDataContext';
+import { currentTheme, isThemeId, setTheme, subscribe, type ThemeId } from './theme';
 
-/** The active theme and a setter; every subscriber re-renders when it changes. */
+/**
+ * The active theme and a setter; every subscriber re-renders when it changes. Signed in, a choice
+ * is also saved on the account; the browser keeps it either way, so a failed save changes nothing
+ * visible.
+ */
 export function useTheme(): [ThemeId, (id: ThemeId) => void] {
+  const { api, connection } = useAppData();
   const theme = useSyncExternalStore(subscribe, currentTheme, () => 'original' as ThemeId);
-  return [theme, setTheme];
+  const signedIn = connection.status === 'success' && connection.data.status !== 'none';
+  const choose = useCallback((id: ThemeId) => {
+    setTheme(id);
+    if (signedIn) api.setTheme(id).catch(() => {});
+  }, [api, signedIn]);
+  return [theme, choose];
+}
+
+/** Applies the account's theme once the connection has loaded, so it follows the owner between browsers. */
+export function useAccountTheme(): void {
+  const { connection } = useAppData();
+  const account = connection.status === 'success' && connection.data.status !== 'none' ? connection.data.theme : undefined;
+  useEffect(() => {
+    if (isThemeId(account) && account !== currentTheme()) setTheme(account);
+  }, [account]);
 }

@@ -83,7 +83,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
 
     cookies[Authentication::COOKIE_NAME] = bob_token
     get "/api/connection"
-    assert_equal({ "status" => "connected", "username" => "bob", "timezone" => "America/New_York" }, response.parsed_body)
+    assert_equal({ "status" => "connected", "username" => "bob", "timezone" => "America/New_York", "theme" => nil }, response.parsed_body)
   end
 
   test "a revoked Last.fm identity reads as not connected" do

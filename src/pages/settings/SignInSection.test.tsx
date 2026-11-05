@@ -25,7 +25,7 @@ afterEach(() => {
 
 describe('Settings: sign-in', () => {
   it('is absent while the server has Runout’s own sign-in switched off', async () => {
-    renderApp(connectedApi(), '/settings');
+    renderApp(connectedApi(), '/settings#account');
     await screen.findByRole('heading', { name: 'Account' });
     expect(screen.queryByRole('heading', { name: 'Sign-in' })).not.toBeInTheDocument();
   });
@@ -33,7 +33,7 @@ describe('Settings: sign-in', () => {
   it('lists passkeys and adds one with the typed name', async () => {
     const user = userEvent.setup();
     const auth = fakeAuthApi();
-    renderApp(api(auth), '/settings');
+    renderApp(api(auth), '/settings#account');
     const list = await screen.findByRole('list', { name: 'Your passkeys' });
     expect(within(list).getByText('Device 1')).toBeInTheDocument();
     expect(screen.getByText(/It works only on this address, localhost/)).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe('Settings: sign-in', () => {
   it('shows the recovery codes once, with the first passkey', async () => {
     const user = userEvent.setup();
     const auth = fakeAuthApi({ passkeys: [] });
-    renderApp(api(auth), '/settings');
+    renderApp(api(auth), '/settings#account');
     expect(await screen.findByText('No passkey yet.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add a passkey' }));
     const codes = await screen.findByRole('region', { name: 'Your new recovery codes' });
@@ -65,7 +65,7 @@ describe('Settings: sign-in', () => {
       if (id === 1) throw new ApiError(409, 'no', 'last_passkey');
       return remove(id);
     };
-    renderApp(api(auth), '/settings');
+    renderApp(api(auth), '/settings#account');
     const list = await screen.findByRole('list', { name: 'Your passkeys' });
     const buttons = within(list).getAllByRole('button', { name: 'Remove' });
     await user.click(buttons[1]!);
@@ -79,7 +79,7 @@ describe('Settings: sign-in', () => {
   it('replaces recovery codes only after confirming', async () => {
     const user = userEvent.setup();
     const auth = fakeAuthApi();
-    renderApp(api(auth), '/settings');
+    renderApp(api(auth), '/settings#account');
     const panel = (await screen.findByRole('heading', { name: 'Sign-in' })).closest('section')!;
     expect(within(panel).getByText('10 of 10')).toBeInTheDocument();
     await user.click(within(panel).getByRole('button', { name: 'Generate new codes' }));
@@ -104,7 +104,7 @@ describe('Settings: sign-in', () => {
       signOut: async () => { calls.push('signOut'); signedOut = true; },
       auth: { ...auth, status: async () => (signedOut ? { signedIn: false } : auth.status()) },
     };
-    renderApp(apiWithSignOut, '/settings');
+    renderApp(apiWithSignOut, '/settings#account');
     const list = await screen.findByRole('list', { name: 'Signed-in browsers' });
     const mine = within(list).getByText('This browser').closest('li')!;
     await user.click(within(mine).getByRole('button', { name: 'Sign out' }));
@@ -117,7 +117,7 @@ describe('Settings: sign-in', () => {
   it('lists signed-in browsers and signs another one out', async () => {
     const user = userEvent.setup();
     const auth = fakeAuthApi();
-    renderApp(api(auth), '/settings');
+    renderApp(api(auth), '/settings#account');
     const list = await screen.findByRole('list', { name: 'Signed-in browsers' });
     expect(within(list).getByText('This browser')).toBeInTheDocument();
     expect(within(list).getByText('Safari on iOS')).toBeInTheDocument();

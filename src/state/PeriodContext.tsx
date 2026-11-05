@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../data/AppDataContext';
 import { todayIn } from '../lib/dates';
 import { defaultComparison, parsePeriod, serializePeriod, type Period } from '../lib/period';
@@ -44,7 +44,13 @@ function writeStored(period: string, vs: string | null) {
  */
 export function PeriodProvider({ children }: { children: ReactNode }) {
   const { timeZone } = useAppData();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const { hash } = useLocation();
+  // Not useSearchParams' setter: it drops the hash, which Settings uses to pick its tab.
+  const setParams = useCallback((edit: (prev: URLSearchParams) => URLSearchParams, opts: { replace: boolean }) => {
+    navigate({ search: `?${edit(params)}`, hash }, opts);
+  }, [navigate, params, hash]);
   const today = todayIn(timeZone);
 
   const urlPeriod = parsePeriod(params.get('period'));

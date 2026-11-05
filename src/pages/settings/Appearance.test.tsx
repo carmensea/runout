@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('Settings: appearance', () => {
   it('offers the five themes as a radio group with Original selected by default', async () => {
-    renderApp(connectedApi(), '/settings');
+    renderApp(connectedApi(), '/settings#appearance');
     const group = await screen.findByRole('radiogroup', { name: 'Theme' });
     const radios = within(group).getAllByRole('radio');
     expect(radios.map((r) => r.textContent)).toEqual([
@@ -26,7 +26,7 @@ describe('Settings: appearance', () => {
 
   it('switches the theme at once, marks the choice, and keeps it for the next visit', async () => {
     const user = userEvent.setup();
-    renderApp(connectedApi(), '/settings');
+    renderApp(connectedApi(), '/settings#appearance');
     const group = await screen.findByRole('radiogroup', { name: 'Theme' });
     await user.click(within(group).getByRole('radio', { name: /Cotton Candy/ }));
     expect(document.documentElement.dataset.theme).toBe('cotton-candy');
@@ -41,7 +41,7 @@ describe('Settings: appearance', () => {
 
   it('is reachable by keyboard', async () => {
     const user = userEvent.setup();
-    renderApp(connectedApi(), '/settings');
+    renderApp(connectedApi(), '/settings#appearance');
     const group = await screen.findByRole('radiogroup', { name: 'Theme' });
     const moss = within(group).getByRole('radio', { name: /Moss/ });
     moss.focus();

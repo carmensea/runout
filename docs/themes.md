@@ -27,8 +27,12 @@ Settings panel; no change to layout, typography, routes, data or integrations.
 - **Component changes, all no-ops in Original:** `body` and the shell take `--shell`; dashboard
   sections, Settings panels and the Time Machine's blocks take `--panel`; the activity chart's bars
   take `--c1` instead of the accent.
-- **Settings → Appearance** (temporary until the Settings tabs): a radio group of tiles, each
-  rendered from its theme's own tokens by scoping `data-theme` on the tile.
+- **Settings → Appearance** tab: a radio group of tiles, each
+  rendered from its theme's own tokens by scoping `data-theme` on the tile. The account menu at the
+  top right offers the same five.
+- **Follows the account.** Signed in, a choice is saved with `PATCH /api/account` (`users.theme`,
+  nullable) and reported in `GET /api/connection`; the shell applies it once the connection loads.
+  The browser's own copy still paints first, so nothing flashes; a failed save changes nothing visible.
 
 ## The five
 
@@ -48,5 +52,4 @@ if the cost ever demands it). The capture scripts set them; nothing in the app d
 
 ## Not done, on purpose
 
-Account-level persistence (one column and one endpoint, when a preference must follow an account),
-the Settings redesign into tabs, and the Idle Winny falling stars and cloud.
+The Idle Winny falling stars and cloud.

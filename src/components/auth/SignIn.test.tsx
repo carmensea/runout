@@ -71,7 +71,7 @@ describe('Signed out', () => {
     await user.type(screen.getByRole('textbox', { name: 'Recovery code' }), 'abcde-fghjk');
     await user.click(screen.getByRole('button', { name: 'Use code' }));
     await waitFor(() => expect(auth.calls).toEqual(['signInWithRecoveryCode:abcde-fghjk']));
-    await waitFor(() => expect(location.current).toBe('/settings?recovered=1'));
+    await waitFor(() => expect(location.current).toMatch(/^\/settings\?recovered=1.*#sign-in$/));
     expect(await screen.findByText(/You signed in with a recovery code/)).toBeInTheDocument();
   });
 

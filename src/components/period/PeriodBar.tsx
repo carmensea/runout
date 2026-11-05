@@ -8,6 +8,7 @@ import { usePeriod } from '../../state/PeriodContext';
 import { Icon } from '../ui/Icon';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchField } from '../search/SearchField';
+import { AccountMenu } from '../shell/AccountMenu';
 import { PeriodPicker } from './PeriodPicker';
 import styles from './PeriodBar.module.css';
 
@@ -53,6 +54,7 @@ export function PeriodBar({ banner }: { banner?: ReactNode }) {
         />
         <div className={styles.spacer} />
         <SearchField className={styles.search} />
+        <AccountMenu />
       </div>
       {banner}
     </div>

@@ -62,7 +62,7 @@ describe('Overview, authentication states', () => {
         signedIn = false;
       },
     };
-    renderApp(api, '/settings');
+    renderApp(api, '/settings#account');
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
     expect(location.current).toMatch(/^\/overview/);
@@ -81,7 +81,7 @@ describe('Overview, authentication states', () => {
         return { revokeAccessUrl: 'https://www.last.fm/settings/applications' };
       },
     };
-    renderApp(api, '/settings');
+    renderApp(api, '/settings#account');
     const remove = await screen.findByRole('button', { name: 'Delete account' });
     expect(remove).toBeDisabled();
     await user.type(screen.getByLabelText(/Type your Last.fm username/), 'wrong');
@@ -104,7 +104,7 @@ describe('Overview, authentication states', () => {
         throw new Error('network');
       },
     };
-    renderApp(api, '/settings');
+    renderApp(api, '/settings#account');
     await user.type(await screen.findByLabelText(/Type your Last.fm username/), 'test-user');
     await user.click(screen.getByRole('button', { name: 'Delete account' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Deletion did not complete.');

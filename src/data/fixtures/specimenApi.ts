@@ -311,6 +311,7 @@ export const specimenApi: RunoutApi = {
   }),
   signInUrl: () => null,
   signOut: async () => {},
+  setTheme: async () => {},
   deleteAccount: async () => {
     throw new Error('Specimen mode has no account to delete.');
   },

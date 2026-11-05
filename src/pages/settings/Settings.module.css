@@ -21,6 +21,18 @@
   max-width: 760px;
 }
 
+/* Tabs: one section at a time; the tab row's rule replaces the section's own. */
+.tabs {
+  margin-top: 40px;
+  max-width: 760px;
+}
+
+.tabpanel .section {
+  margin-top: 24px;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .sectionHead {
   display: flex;
   align-items: baseline;
@@ -348,6 +360,15 @@ button:disabled {
 
   .title {
     font-size: 36px;
+  }
+
+  /* Five tabs in 358px: a tighter row instead of a scrolling one. */
+  .tabs {
+    gap: 14px;
+  }
+
+  .tabs button {
+    font-size: 14px;
   }
 
   .compare {

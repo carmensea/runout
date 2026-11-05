@@ -1,4 +1,5 @@
 module Api
+  # PATCH /api/account: saves account-level preferences (the theme).
   # DELETE /api/account: erases the signed-in user and everything stored for them
   # (identities with the encrypted Last.fm session key, sessions, connection state; listening
   # history once it exists). Foreign keys cascade, so nothing is left behind.
@@ -9,6 +10,15 @@ module Api
     LASTFM_APPLICATIONS_URL = "https://www.last.fm/settings/applications".freeze
 
     require_authentication
+
+    # PATCH /api/account: preferences that follow the account. Only the theme so far.
+    def update
+      theme = params[:theme]
+      return render json: { error: "unknown_theme" }, status: :unprocessable_content unless User::THEMES.include?(theme)
+
+      Current.user.update!(theme: theme)
+      render json: { theme: theme }
+    end
 
     def destroy
       username = Current.user.lastfm_identity&.username.to_s

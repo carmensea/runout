@@ -1,0 +1,143 @@
+/* Account menu, top right: the sidebar's avatar as a trigger, a panel like the period picker's. */
+
+.wrap {
+  position: relative;
+  flex: none;
+}
+
+.trigger {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 5px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg);
+}
+
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  background: var(--s1);
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--s2);
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+
+.chevron {
+  color: var(--mu);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 240px;
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  background: var(--s1);
+  border: 1px solid var(--ln);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px 10px;
+  min-width: 0;
+}
+
+.username {
+  font-size: 13px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.label {
+  padding: 6px 10px 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.item {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.item:hover,
+.item:focus-visible,
+.item[aria-checked='true'] {
+  background: var(--s2);
+  color: var(--fg);
+}
+
+.itemText {
+  flex: 1;
+}
+
+/* The theme's own accent: data-theme scopes the tokens, exactly as the Settings tiles do. */
+.swatch {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid var(--ln);
+  background: var(--ac);
+}
+
+.rule {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--ln);
+}
+
+.error {
+  margin: 0;
+  padding: 4px 10px;
+  color: var(--err);
+  font-size: 12px;
+}
+
+@media (max-width: 767px) {
+  .trigger {
+    height: 44px;
+    border: 0;
+  }
+
+  .item {
+    height: 44px;
+  }
+}

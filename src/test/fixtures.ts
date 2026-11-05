@@ -119,6 +119,7 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     getLovedTracks: async () => makeLovedLibrary([]),
     signInUrl: () => '/api/auth/lastfm',
     signOut: async () => {},
+    setTheme: async () => {},
     deleteAccount: async () => ({ revokeAccessUrl: 'https://www.last.fm/settings/applications' }),
     history: fakeHistoryApi(),
     sources: fakeSourcesApi(),
@@ -242,6 +243,7 @@ export const notConnectedApi: RunoutApi = {
   },
   signInUrl: () => '/api/auth/lastfm',
   signOut: async () => {},
+  setTheme: async () => {},
   deleteAccount: async () => {
     throw new NotConnectedError();
   },

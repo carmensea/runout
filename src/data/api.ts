@@ -27,6 +27,8 @@ export interface RunoutApi {
   signOut(): Promise<void>;
   /** Erases the signed-in account and its data. `confirmUsername` must match the Last.fm username. */
   deleteAccount(confirmUsername: string): Promise<{ revokeAccessUrl: string }>;
+  /** Saves the theme on the account, so it follows the owner between browsers and sign-ins. */
+  setTheme(theme: string): Promise<void>;
   /** Listening-history import, sync and review controls (Settings). */
   history: HistoryApi;
   /** Listening sources: Last.fm as the archive, Spotify connected directly (Settings). */
@@ -238,6 +240,15 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       });
       if (!res.ok && res.status !== 401) throw new ApiError(res.status, `Sign-out failed with HTTP ${res.status}.`);
     },
+    setTheme: async (theme) => {
+      const res = await fetch(`${root}/account`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ theme }),
+      });
+      if (!res.ok) throw new ApiError(res.status, `Saving the theme failed with HTTP ${res.status}.`);
+    },
     deleteAccount: async (confirmUsername) => {
       const res = await fetch(`${root}/account`, {
         method: 'DELETE',
@@ -321,6 +332,7 @@ export const disconnectedApi: RunoutApi = {
   getLovedTracks: notConnected,
   signInUrl: () => null,
   signOut: async () => {},
+  setTheme: async () => {},
   deleteAccount: async () => {
     throw new NotConnectedError();
   },
