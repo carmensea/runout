@@ -89,6 +89,39 @@ class PasskeysTest < ActionDispatch::IntegrationTest
     assert_equal "challenge_expired", json["error"], "a challenge is single use"
   end
 
+  test "enrolling never replaces usable recovery codes: none after removal and re-enrolment, a new set only when all are used" do
+    sign_in_via_lastfm(username: "listener")
+    codes = enrol!(nickname: "Laptop")["recoveryCodes"]
+    digests = RecoveryCode.order(:id).pluck(:code_digest)
+
+    delete "/api/passkeys/#{WebauthnCredential.sole.id}", headers: same_origin_headers
+    assert_response :no_content
+    assert_nil enrol!(nickname: "Laptop again", client: WebAuthn::FakeClient.new(ORIGIN))["recoveryCodes"], "no active passkey, but the codes are still usable"
+    assert_equal digests, RecoveryCode.order(:id).pluck(:code_digest), "the set is untouched"
+
+    delete "/api/session", headers: same_origin_headers
+    post_json "/api/auth/recovery", { code: codes.first }
+    assert_response :ok
+    assert_nil enrol!(nickname: "Phone", client: WebAuthn::FakeClient.new(ORIGIN))["recoveryCodes"], "nine codes left"
+    assert_equal 9, RecoveryCode.unused.count
+
+    codes.drop(1).each do |code|
+      delete "/api/session", headers: same_origin_headers
+      post_json "/api/auth/recovery", { code: code }
+      assert_response :ok
+    end
+    assert_equal 0, RecoveryCode.unused.count
+    fresh = enrol!(nickname: "Tablet", client: WebAuthn::FakeClient.new(ORIGIN))["recoveryCodes"]
+    assert_equal 10, fresh&.size, "all codes used: a new set, shown once"
+    assert_empty fresh & codes
+    assert_equal 10, RecoveryCode.unused.count
+
+    post_json "/api/recovery-codes"
+    assert_response :created
+    assert_equal 10, json["recoveryCodes"].size
+    assert_empty json["recoveryCodes"] & fresh, "regenerating on purpose still replaces the set"
+  end
+
   test "the first passkey comes with recovery codes, once; later ones do not" do
     sign_in_via_lastfm(username: "listener")
     first = enrol!(nickname: "Laptop")

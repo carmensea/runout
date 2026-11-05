@@ -29,12 +29,13 @@ module Api
       credential.verify(challenge, user_verification: true)
 
       user = Current.user
-      first = user.webauthn_credentials.active.none?
       passkey = user.webauthn_credentials.create!(
         external_id: credential.id, public_key: credential.public_key, sign_count: credential.sign_count,
         nickname: params[:nickname].to_s.strip.first(60).presence, transports: Array(credential.response.transports)
       )
-      codes = first ? RecoveryCode.regenerate!(user) : nil
+      # A set of codes comes with the first passkey. Enrolling never replaces usable codes: a new set
+      # is made only when none is left (never made, or all used), and the person is shown it once.
+      codes = user.recovery_codes.unused.none? ? RecoveryCode.regenerate!(user) : nil
       render json: { passkey: passkey.as_api_json, recoveryCodes: codes }, status: :created
     rescue WebAuthn::Error => e
       Rails.logger.warn("Passkey enrolment refused: #{e.class.name}")
