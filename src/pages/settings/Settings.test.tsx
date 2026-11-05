@@ -216,9 +216,9 @@ describe('Settings: tabs', () => {
     expect(screen.getByRole('region', { name: 'Account' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Listening sources' })).not.toBeInTheDocument();
     await waitFor(() => expect(location.current).toBe('/settings?period=all#lastfm'));
-    await user.click(screen.getByRole('tab', { name: 'Review 3' }));
+    await user.click(screen.getByRole('tab', { name: 'History' }));
     expect(await screen.findByRole('region', { name: 'To review' })).toBeInTheDocument();
-    expect(location.current).toBe('/settings?period=all#review');
+    expect(location.current).toBe('/settings?period=all#history');
   });
 });
 

@@ -6,6 +6,7 @@ import { usePeriod } from '../../state/PeriodContext';
 import { PeriodSheet } from '../period/PeriodSheet';
 import { SearchField } from '../search/SearchField';
 import { Icon } from '../ui/Icon';
+import { AccountMenu } from './AccountMenu';
 import { BrandMark } from './BrandMark';
 import styles from './MobileHeader.module.css';
 
@@ -26,15 +27,18 @@ export function MobileHeader({ banner }: { banner?: ReactNode }) {
           <BrandMark size={22} />
           <span className={styles.title} aria-hidden="true">{title}</span>
         </Link>
-        <button
-          type="button"
-          className={styles.iconButton}
-          aria-label={searchOpen ? 'Close search' : 'Search'}
-          aria-expanded={searchOpen}
-          onClick={() => setSearchOpen((o) => !o)}
-        >
-          <Icon name={searchOpen ? 'close' : 'search'} size={22} />
-        </button>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label={searchOpen ? 'Close search' : 'Search'}
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen((o) => !o)}
+          >
+            <Icon name={searchOpen ? 'close' : 'search'} size={22} />
+          </button>
+          <AccountMenu />
+        </div>
       </div>
       {searchOpen && (
         <div className={styles.searchRow}>

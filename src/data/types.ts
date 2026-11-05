@@ -6,15 +6,16 @@
 
 /**
  * `attention`: review items and problems that need the owner (never background work or automatic
- * retries). `syncPaused`: the owner paused automatic synchronisation.
+ * retries). `syncPaused`: the owner paused automatic synchronisation. `theme`: the account's chosen
+ * theme (src/theme/theme.ts), null until one is chosen.
  */
 export type ConnectionState =
   | { status: 'none' }
   /** Signed in with Last.fm; listening history has not been imported. */
-  | { status: 'connected'; username: string; timezone: string }
-  | { status: 'importing'; username: string; timezone: string; progress: number; attention?: number }
-  | { status: 'synced'; username: string; timezone: string; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
-  | { status: 'failed'; username: string; timezone: string; lastSyncedAt: string | null; message: string; attention?: number };
+  | { status: 'connected'; username: string; timezone: string; theme?: string | null }
+  | { status: 'importing'; username: string; timezone: string; theme?: string | null; progress: number; attention?: number }
+  | { status: 'synced'; username: string; timezone: string; theme?: string | null; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
+  | { status: 'failed'; username: string; timezone: string; theme?: string | null; lastSyncedAt: string | null; message: string; attention?: number };
 
 export type ConnectedState = Exclude<ConnectionState, { status: 'none' }>;
 

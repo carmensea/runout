@@ -17,20 +17,19 @@ import settings from './Settings.module.css';
 const TABS = [
   { id: 'sources', label: 'Sources' },
   { id: 'history', label: 'History' },
-  { id: 'review', label: 'Review' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'account', label: 'Account' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 /** Hashes that links elsewhere in the app use; each opens the tab that holds that panel. */
 const HASH_TAB: Record<string, Tab> = {
-  spotify: 'sources', 'sign-in': 'account', passkeys: 'account', 'recovery-codes': 'account', sessions: 'account', lastfm: 'account', data: 'account',
+  spotify: 'sources', review: 'history', 'sign-in': 'account', passkeys: 'account', 'recovery-codes': 'account', sessions: 'account', lastfm: 'account', data: 'account',
 };
 const isTab = (h: string): h is Tab => TABS.some((t) => t.id === h);
 
 /**
  * Settings: listening sources (Last.fm, Spotify), the listening-history import and sync,
- * differences to review, appearance, and the account (sign-in, sign out, delete): one tab each,
+ * differences to review (under History), appearance, and the account (sign-in, sign out, delete): one tab each,
  * chosen by the URL hash. Preferences, metadata coverage and export arrive later.
  */
 export function SettingsScreen() {
@@ -53,7 +52,6 @@ export function SettingsScreen() {
   const [lastKnown, setLastKnown] = useState<ConnectedState | null>(null);
   if (current !== undefined && current !== lastKnown) setLastKnown(current);
   const signedIn = current === undefined ? lastKnown : current;
-  const attention = signedIn && 'attention' in signedIn ? signedIn.attention : undefined;
   // Likewise for Runout's own sign-in: while it reloads after an action, keep the section mounted.
   const [authOn, setAuthOn] = useState(false);
   if (auth.status === 'success' && (auth.data !== null) !== authOn) setAuthOn(auth.data !== null);
@@ -88,7 +86,7 @@ export function SettingsScreen() {
           idBase="settings"
           label="Settings"
           className={settings.tabs}
-          tabs={TABS.map((t) => (t.id === 'review' && attention ? { ...t, label: `Review ${attention}` } : t))}
+          tabs={TABS}
           value={tab}
           onChange={openTab}
         />
@@ -106,7 +104,7 @@ export function SettingsScreen() {
           <HistorySection onChanged={connection.retry} />
         </section>
       )}
-      {signedIn && tab === 'review' && (
+      {signedIn && tab === 'history' && (
         <section className={settings.section} id="review" aria-labelledby="review-title">
           <h2 id="review-title" className={settings.h2}>To review</h2>
           <ReviewSection onChanged={connection.retry} />

@@ -28,7 +28,7 @@ Rails.application.routes.draw do
     delete "passkeys/:id", to: "passkeys#destroy", as: :passkey, constraints: { id: /\d+/ }
     post "recovery-codes", to: "recovery_codes#create", as: :recovery_codes
     resources :sessions, only: %i[index destroy], controller: "browser_sessions"
-    resource :account, only: :destroy
+    resource :account, only: %i[update destroy]
     resource :connection, only: :show
     resource :import, only: %i[show create] do
       post :pause

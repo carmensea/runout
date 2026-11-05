@@ -21,7 +21,11 @@ class User < ApplicationRecord
   has_many :listening_observations, dependent: nil
   has_many :loved_tracks, dependent: nil # deleted with the user by the database
 
+  # Must match THEMES in src/theme/theme.ts.
+  THEMES = %w[original moss cotton-candy midnight-candy verdant].freeze
+
   validates :display_name, presence: true
+  validates :theme, inclusion: { in: THEMES }, allow_nil: true
   validates :reporting_timezone, inclusion: { in: ->(_) { User.timezones } }
 
   def self.timezones

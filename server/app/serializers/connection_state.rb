@@ -11,7 +11,7 @@ module ConnectionState
     connection = user&.lastfm_connection
     return { status: "none" } if identity.nil? || identity.revoked_at || connection.nil?
 
-    base = { username: identity.username, timezone: user.reporting_timezone }
+    base = { username: identity.username, timezone: user.reporting_timezone, theme: user.theme }
     case connection.history_state
     when "not_started" then base.merge(status: "connected")
     when "failed"

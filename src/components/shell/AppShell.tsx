@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAppData } from '../../data/AppDataContext';
+import { useAccountTheme } from '../../theme/useTheme';
 import { BarBanner, PeriodBar } from '../period/PeriodBar';
 import { MobileHeader } from './MobileHeader';
 import { MobileNav } from './MobileNav';
@@ -10,6 +11,7 @@ import styles from './AppShell.module.css';
 
 export function AppShell() {
   const compact = useMediaQuery('(max-width: 767px)');
+  useAccountTheme();
   return (
     <div className={styles.shell}>
       <Sky />
