@@ -52,6 +52,11 @@
   --sp-12: 48px;
   --sp-18: 72px;
 
+  /* Surfaces a theme may open or close: the page ground behind everything and the surface under
+     dense content. Original and Moss paint the page colour and no panel. */
+  --shell: var(--bg);
+  --panel: transparent;
+
   /* Layout */
   --sidebar-w: 232px;
   --bar-h: 56px;
@@ -70,4 +75,91 @@
     --sidebar-w: 0px;
     --bar-h: 52px;
   }
+}
+
+/* ---- Themes (src/theme/theme.ts sets data-theme on <html>; Original is :root above) ---- */
+
+/* Moss: a dark botanical reading room. Page ground a step deeper than sidebar and bars; a richer
+   green for interactive states; the data stays pale sage. */
+:root[data-theme='moss'] {
+  --shell: #141d18;
+  --bg: #1a2821;
+  --s1: #243329;
+  --s2: #2f4136;
+  --ln: #3b4f43;
+  --ln2: #27362d;
+  --fg: #e6ebd9;
+  --fg2: #c4cdb5;
+  --mu: #8f9c88;
+  --ac: #7fb36a;
+  --acfg: #0f1813;
+  --err: #e8a08a;
+  --c1: #a4ca8c;
+  --c2: #d9b35b;
+  --c3: #6fb3a0;
+  --c4: #8da6c9;
+  --c5: #c98b9c;
+  --c6: #b7b56a;
+  --c7: #8f9c88;
+}
+
+/* Cotton Candy: the Idle Winny sky (idlewinny.com, components/rotating-background.tsx), drawn by
+   the Sky component from these tokens: its conic gradient, blur, turn and overlay, verbatim. */
+:root[data-theme='cotton-candy'] {
+  --shell: transparent;
+  --sky-ground: #7b68ee;
+  --sky-conic: conic-gradient(from 0deg, #ff6ad5, #c27dff, #7b68ee, #8a2be2, #6959cd, #4169e1, #ff6ad5);
+  --sky-blur: 30px;
+  --sky-turn: 18s;
+  --sky-overlay: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0.2) 100%);
+  --sky-star-opacity: 1;
+  --bg: rgba(24, 8, 50, 0.86);
+  --s1: rgba(40, 18, 76, 0.5);
+  --s2: rgba(56, 28, 100, 0.7);
+  --ln: rgba(255, 255, 255, 0.26);
+  --ln2: rgba(255, 255, 255, 0.14);
+  --fg: #fbf7ff;
+  --fg2: #ece3fb;
+  --mu: #d3c5ec;
+  --ac: #ff8ad8;
+  --acfg: #2a0f49;
+  --err: #ffb3a7;
+  --c1: #ff8ad8;
+  --c2: #ffd36e;
+  --c3: #7ee8d8;
+  --c4: #93b6ff;
+  --c5: #f0a4ff;
+  --c6: #c9f27e;
+  --c7: #d9c9f2;
+  --panel: rgba(22, 8, 50, 0.5);
+}
+
+/* Midnight Candy: the same sky at night. Deeper stops, a stronger overlay, a slower turn. */
+:root[data-theme='midnight-candy'] {
+  --shell: transparent;
+  --sky-ground: #171331;
+  --sky-conic: conic-gradient(from 0deg, #8a3f9e, #5b3b9c, #2f2a7a, #4a1f7e, #2a2560, #233a8f, #8a3f9e);
+  --sky-blur: 30px;
+  --sky-turn: 36s;
+  --sky-overlay: radial-gradient(circle at center, rgba(10, 8, 24, 0.35) 0%, rgba(10, 8, 24, 0.55) 70%, rgba(10, 8, 24, 0.7) 100%);
+  --sky-star-opacity: 0.6;
+  --bg: rgba(17, 16, 29, 0.9);
+  --s1: rgba(33, 21, 47, 0.7);
+  --s2: rgba(47, 31, 72, 0.86);
+  --ln: rgba(187, 162, 240, 0.26);
+  --ln2: rgba(187, 162, 240, 0.13);
+  --fg: #f2ecff;
+  --fg2: #cfc3ea;
+  --mu: #a194c6;
+  --ac: #e07ac8;
+  --acfg: #11101d;
+  --err: #ff9a8a;
+  --c1: #e07ac8;
+  --c2: #f2c66b;
+  --c3: #6ed3c2;
+  --c4: #7f9cf5;
+  --c5: #bba2f0;
+  --c6: #a8cc6a;
+  --c7: #a194c6;
+  --panel: rgba(20, 14, 40, 0.6);
 }

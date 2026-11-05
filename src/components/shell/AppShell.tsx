@@ -5,12 +5,14 @@ import { BarBanner, PeriodBar } from '../period/PeriodBar';
 import { MobileHeader } from './MobileHeader';
 import { MobileNav } from './MobileNav';
 import { Sidebar } from './Sidebar';
+import { Sky } from './Sky';
 import styles from './AppShell.module.css';
 
 export function AppShell() {
   const compact = useMediaQuery('(max-width: 767px)');
   return (
     <div className={styles.shell}>
+      <Sky />
       <a href="#main" className={styles.skip}>Skip to content</a>
       <Sidebar />
       <div className={styles.column}>

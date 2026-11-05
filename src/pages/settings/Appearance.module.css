@@ -1,0 +1,107 @@
+/* Theme tiles. Each tile carries data-theme, so var() inside it reads that theme's tokens. */
+
+.grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--shell, var(--bg));
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tile[data-theme='cotton-candy'] {
+  background: linear-gradient(135deg, #ff6ad5, #7b68ee 50%, #4169e1);
+}
+
+.tile[data-theme='midnight-candy'] {
+  background: linear-gradient(135deg, #8a3f9e, #2f2a7a 50%, #171331);
+}
+
+.tile:hover {
+  border-color: var(--mu);
+}
+
+.selected {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+
+.preview {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--ln);
+  background: var(--s1);
+}
+
+.previewBar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+}
+
+.previewBar i {
+  display: block;
+  height: 4px;
+  background: var(--fg2);
+}
+
+.previewBar i:first-child { width: 60%; }
+.previewBar i:last-child { width: 25%; opacity: 0.6; }
+
+.previewText {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.previewAccent {
+  align-self: center;
+  width: 28px;
+  height: 12px;
+  border-radius: var(--radius);
+  background: var(--ac);
+}
+
+.previewChips {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 3px;
+}
+
+.previewChips i { flex: 1; height: 6px; display: block; }
+.previewChips i:nth-child(1) { background: var(--c1); }
+.previewChips i:nth-child(2) { background: var(--c2); }
+.previewChips i:nth-child(3) { background: var(--c3); }
+.previewChips i:nth-child(4) { background: var(--c4); }
+.previewChips i:nth-child(5) { background: var(--c5); }
+
+.name {
+  margin-top: 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.description {
+  font-size: 12px;
+  color: var(--fg2);
+}
+
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -125,6 +125,7 @@
 /* ---- Timeline strips ---- */
 
 .timeline {
+  background: var(--panel);
   margin-top: 32px;
   border-top: 1px solid var(--ln);
   border-bottom: 1px solid var(--ln);
@@ -218,6 +219,7 @@
 /* ---- Panel ---- */
 
 .panel {
+  background: var(--panel);
   margin-top: 32px;
   min-width: 0;
 }
@@ -522,6 +524,7 @@
 
 .log {
   display: grid;
+  background: var(--panel);
 }
 
 .logDay + .logDay {
@@ -624,6 +627,7 @@
 }
 
 .onThisDay {
+  background: var(--panel);
   border-top: 1px solid var(--ln);
   padding-top: 16px;
 }
