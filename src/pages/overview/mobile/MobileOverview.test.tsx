@@ -80,8 +80,8 @@ describe('Overview on mobile', () => {
     expect(location.current).toMatch(/period=year(%3A|:)2024$/);
   });
 
-  it('shows the connect state on mobile too', async () => {
+  it('shows the sign-in state on mobile too', async () => {
     renderApp(notConnectedApi);
-    expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to see your listening.')).toBeInTheDocument();
   });
 });

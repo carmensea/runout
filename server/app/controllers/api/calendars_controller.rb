@@ -1,14 +1,13 @@
 module Api
   # GET /api/calendar: the signed-in user's whole history at a glance (Analytics::Calendar#history).
   # GET /api/calendar?from=2014-03-01&to=2014-03-31: plays per local day in that range, at most
-  # Analytics::Calendar::MAX_DAYS days. 409 when no listening account is connected; 400 for dates it
+  # Analytics::Calendar::MAX_DAYS days. 409 while no plays are stored; 400 for dates it
   # can't read.
   class CalendarsController < ApplicationController
     require_authentication
+    before_action :require_stored_plays
 
     def show
-      return render(json: { error: "not_connected" }, status: :conflict) unless Current.user.lastfm_connection
-
       calendar = Analytics::Calendar.new(user: Current.user)
       return render(json: calendar.history) if params[:from].blank? && params[:to].blank?
 

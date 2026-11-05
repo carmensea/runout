@@ -160,7 +160,7 @@ export function SearchField({ className, autoFocus }: { className?: string; auto
           {state.status === 'error' && (
             <p className={styles.message} role="status">
               {state.notConnected ? (
-                <>Search covers your own listening history. <Link to={withPeriod('/settings#lastfm')}>Connect Last.fm</Link> to use it.</>
+                <>Search covers your stored listening history. <Link to={withPeriod('/settings#sources')}>Connect Last.fm</Link> to import it.</>
               ) : (
                 'Search is unavailable right now. Try again in a moment.'
               )}

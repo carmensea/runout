@@ -25,8 +25,9 @@ export function AccountMenu() {
   const refs = useMemo(() => [wrapRef], []);
   useDismiss(open, close, refs);
 
-  if (connection.status !== 'success' || connection.data.status === 'none') return null;
-  const { username } = connection.data;
+  if (connection.status !== 'success' || connection.data.status === 'signed_out') return null;
+  const { displayName } = connection.data;
+  const lastfm = connection.data.status !== 'none';
 
   async function signOut() {
     try {
@@ -58,17 +59,17 @@ export function AccountMenu() {
         className={styles.trigger}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Account, ${username}`}
+        aria-label={`Account, ${displayName}`}
         onClick={() => setOpen((o) => !o)}
       >
-        <span className={styles.avatar} aria-hidden="true">{username.charAt(0).toUpperCase()}</span>
+        <span className={styles.avatar} aria-hidden="true">{displayName.charAt(0).toUpperCase()}</span>
         <Icon name="expand_more" size={18} className={styles.chevron} />
       </button>
       {open && (
         <div role="menu" aria-label="Account" className={styles.menu} onKeyDown={onMenuKey}>
           <div className={styles.who}>
-            <span className={styles.username}>{username}</span>
-            <span className={styles.status}>Last.fm connected</span>
+            <span className={styles.username}>{displayName}</span>
+            <span className={styles.status}>{lastfm ? 'Last.fm connected' : 'Last.fm not connected'}</span>
           </div>
           <div className={styles.label} id="account-menu-theme">Theme</div>
           {THEMES.map((t) => (

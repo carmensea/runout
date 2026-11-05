@@ -6,7 +6,7 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
     token = session_cookie
     user = User.sole
 
-    delete "/api/account", params: { confirm_username: "LISTENER" }, headers: same_origin_headers, as: :json
+    delete "/api/account", params: { confirm_name: "LISTENER" }, headers: same_origin_headers, as: :json
     assert_response :ok
     assert_equal "https://www.last.fm/settings/applications", response.parsed_body["revokeAccessUrl"]
 
@@ -18,13 +18,13 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
 
     cookies[Authentication::COOKIE_NAME] = token
     get "/api/connection"
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "signed_out" }, response.parsed_body)
   end
 
-  test "deletion requires typing the Last.fm username" do
+  test "deletion requires typing the display name" do
     sign_in_via_lastfm(username: "listener")
 
-    delete "/api/account", params: { confirm_username: "someone-else" }, headers: same_origin_headers, as: :json
+    delete "/api/account", params: { confirm_name: "someone-else" }, headers: same_origin_headers, as: :json
     assert_response :unprocessable_content
     assert_equal "confirmation_mismatch", response.parsed_body["error"]
     assert_equal 1, User.count
@@ -36,17 +36,17 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
     reset!
     sign_in_via_lastfm(username: "listener")
 
-    delete "/api/account", params: { confirm_username: "listener" }, headers: same_origin_headers, as: :json
+    delete "/api/account", params: { confirm_name: "listener" }, headers: same_origin_headers, as: :json
     assert_response :ok
     assert_equal [ "other" ], Identity.pluck(:uid)
   end
 
   test "deletion needs a session and a same-origin request" do
-    delete "/api/account", params: { confirm_username: "listener" }, headers: same_origin_headers, as: :json
+    delete "/api/account", params: { confirm_name: "listener" }, headers: same_origin_headers, as: :json
     assert_response :unauthorized
 
     sign_in_via_lastfm(username: "listener")
-    delete "/api/account", params: { confirm_username: "listener" }, headers: { "Origin" => "https://evil.example", "X-Requested-With" => "XMLHttpRequest" }, as: :json
+    delete "/api/account", params: { confirm_name: "listener" }, headers: { "Origin" => "https://evil.example", "X-Requested-With" => "XMLHttpRequest" }, as: :json
     assert_response :forbidden
     assert_equal 1, User.count
   end

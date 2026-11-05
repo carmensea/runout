@@ -7,20 +7,20 @@ import { location, renderApp } from '../../test/renderApp';
 
 beforeEach(() => localStorage.clear());
 
-describe('Overview, not connected', () => {
-  it('shows the connect state and never renders figures', async () => {
+describe('Overview, signed out', () => {
+  it('shows the sign-in state and never renders figures', async () => {
     renderApp(notConnectedApi);
-    expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
-    expect(screen.getAllByText('Last.fm not connected').length).toBeGreaterThan(0);
+    expect(await screen.findByText('Sign in to see your listening.')).toBeInTheDocument();
+    expect(screen.getAllByText('Not signed in').length).toBeGreaterThan(0);
     expect(screen.queryByText('Scrobbles')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Connect Last.fm' })).toHaveAttribute('href', '/api/auth/lastfm');
   });
 
-  it('explains that search needs a connected library', async () => {
+  it('explains that search needs a stored library', async () => {
     const user = userEvent.setup();
     renderApp(notConnectedApi);
     await user.type(screen.getByRole('combobox'), 'ab');
-    expect(await screen.findByText(/Search covers your own listening history/)).toBeInTheDocument();
+    expect(await screen.findByText(/Search covers your stored listening history/)).toBeInTheDocument();
   });
 });
 
@@ -33,7 +33,7 @@ describe('Overview, authentication states', () => {
   it('shows a signed-in account without history', async () => {
     const api: RunoutApi = {
       ...connectedApi(() => makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, nearestWithData: [] })),
-      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
     };
     renderApp(api);
     expect(await screen.findByText('Signed in as test-user.')).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('Overview, authentication states', () => {
   it('shows plays recorded from Spotify when Last.fm was never imported', async () => {
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
     };
     renderApp(api);
     expect(await screen.findByRole('heading', { name: '01 / Listening overview' })).toBeInTheDocument();
@@ -57,14 +57,14 @@ describe('Overview, authentication states', () => {
     let signedIn = true;
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => (signedIn ? { status: 'connected', username: 'test-user', timezone: 'Europe/London' } : { status: 'none' }),
+      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' } : { status: 'signed_out' }),
       signOut: async () => {
         signedIn = false;
       },
     };
     renderApp(api, '/settings#account');
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
-    expect(await screen.findByText('Connect your Last.fm account to see your listening.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to see your listening.')).toBeInTheDocument();
     expect(location.current).toMatch(/^\/overview/);
   });
 
@@ -74,7 +74,7 @@ describe('Overview, authentication states', () => {
     const confirmations: string[] = [];
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => (signedIn ? { status: 'connected', username: 'test-user', timezone: 'Europe/London' } : { status: 'none' }),
+      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' } : { status: 'signed_out' }),
       deleteAccount: async (confirm) => {
         confirmations.push(confirm);
         signedIn = false;
@@ -84,10 +84,10 @@ describe('Overview, authentication states', () => {
     renderApp(api, '/settings#account');
     const remove = await screen.findByRole('button', { name: 'Delete account' });
     expect(remove).toBeDisabled();
-    await user.type(screen.getByLabelText(/Type your Last.fm username/), 'wrong');
+    await user.type(screen.getByLabelText(/Type your name/), 'wrong');
     expect(remove).toBeDisabled();
-    await user.clear(screen.getByLabelText(/Type your Last.fm username/));
-    await user.type(screen.getByLabelText(/Type your Last.fm username/), 'TEST-USER');
+    await user.clear(screen.getByLabelText(/Type your name/));
+    await user.type(screen.getByLabelText(/Type your name/), 'TEST-USER');
     await user.click(remove);
     expect(await screen.findByText('Your Runout account and its data were deleted.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Last.fm application settings' })).toHaveAttribute('href', 'https://www.last.fm/settings/applications');
@@ -99,13 +99,13 @@ describe('Overview, authentication states', () => {
     const user = userEvent.setup();
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => ({ status: 'connected', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
       deleteAccount: async () => {
         throw new Error('network');
       },
     };
     renderApp(api, '/settings#account');
-    await user.type(await screen.findByLabelText(/Type your Last.fm username/), 'test-user');
+    await user.type(await screen.findByLabelText(/Type your name/), 'test-user');
     await user.click(screen.getByRole('button', { name: 'Delete account' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Deletion did not complete.');
   });

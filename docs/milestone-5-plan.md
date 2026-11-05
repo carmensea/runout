@@ -129,6 +129,12 @@ feature flag is off. There is no web form that issues one. The procedure is writ
 - `Lastfm::AccountPolicy` stays for the Last.fm connection; `LASTFM_ALLOWED_USERNAME` keeps
   deciding which Last.fm account may be linked.
 
+**Done 2026-11-05 (PR `decouple-history-from-lastfm`):** `GET /api/connection` answers `signed_out` with no
+session and `none` for a signed-in account without Last.fm (with `displayName`, `timezone`, `theme`); the
+data endpoints' 409 is now "no stored plays" (`require_stored_plays`); account deletion confirms by display
+name (`confirm_name`); the signed-out Overview leads with "Sign in"; the sidebar and account menu show the
+display name. The signed-out screen and the Settings Sign-in section landed earlier (PR #16).
+
 ### 2.5 Migration, rollback and risks
 
 0. Custom domain live and verified (owner's step, before any passkey exists): HTTPS, redirect from

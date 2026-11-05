@@ -36,7 +36,7 @@ export function OverviewPage() {
   const { connection, fmt, timeZone } = useAppData();
   const { current, compare, today, withPeriod } = usePeriod();
   // A signed-in account can hold plays without a Last.fm import: Spotify records them directly.
-  const connected = connection.status === 'success' && connection.data.status !== 'none';
+  const connected = connection.status === 'success' && connection.data.status !== 'signed_out';
   const overview = useOverview(current, compare, connected);
 
   const currentLabel = periodShortLabel(current, today);
@@ -127,14 +127,14 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
       </MessageState>
     );
   }
-  if (connection.data.status === 'none') {
+  if (connection.data.status === 'signed_out') {
     const signIn = api.signInUrl();
     const authError = authErrorMessage(params.get('auth_error'));
     return (
       <MessageState
-        icon="link_off"
-        message="Connect your Last.fm account to see your listening."
-        detail="Runout imports your scrobble history from Last.fm and builds every chart on this page from it. Nothing is shown until an account is connected and imported."
+        icon="lock"
+        message="Sign in to see your listening."
+        detail="Runout keeps your own listening history and builds every chart on this page from it. Nothing is shown until you sign in."
       >
         {authError && <p className={stateStyles.technical} role="alert" style={{ color: 'var(--err)' }}>{authError}</p>}
         {auth.status === 'success' && auth.data ? (
@@ -167,7 +167,7 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
       );
     }
     if (main.error instanceof NotConnectedError) {
-      return <MessageState icon="link_off" message="Your Last.fm account is no longer connected." detail={<Link to={withPeriod('/settings#lastfm')}>Reconnect in Settings</Link>} />;
+      return <MessageState icon="link_off" message="No listening history is stored yet." detail={<Link to={withPeriod('/settings#sources')}>Connect Last.fm in Settings</Link>} />;
     }
     return (
       <MessageState icon="error" tone="error" message={`Scrobbles for ${periodLabel(current, today)} could not be loaded.`}>
@@ -289,7 +289,7 @@ function LastfmCredit() {
 
 function SyncNote({ connection }: { connection: ConnectionState | null }) {
   const { fmt, timeZone } = useAppData();
-  if (!connection || connection.status === 'none') return <span>Not synced</span>;
+  if (!connection || connection.status === 'signed_out' || connection.status === 'none') return <span>Not synced</span>;
   if (connection.status === 'connected') return <span>Not synced yet</span>;
   if (connection.status === 'importing') return <span>Import in progress</span>;
   if (!connection.lastSyncedAt) return <span>Not synced yet</span>;

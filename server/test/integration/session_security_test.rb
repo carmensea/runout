@@ -4,7 +4,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
   test "signed-out visitors see no connection" do
     get "/api/connection"
     assert_response :ok
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "signed_out" }, response.parsed_body)
     assert_equal "no-store", response.headers["Cache-Control"]
   end
 
@@ -13,7 +13,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
     cookies[Authentication::COOKIE_NAME] = "#{session_cookie}x"
 
     get "/api/connection"
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "signed_out" }, response.parsed_body)
     assert_predicate cookies[Authentication::COOKIE_NAME], :blank?
   end
 
@@ -22,7 +22,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
     Session.update_all(expires_at: 1.minute.ago)
 
     get "/api/connection"
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "signed_out" }, response.parsed_body)
   end
 
   test "sign-out requires a same-origin request" do
@@ -55,7 +55,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
 
     cookies[Authentication::COOKIE_NAME] = token
     get "/api/connection"
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "signed_out" }, response.parsed_body)
     get "/api/overview"
     assert_response :unauthorized, "protected data is closed to the ended session"
 
@@ -83,7 +83,7 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
 
     cookies[Authentication::COOKIE_NAME] = bob_token
     get "/api/connection"
-    assert_equal({ "status" => "connected", "username" => "bob", "timezone" => "America/New_York", "theme" => nil }, response.parsed_body)
+    assert_equal({ "status" => "connected", "displayName" => "bob", "username" => "bob", "timezone" => "America/New_York", "theme" => nil }, response.parsed_body)
   end
 
   test "a revoked Last.fm identity reads as not connected" do
@@ -91,6 +91,6 @@ class SessionSecurityTest < ActionDispatch::IntegrationTest
     Identity.update_all(revoked_at: Time.current)
 
     get "/api/connection"
-    assert_equal({ "status" => "none" }, response.parsed_body)
+    assert_equal({ "status" => "none", "displayName" => "listener", "timezone" => "Europe/London", "theme" => nil }, response.parsed_body)
   end
 end

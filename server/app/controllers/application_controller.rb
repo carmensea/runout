@@ -12,6 +12,12 @@ class ApplicationController < ActionController::API
     head :not_found unless Passkeys.enabled?
   end
 
+  # The archive opens on stored plays, whatever account recorded them (docs/milestone-5-plan.md §2.4).
+  # 409 not_connected is the frontend's "nothing to show yet" state.
+  def require_stored_plays
+    render(json: { error: "not_connected" }, status: :conflict) unless Current.user.scrobbles.exists?
+  end
+
   # Responses are per-user; never let a shared cache keep them.
   def prevent_caching
     response.headers["Cache-Control"] = "no-store"

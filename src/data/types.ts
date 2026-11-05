@@ -10,14 +10,19 @@
  * theme (src/theme/theme.ts), null until one is chosen.
  */
 export type ConnectionState =
-  | { status: 'none' }
+  | { status: 'signed_out' }
+  /** Signed in without a Last.fm connection; the archive still opens on stored plays. */
+  | { status: 'none'; displayName: string; timezone: string; theme?: string | null }
   /** Signed in with Last.fm; listening history has not been imported. */
-  | { status: 'connected'; username: string; timezone: string; theme?: string | null }
-  | { status: 'importing'; username: string; timezone: string; theme?: string | null; progress: number; attention?: number }
-  | { status: 'synced'; username: string; timezone: string; theme?: string | null; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
-  | { status: 'failed'; username: string; timezone: string; theme?: string | null; lastSyncedAt: string | null; message: string; attention?: number };
+  | { status: 'connected'; displayName: string; username: string; timezone: string; theme?: string | null }
+  | { status: 'importing'; displayName: string; username: string; timezone: string; theme?: string | null; progress: number; attention?: number }
+  | { status: 'synced'; displayName: string; username: string; timezone: string; theme?: string | null; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
+  | { status: 'failed'; displayName: string; username: string; timezone: string; theme?: string | null; lastSyncedAt: string | null; message: string; attention?: number };
 
-export type ConnectedState = Exclude<ConnectionState, { status: 'none' }>;
+/** Any signed-in account. */
+export type SignedInState = Exclude<ConnectionState, { status: 'signed_out' }>;
+/** A signed-in account with a Last.fm connection. */
+export type ConnectedState = Exclude<SignedInState, { status: 'none' }>;
 
 /** GET /api/session: Runout's own sign-in (passkeys, recovery codes) beside the Last.fm fallback. */
 export type SessionInfo =

@@ -4,7 +4,7 @@ module Api
   # (identities with the encrypted Last.fm session key, sessions, connection state; listening
   # history once it exists). Foreign keys cascade, so nothing is left behind.
   #
-  # As the design requires for destructive actions, the user must type their Last.fm username.
+  # As the design requires for destructive actions, the user must type their name (the display name).
   # Runout cannot revoke its access on Last.fm's side; the response links to where the user can.
   class AccountsController < ApplicationController
     LASTFM_APPLICATIONS_URL = "https://www.last.fm/settings/applications".freeze
@@ -21,9 +21,8 @@ module Api
     end
 
     def destroy
-      username = Current.user.lastfm_identity&.username.to_s
-      confirmation = params[:confirm_username].to_s
-      unless username.present? && confirmation.casecmp?(username)
+      name = Current.user.display_name
+      unless params[:confirm_name].to_s.casecmp?(name)
         return render json: { error: "confirmation_mismatch" }, status: :unprocessable_content
       end
 

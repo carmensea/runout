@@ -218,7 +218,7 @@ describe('Settings: review', () => {
 describe('Settings: tabs', () => {
   it('opens the tab the hash names, keeps it when the period is written, and puts the chosen tab in the hash', async () => {
     const user = userEvent.setup();
-    const base = { status: 'synced' as const, username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
+    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
     renderApp(api(fakeHistoryApi(), { ...base, attention: 3 }), '/settings#lastfm');
     expect(await screen.findByRole('tab', { name: 'Account', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Account' })).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('Settings: tabs', () => {
 
 describe('Banner and Overview', () => {
   it('shows the attention count and links to review; nothing when there is nothing to do', async () => {
-    const base = { status: 'synced' as const, username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
+    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
     const { unmount } = renderApp(api(fakeHistoryApi(), { ...base, attention: 3 }));
     expect(await screen.findByText(/3 items in your history need your attention/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review in Settings' })).toHaveAttribute('href', expect.stringContaining('/settings#review'));

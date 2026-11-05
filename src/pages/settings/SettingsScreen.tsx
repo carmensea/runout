@@ -4,7 +4,7 @@ import { Tabs } from '../../components/ui/Tabs';
 import { SignIn } from '../../components/auth/SignIn';
 import stateStyles from '../../components/states/States.module.css';
 import { useAppData } from '../../data/AppDataContext';
-import type { ConnectedState } from '../../data/types';
+import type { SignedInState } from '../../data/types';
 import { usePeriod } from '../../state/PeriodContext';
 import styles from '../PendingScreen.module.css';
 import { HistorySection } from './HistorySection';
@@ -48,8 +48,8 @@ export function SettingsScreen() {
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   // While the connection reloads (after any action here), keep showing the account it last
   // reported, so the sections below don't unmount and lose what they show.
-  const current = connection.status === 'success' ? (connection.data.status !== 'none' ? connection.data : null) : undefined;
-  const [lastKnown, setLastKnown] = useState<ConnectedState | null>(null);
+  const current = connection.status === 'success' ? (connection.data.status !== 'signed_out' ? connection.data : null) : undefined;
+  const [lastKnown, setLastKnown] = useState<SignedInState | null>(null);
   if (current !== undefined && current !== lastKnown) setLastKnown(current);
   const signedIn = current === undefined ? lastKnown : current;
   // Likewise for Runout's own sign-in: while it reloads after an action, keep the section mounted.
@@ -137,7 +137,10 @@ export function SettingsScreen() {
       )}
       {signedIn && (
         <div className={settings.panel} id="lastfm">
-          <span>Signed in with Last.fm as <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>{signedIn.username}</strong>.</span>
+          <span>
+            Signed in as <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>{signedIn.displayName}</strong>.
+            {signedIn.status === 'none' ? ' No Last.fm account is connected.' : ` Last.fm account: ${signedIn.username}.`}
+          </span>
           <span>Reporting timezone: {signedIn.timezone.replace(/_/g, ' ')}. Hour and weekday patterns assume this timezone for your whole history.</span>
           <div className={stateStyles.actions}>
             <button type="button" className={stateStyles.secondary} onClick={signOut} disabled={state === 'busy'}>
@@ -149,7 +152,7 @@ export function SettingsScreen() {
       )}
       {signedIn && (
         <DeleteAccount
-          username={signedIn.username}
+          name={signedIn.displayName}
           onDeleted={(revokeUrl) => {
             setDeletedRevokeUrl(revokeUrl);
             connection.retry();
@@ -165,12 +168,12 @@ export function SettingsScreen() {
   );
 }
 
-function DeleteAccount({ username, onDeleted }: { username: string; onDeleted(revokeUrl: string): void }) {
+function DeleteAccount({ name, onDeleted }: { name: string; onDeleted(revokeUrl: string): void }) {
   const { api } = useAppData();
   const inputId = useId();
   const [typed, setTyped] = useState('');
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
-  const matches = typed.trim().toLowerCase() === username.toLowerCase();
+  const matches = typed.trim().toLowerCase() === name.toLowerCase();
 
   async function remove() {
     setState('busy');
@@ -189,7 +192,7 @@ function DeleteAccount({ username, onDeleted }: { username: string; onDeleted(re
         Deletes your Runout account and everything stored for it, including the Last.fm access key. This cannot be undone.
       </span>
       <label className={styles.field} htmlFor={inputId}>
-        Type your Last.fm username, {username}, to confirm
+        Type your name, {name}, to confirm
         <input
           id={inputId}
           className={styles.input}
