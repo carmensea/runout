@@ -10,3 +10,9 @@ dist
 *~
 *.swp
 *.swo
+
+# Database dumps, backups and local tooling state never belong in the repository
+*.dump
+*.cms
+backups/
+.claude/settings.local.json
