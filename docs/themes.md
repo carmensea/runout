@@ -19,7 +19,7 @@ Settings panel; no change to layout, typography, routes, data or integrations.
 - **The sky.** `src/components/shell/Sky.tsx`, mounted once in the app shell, draws nothing in
   Original and Moss. For Cotton Candy, Midnight Candy and Verdant it is idlewinny.com's rotating
   background from the recovered site (`components/rotating-background.tsx`,
-  `starry-background.tsx`, `app/globals.css` in `carmensea/idlewinny`, branch `recovered`): a fixed
+  `starry-background.tsx`, `app/globals.css` in the site's own source, kept privately): a fixed
   container, a 200 percent conic layer blurred 30 px turning once in 18 seconds, a dark radial
   overlay, and 40 of the original's twinkling stars placed by a fixed seed. The site's 50 ms timer
   is a CSS rotation of the same period; animations are transform-only. `prefers-reduced-motion`

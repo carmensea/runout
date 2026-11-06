@@ -7,7 +7,7 @@ Known limit: Spotify's feed omits some plays (§4).
 
 ## 1. What runs
 
-One Railway project, separate from NoRentGrets, with two services:
+One Railway project of its own, with two services:
 
 | Service | What it is |
 |---|---|
@@ -38,7 +38,7 @@ macOS physical footprint.
 - Turning YJIT off saved nothing measurable at this traffic, so the Rails default stays.
 - **These are Rosetta and macOS figures: trust the ratios, not the absolutes.** In CI's Linux
   container the image used 125 to 137 MB (cgroup, page cache included) after requests and polls, and
-  NoRentGrets runs the same setup on Railway at 189 MB. Expect 140 to 220 MB. Check
+  A similar Rails deployment on Railway runs at 189 MB. Expect 140 to 220 MB. Check
   `railway metrics` after deploying.
 - **The trade-off:** Solid Queue's README recommends fork mode, because a job shares memory and the
   Ruby lock with web requests. A job here is one short HTTP call every 5 minutes, and web traffic is
@@ -149,7 +149,7 @@ Each step is safe to stop after. Steps 7 and 8 need your explicit approval at th
 
 **Before starting:** merge `railway-deployment` to `main` and confirm CI's `image` job passes.
 
-**1. Create the Runout Railway project** (from `server/`; a project of its own, separate from NoRentGrets)
+**1. Create the Runout Railway project** (from `server/`; a project of its own)
 ```sh
 railway init --name runout
 railway add --database postgres
@@ -315,7 +315,7 @@ finished, and can't run longer than 30 minutes. Each run, over the private netwo
    server. Compares the schema, every table's row count and the Last.fm fingerprint against the same
    snapshot, and runs `pg_amcheck`. Plays arriving meanwhile can't cause a false difference.
 4. Encrypts to your certificate. The private key isn't on Railway or GitHub.
-5. Pushes only ciphertext to the private repository `carmensea/runout-backups`, as one branch per backup,
+5. Pushes only ciphertext to a private backups repository (`BACKUP_REPO`), as one branch per backup,
    with a deploy key that can reach only that repository. Clones it back to confirm the checksum.
 6. Applies retention, only after that succeeds.
 
@@ -338,25 +338,20 @@ The deploy key could also delete backups if it leaked, while object storage can 
 **Alerts:** a watchdog workflow in the backups repository checks at 12:17 and 20:17 UTC that the newest
 backup is under 26 hours old. Failing emails you through GitHub's normal Actions notifications. One check
 covers a failed run, a missed run and a stopped schedule. A failed run alerts the same day, within about 2 hours.
-To test: `gh workflow run watchdog.yml -R carmensea/runout-backups -f max_age_hours=0`.
+To test: `gh workflow run watchdog.yml -R <owner>/<backups repository> -f max_age_hours=0`.
 
-**NoRentGrets uses the same job** (set up 2026-11-03, with the owner's approval): a `backup` Cron service in
-`dazzling-quietude`'s production environment, daily at 10:30 UTC, built from this repository's
-`deploy/backup/` on the branch **`backups/norentgrets`**, not `main`. That branch pins the code: a change
-to `deploy/backup/` on `main` reaches Runout's job but not NoRentGrets', until the branch is moved on
-purpose (`git push origin main:backups/norentgrets`, after CI's backup test passes). Its role is
-`norentgrets_backup` (read-only, 3 connections), its destination `carmensea/norentgrets-backups`, its key
-`~/norentgrets-backup-keys/norentgrets-backup.key`, and its watchdog lives in that repository, checking at 14:17 and 20:17 UTC (at 12:17 a failed 10:30 backup would still be under 26 hours old). The first
-run: 33 tables, 1,963 rows, 240 KB encrypted; restored independently on this Mac with PostgreSQL 17 tools.
+**Another project can reuse the job** from a pinned branch (`backups/<project>`) rather than `main`, so a
+change to `deploy/backup/` on `main` reaches Runout's job only, until that branch is moved on purpose after
+CI's backup test passes. Each project has its own read-only role, destination repository, key and watchdog.
 
-**Your private key:** `~/runout-backup-keys/runout-backup.key` on this Mac. **Move it into your password
+**Your private key** lives on your own machine, never on Railway or GitHub. **Keep it in your password
 manager.** Without it no backup can be read. Keep the app's `ACTIVE_RECORD_ENCRYPTION_*` values there too:
 without them a restored database can't decrypt tokens, though you could sign in and connect Spotify again.
 
 **Restore drill** (every 3 months; PostgreSQL 18 tools needed, so a throwaway Railway database or a CI job is
 the easy way, since this Mac has 17):
 ```sh
-git clone --depth 1 --branch backup/<stamp> git@github.com:carmensea/runout-backups.git drill
+git clone --depth 1 --branch backup/<stamp> git@github.com:<owner>/<backups repository>.git drill
 openssl cms -decrypt -binary -inform DER -inkey runout-backup.key -in drill/db.dump.cms -out db.dump
 openssl dgst -sha256 db.dump      # must match dump_sha256 in drill/manifest.txt
 createdb runout_restore_drill && pg_restore --no-owner --no-privileges --exit-on-error -d runout_restore_drill db.dump
@@ -388,41 +383,16 @@ Cutover never writes to the local database, so it's always there to return to.
 **Rates** (`railway.com/pricing`): $10 per GB of RAM a month, $20 per vCPU a month, $0.15 per GB of
 volume a month. Hobby is $5 including $5 of usage, and you pay the larger of $5 or your usage.
 
-**NoRentGrets now** (`dazzling-quietude`, measured over the 23 hours after its Nov 2 cleanup):
-
-| Service | RAM | CPU | Volume | Monthly |
-|---|---:|---:|---:|---:|
-| production `norentgrets` (Puma with async Solid Queue) | 189 MB | 0.0015 vCPU | | $1.88 |
-| production `Postgres-6L4m` | 65 MB | 0.0008 vCPU | 136 MB | $0.67 |
-| staging `Postgres` | 56 MB | 0.0002 vCPU | 137 MB | $0.58 |
-| **Total** | | | | **about $3.13** |
-
-**Runout, estimated separately:**
+**Runout, estimated** (from CI's container and a similar Rails deployment on Railway):
 
 | Service | RAM | CPU | Monthly |
 |---|---:|---:|---:|
-| `runout` (137 MB in CI's container; NoRentGrets' same setup runs at 189 MB) | 140 to 220 MB | 0.002 to 0.005 vCPU | $1.45 to $2.30 |
-| `Postgres`, small while Spotify-only (65 MB for NoRentGrets' similar size) | 60 to 100 MB | about 0.001 vCPU | $0.65 to $1.05 |
+| `runout` (137 MB in CI's container; a similar deployment runs at 189 MB) | 140 to 220 MB | 0.002 to 0.005 vCPU | $1.45 to $2.30 |
+| `Postgres`, small while Spotify-only (65 MB for a similar database) | 60 to 100 MB | about 0.001 vCPU | $0.65 to $1.05 |
 | Volume, plus Railway backups | | | under $0.10 |
 | **Total** | | | **about $2.20 to $3.45** |
 
-**Your bill:** usage of about $5.35 to $6.60 a month, so **about $5.50 to $7**, up from $5 today: **$0.50 to $2 more**,
-because NoRentGrets leaves about $1.87 of the included $5 unused. Egress is about $0.01.
-
-**This period** (to Nov 18) is higher: $6.42 is already used, mostly before the Nov 2 cleanup. Railway's $11.98
-estimate projects that earlier spending forward, so it overstates things.
-
-**Not verified: these need a real deploy**
-- Railway's private network, proxy and health check. (The image, PostgreSQL 18 and Linux memory were
-  covered by CI; Docker itself can't start on this Mac, because Homebrew's Lima runs under Rosetta.)
-- On teardown Puma exits 1, not 143, because PID 1 can't re-raise SIGTERM to itself; it still stops
-  gracefully within the draining time. Railway ignores exit codes on a deliberate stop.
-- Real Spotify and Last.fm sign-in in production (steps 3 and 5).
-- The `railway` commands in §5 and §6: flags checked against CLI help, none run. `backup.yml`: parsed, never run;
-  its script and encryption were tested separately.
-- Rate limits behind Railway's proxy: if it isn't a trusted proxy to Rails, limits count all visitors as one.
-  Harmless for one person.
-- `/up` doesn't detect a stalled in-process Solid Queue. Settings shows the last successful check.
+**The bill** is the larger of Hobby's $5 and the usage above, shared with anything else in the workspace.
 
 ## 10. Custom domain: runout.idlewinny.com
 

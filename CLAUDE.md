@@ -123,7 +123,8 @@ console (pull, review, merge, worktree admin); task work happens in a git worktr
 - **Prepare** it once: copy `.env`, `server/.env` and `server/tmp/local_secret.txt` from the primary
   (git-ignored; the secret file keeps development encryption keys the same), run `npm ci`. Gems are
   shared through chruby. Link the project memory so the session sees it:
-  `mkdir -p ~/.claude/projects/-Users-carmen-projects-runout-worktrees-<task> && ln -sfn ~/.claude/projects/-Users-carmen-projects-runout/memory ~/.claude/projects/-Users-carmen-projects-runout-worktrees-<task>/memory`.
+  `P=$(echo "$HOME/projects/runout" | tr / -) && mkdir -p ~/.claude/projects/$P-worktrees-<task> && ln -sfn ~/.claude/projects/$P/memory ~/.claude/projects/$P-worktrees-<task>/memory`
+  (Claude Code names a project folder after its path with `/` as `-`).
 - **Launch** the session inside it: `cd ~/projects/runout-worktrees/<task> && claude`. Sessions are
   named after the folder. `git checkout main` fails there by design (main is checked out in the primary).
 - **Background tasks never run `git checkout` or `git pull`.** Merge with `gh pr merge`, verify with

@@ -6,12 +6,16 @@
 // Never run against the development or production database: it creates and deletes an account.
 import { execSync, spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { resolve, dirname } from 'node:path';
 const D = process.env.REHEARSAL_DIR || process.cwd();
 const DB = process.env.REHEARSAL_DB || 'runout_loved_check';
 if (/development|railway|runout$/.test(DB)) throw new Error(`refusing to rehearse against ${DB}`);
 mkdirSync(`${D}/shots`, { recursive: true });
 const ORIGIN = 'http://localhost:5199';
-const RAILS = `cd /Users/carmen/projects/runout/server && source /usr/local/share/chruby/chruby.sh && chruby ruby-3.4.7 && set -a && . ./.env && set +a && export DATABASE_URL=postgresql://postgres@localhost/${DB} SPOTIFY_INGESTION_ENABLED=false RUNOUT_PASSKEYS_ENABLED=true APP_ORIGIN=http://localhost:5199 && bin/rails`;
+const SERVER = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const CHRUBY = process.env.CHRUBY_SH || '/usr/local/share/chruby/chruby.sh';
+const RAILS = `cd ${SERVER} && source ${CHRUBY} && chruby ruby-3.4.7 && set -a && . ./.env && set +a && export DATABASE_URL=postgresql://postgres@localhost/${DB} SPOTIFY_INGESTION_ENABLED=false RUNOUT_PASSKEYS_ENABLED=true APP_ORIGIN=http://localhost:5199 && bin/rails`;
 const rails = (cmd) => execSync(`${RAILS} ${cmd} 2>/dev/null`, { encoding: 'utf8', shell: '/bin/zsh' }).trim();
 const port = 9500 + (process.pid % 100);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars', `--user-data-dir=${D}/chrome-${process.pid}`, `--remote-debugging-port=${port}`, '--window-size=1280,1100', 'about:blank'], { stdio: 'ignore' });
