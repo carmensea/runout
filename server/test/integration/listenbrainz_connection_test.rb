@@ -152,4 +152,28 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     assert_equal [ 422, "invalid_token" ], [ response.status, json["error"] ]
     assert_not_requested(:get, VALIDATE)
   end
+
+  test "asking for the full history queues a read now and a backfill run, once a minute, only for a connected account with the flag on" do
+    user, session = invite!("Dana")
+    cookies[Authentication::COOKIE_NAME] = session
+    post "/api/listening-sources/listenbrainz/backfill", headers: same_origin_headers
+    assert_equal [ 409, "not_connected" ], [ response.status, json["error"] ]
+
+    source = ListeningSource.create!(user: user, provider: "listenbrainz", external_account_id: "dana_lb", display_name: "dana_lb", connected_at: Time.current)
+    assert_enqueued_with(job: ListenbrainzPollSourceJob, args: [ source.id, { trigger: "manual", force: true } ]) do
+      assert_enqueued_with(job: ListenbrainzBackfillJob, args: [ source.id ]) do
+        post "/api/listening-sources/listenbrainz/backfill", headers: same_origin_headers
+      end
+    end
+    assert_equal 202, response.status
+
+    source.polls.create!(user_id: user.id, trigger: "manual", started_at: Time.current)
+    post "/api/listening-sources/listenbrainz/backfill", headers: same_origin_headers
+    assert_equal [ 429, "too_soon" ], [ response.status, json["error"] ]
+
+    Rails.configuration.x.listenbrainz_ingestion_enabled = "false"
+    post "/api/listening-sources/listenbrainz/backfill", headers: same_origin_headers
+    assert_equal [ 409, "ingestion_disabled" ], [ response.status, json["error"] ]
+    assert_equal "every 10 minutes", Listening::SourceStatus.for(user).dig(:listenbrainz, :pollSchedule)
+  end
 end

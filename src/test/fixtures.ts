@@ -171,6 +171,10 @@ export function fakeSourcesApi(initial: ListeningSources = makeSources(), review
       current = { ...current, listenbrainz: { ...current.listenbrainz, state: 'disconnected', disconnectedAt: '2026-11-06T11:00:00Z' } };
       return current;
     },
+    backfillListenbrainz: async () => {
+      calls.push('backfillListenbrainz');
+      current = { ...current, listenbrainz: { ...current.listenbrainz, backfill: { state: 'running', fetched: 0, total: 12000, before: '2026-10-07T10:00:00Z', startedAt: '2026-11-06T12:00:00Z', finishedAt: null } } };
+    },
   };
 }
 

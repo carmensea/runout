@@ -70,6 +70,8 @@ export interface SourcesApi {
   connectListenbrainz(token: string): Promise<ListeningSources>;
   /** Forgets the connection. Plays already stored stay. */
   disconnectListenbrainz(): Promise<ListeningSources>;
+  /** Reads ListenBrainz now and starts (or continues) the full-history import. ApiError codes: ingestion_disabled, not_connected, too_soon. */
+  backfillListenbrainz(): Promise<void>;
 }
 
 export interface HistoryApi {
@@ -281,6 +283,7 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       },
       connectListenbrainz: (token) => post<ListeningSources>('/listening-sources/listenbrainz', { token }),
       disconnectListenbrainz: () => post<ListeningSources>('/listening-sources/listenbrainz/disconnect'),
+      backfillListenbrainz: async () => { await post('/listening-sources/listenbrainz/backfill'); },
     },
   };
 }
@@ -308,6 +311,7 @@ export const noSourcesApi: SourcesApi = {
   decide: notConnected,
   connectListenbrainz: notConnected,
   disconnectListenbrainz: notConnected,
+  backfillListenbrainz: notConnected,
 };
 
 /** Runout's own sign-in when there is no server: switched off, every call says so. */

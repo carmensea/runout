@@ -19,7 +19,7 @@ module Listening
 
     # The ListenBrainz connection: a verified username, never a token (there is none to show).
     def listenbrainz(source)
-      base = { enabled: ListeningStorage.enabled?("listenbrainz") }
+      base = { enabled: ListeningStorage.enabled?("listenbrainz"), pollSchedule: ENV.fetch("LISTENBRAINZ_POLL_SCHEDULE", "every 10 minutes") }
       return base.merge(state: "not_connected", account: nil) unless source
 
       base.merge(state: source.state, account: { id: source.external_account_id, displayName: source.display_name },

@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunoutApi } from '../../data/api';
-import { connectedApi, fakeAuthApi, makeSession } from '../../test/fixtures';
+import { connectedApi, fakeAuthApi, fakeSourcesApi, makeSession } from '../../test/fixtures';
 import { location, renderApp } from '../../test/renderApp';
 
 function supportPasskeys() {
@@ -50,12 +50,32 @@ describe('Onboarding', () => {
 
     await user.click(screen.getByRole('button', { name: 'I’ve saved them' }));
     expect(screen.getByRole('link', { name: 'Connect Spotify' })).toHaveAttribute('href', '/api/auth/spotify');
+    expect(await screen.findByLabelText('ListenBrainz user token')).toHaveAttribute('type', 'password');
+    expect(screen.getByText(/Nothing here needs Last.fm or Spotify/)).toBeInTheDocument();
     const disclosure = screen.getByRole('list', { name: 'What to know in this beta' });
     expect(disclosure).toHaveTextContent('sometimes misses one');
     expect(disclosure).toHaveTextContent('can read the database');
     expect(disclosure).toHaveTextContent('daily ones are kept for 30 days, monthly ones for 12 months');
     expect(disclosure).toHaveTextContent('delete your account at any time in Settings');
     await user.click(screen.getByRole('button', { name: 'Skip for now' }));
+    await waitFor(() => expect(location.current).toMatch(/^\/overview/));
+  });
+
+  it('connects ListenBrainz on the welcome page with a token, for someone with no Spotify and no plays', async () => {
+    const user = userEvent.setup();
+    const api = invitedApi();
+    api.auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: false } }), passkeys: [] });
+    const sources = fakeSourcesApi();
+    renderApp({ ...api, sources }, '/welcome');
+    await screen.findByRole('heading', { name: 'Welcome to Runout, Dana.' });
+    const disclosure = await screen.findByRole('list', { name: 'What to know in this beta' });
+    expect(disclosure).toHaveTextContent('ListenBrainz listening history is public');
+    await user.type(await screen.findByLabelText('ListenBrainz user token'), 'lb-token');
+    await user.click(screen.getByRole('button', { name: 'Connect ListenBrainz' }));
+    expect(sources.calls).toContain('connectListenbrainz:lb-token');
+    expect(await screen.findByRole('status')).toHaveTextContent('ListenBrainz is connected as dana_lb');
+    expect(screen.queryByLabelText('ListenBrainz user token')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open your Overview' }));
     await waitFor(() => expect(location.current).toMatch(/^\/overview/));
   });
 
