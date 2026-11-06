@@ -8,13 +8,19 @@ module Listenbrainz
     class InvalidToken < StandardError; end
     class AccountTaken < StandardError; end
 
+    # ListenBrainz user tokens are UUIDs; anything else is refused before it can reach a header.
+    TOKEN = /\A[A-Za-z0-9-]{8,64}\z/
+
     def initialize(client: Client.new, clock: -> { Time.current })
       @client = client
       @clock = clock
     end
 
     def connect!(user:, token:)
-      username = @client.validate_token(token.to_s.strip) or raise InvalidToken, "ListenBrainz did not recognise that token"
+      token = token.to_s.strip
+      raise InvalidToken, "that is not a ListenBrainz token" unless token.match?(TOKEN)
+
+      username = @client.validate_token(token) or raise InvalidToken, "ListenBrainz did not recognise that token"
       ListeningSource.transaction do
         source = ListeningSource.lock.find_by(provider: "listenbrainz", external_account_id: username)
         raise AccountTaken, "this ListenBrainz account is connected to another Runout account" if source && source.user_id != user.id

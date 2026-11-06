@@ -1,7 +1,7 @@
 # A connected provider account that reports plays (docs/spotify-plan.md §2). Credentials are
 # encrypted at rest and never leave the server: the API serialises status, never this record.
 class ListeningSource < ApplicationRecord
-  PROVIDERS = %w[spotify].freeze
+  PROVIDERS = %w[spotify listenbrainz].freeze
   STATES = %w[connected needs_reauth disconnected].freeze
 
   belongs_to :user

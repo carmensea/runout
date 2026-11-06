@@ -55,6 +55,7 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     stub_validate("bad-token")
     connect("bad-token")
     assert_equal [ 422, "invalid_token" ], [ response.status, json["error"] ]
+    assert_requested(:get, VALIDATE, headers: { "Authorization" => "Token bad-token" })
     connect("")
     assert_equal [ 422, "invalid_token" ], [ response.status, json["error"] ]
     Rails.configuration.x.listenbrainz_ingestion_enabled = "false"
@@ -128,11 +129,16 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     assert_equal 0, ListeningSource.count
   end
 
-  test "connection attempts are rate limited per address" do
+  # The controller's rate limit (10 a minute per address) is not exercised here: the test
+  # environment's cache is a null store, so Rails' rate_limit never counts.
+
+  test "a token that is not shaped like one is refused before anything is sent" do
     _, session = invite!("Dana")
     cookies[Authentication::COOKIE_NAME] = session
-    stub_validate("bad")
-    11.times { connect("bad") }
-    assert_equal [ 429, "rate_limited" ], [ response.status, json["error"] ]
+    connect("bad\r\nX-Injected: 1")
+    assert_equal [ 422, "invalid_token" ], [ response.status, json["error"] ]
+    connect("x" * 65)
+    assert_equal [ 422, "invalid_token" ], [ response.status, json["error"] ]
+    assert_not_requested(:get, VALIDATE)
   end
 end
