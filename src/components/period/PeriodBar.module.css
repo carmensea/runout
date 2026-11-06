@@ -175,7 +175,8 @@
   color: var(--fg);
 }
 
-@media (max-width: 1279px) {
+/* Up to 1339: the account menu joined the bar, so 1280 laptops need the compact spacing too. */
+@media (max-width: 1339px) {
   .periodEyebrow {
     display: none;
   }

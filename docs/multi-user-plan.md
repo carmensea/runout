@@ -221,3 +221,42 @@ grows only for the account that listened.
 5. *Resume without duplicates.* After the window the same page is read again and recorded as
    `seen` (unique `source_event_id` per source); the test asserts one play per account and
    `recorded: {seen: 1}` on the resumed poll, with failure counters back to zero.
+
+**PR 4 (branch `pilot-verification`) contains the full-journey verification the owner asked for:**
+invitation → passkey enrolment → recovery codes → Spotify connection → first recorded play →
+returning sign-in → independent account deletion, three ways:
+
+1. `server/test/integration/pilot_journey_test.rb`: the whole journey over HTTP beside the owner's
+   account, with a fake authenticator and a stubbed Spotify: the invitation task and link, passkey
+   enrolment with the ten codes, the link dead afterwards, the OAuth flow binding the source to the
+   invited user, the first poll recording the first play on their account only (search never
+   reaches the owner's plays), returning sign-in with the passkey and with a recovery code (used
+   once), and deletion that leaves the owner's rows and browser session exactly as they were.
+2. The production smoke test (`test/smoke/production`, run by CI on the production image with the
+   fake Spotify and Last.fm): a second account is invited inside the container, redeems its link,
+   is isolated on every answer, cannot take the owner's Spotify account (`account_taken`),
+   connects its own (the stub now answers for a second account), gets its first plays on its own
+   account from the real poll tick, and deletes itself without touching the owner's rows. The
+   container runs with `RUNOUT_PASSKEYS_ENABLED=true`, as production does.
+3. A browser rehearsal on the disposable copy (`runout_loved_check`, headless Chrome with a virtual
+   authenticator): the invitation link opens `/welcome`, every page returns there until a passkey
+   exists, the passkey brings the codes, the source step states the Recently Played gap, "Skip for
+   now" opens the empty Overview with the invited name in the sidebar, sign-out from the account
+   menu, sign-in with the passkey and then with a recovery code (used once), deletion by name, and
+   the owner's copy unchanged before and after (plays, loved songs, passkeys, sources). Script:
+   `server/test/smoke/rehearsal/journey.mjs` (refuses the development and production databases).
+   Run 2026-11-06: 26 checks passed, 0 failed; the copy's 209,605 plays and 859 loved songs
+   unchanged.
+
+One layout fix found by the rehearsal: at 1280 px the period bar overflowed once the account menu
+joined it; the compact spacing now applies up to 1339 px.
+
+**Go-live checklist (each step on the owner's word):**
+1. Merge PR 4; the deploy changes nothing visible for the owner.
+2. Add the tester's Spotify email under User Management in the Spotify dashboard.
+3. `railway ssh -s runout -- bin/rails "auth:invite_link[Name,Area/City]"`; send the link privately
+   with the beta note (ListenBrainz-style public history does not apply; Spotify's Recently Played
+   gap and the owner's access to the database and backups do).
+4. After they connect: `ListeningSource` has their row, their first poll is `ok`, and
+   `Scrobble.group(:user_id).count` grows only for them; the owner's polls continue.
+5. A backup after the first tester's data exists, restore-tested as usual.

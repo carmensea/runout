@@ -21,13 +21,17 @@ def check(name, ok, detail = nil)
   $failures += 1 unless ok
 end
 
-def req(method, path, headers: {}, host: HOST)
+def req(method, path, headers: {}, host: HOST, body: nil)
   Net::HTTP.start(ENV.fetch("APP_ADDRESS", APP), ENV.fetch("APP_PORT", 3000).to_i, read_timeout: 120) do |http|
     klass = { get: Net::HTTP::Get, post: Net::HTTP::Post, delete: Net::HTTP::Delete }.fetch(method)
     request = klass.new(path)
     request["Host"] = host
     request["Cookie"] = $jar.map { |k, v| "#{k}=#{v}" }.join("; ") unless $jar.empty?
     headers.each { |k, v| request[k] = v }
+    if body
+      request["Content-Type"] = "application/json"
+      request.body = body.to_json
+    end
     response = http.request(request)
     (response.get_fields("set-cookie") || []).each do |cookie|
       key, value = cookie.split(";").first.split("=", 2)
@@ -131,6 +135,61 @@ req(:get, "#{start.path}?#{start.query}")
 check("OAuth callback connects", req(:get, "/api/auth/spotify/callback?#{URI.encode_www_form(state: query["state"], code: "c")}")["location"].include?("spotify=connected"))
 check("Spotify tokens encrypted at rest", sql("select count(*) from listening_sources where credentials::text like '%STUB%'") == "0" && sql("select count(*) from listening_sources where credentials is not null") == "1")
 check("Last.fm key encrypted at rest", sql("select count(*) from identities where to_jsonb(identities)::text like '%STUBLASTFM%'") == "0")
+
+# A second, invited, Spotify-only account beside the owner's (docs/multi-user-plan.md §5): the
+# invitation link, isolation on every answer, its own Spotify account, its own plays, and a deletion
+# that leaves the owner untouched. Passkey enrolment needs a browser: the Rails integration test
+# and the rehearsal cover it.
+SAME_ORIGIN = { "Origin" => "https://#{HOST}", "X-Requested-With" => "XMLHttpRequest" }.freeze
+owner_jar = $jar.dup
+invite = docker("exec", APP, "bin/rails", "auth:invite_link[Dana,America/Los_Angeles]")
+link = invite[%r{https://#{HOST}/api/auth/link/[A-Za-z0-9_-]{43}}]
+check("the invitation task prints a single-use link", !link.nil?, invite.lines.first.to_s.strip[0, 120])
+$jar = {}
+response = req(:get, URI(link).path)
+check("the invitation signs in and lands on /welcome", response["location"].to_s.end_with?("/welcome") && $jar.key?("__Host-runout_session"), response["location"])
+check("a used invitation is refused", req(:get, URI(link).path)["location"].to_s.include?("link_invalid"))
+session = JSON.parse(req(:get, "/api/session").body)
+check("the invited account has no passkey, no codes, no Last.fm", session["methods"] == { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, session.to_json)
+check("the invited account's connection is its own, without Last.fm", JSON.parse(req(:get, "/api/connection").body).values_at("status", "displayName") == [ "none", "Dana" ])
+check("the invited account's archive is empty: 409, never the owner's plays", req(:get, "/api/overview").code == "409")
+check("the invited account sees only its own browser session", JSON.parse(req(:get, "/api/sessions").body)["sessions"].size == 1)
+check("the invited account sees no Spotify connection", JSON.parse(req(:get, "/api/listening-sources").body).dig("spotify", "state") == "not_connected")
+start = URI(req(:get, "/api/auth/spotify")["location"])
+authorize = URI(req(:get, "#{start.path}?#{start.query}")["location"])
+query = URI.decode_www_form(authorize.query).to_h
+check("the owner's Spotify account cannot be connected to the invited user",
+      req(:get, "/api/auth/spotify/callback?#{URI.encode_www_form(state: query["state"], code: "c")}")["location"].to_s.include?("spotify_error=account_taken"))
+check("and the owner's source is untouched", sql("select count(*) from listening_sources where external_account_id='stub-account' and state='connected'") == "1")
+File.write("#{STATE}/stub_spotify_account", "stub-dana\n")
+sleep 61 # the OAuth routes allow 10 requests a minute per address, and the owner's flow above used most of them
+start = URI(req(:get, "/api/auth/spotify")["location"])
+authorize = URI(req(:get, "#{start.path}?#{start.query}")["location"])
+query = URI.decode_www_form(authorize.query).to_h
+check("the invited user connects their own Spotify account",
+      req(:get, "/api/auth/spotify/callback?#{URI.encode_www_form(state: query["state"], code: "c")}")["location"].to_s.include?("spotify=connected"))
+File.write("#{STATE}/stub_spotify_account", "stub-account\n")
+dana_id = sql("select id from users where display_name='Dana'")
+check("the invited user's source belongs to them", sql("select count(*) from listening_sources where external_account_id='stub-dana' and user_id='#{dana_id}'") == "1")
+if ENV["INGESTION"] != "false"
+  started = Time.now
+  dana_polls = -> { sql("select count(*) from listening_polls p join listening_sources s on s.id = p.listening_source_id where s.external_account_id='stub-dana' and p.outcome='ok'").to_i }
+  sleep 2 until dana_polls.call.positive? || Time.now - started > 420
+  check("the invited user's first poll runs", dana_polls.call.positive?, "#{(Time.now - started).round}s")
+  dana_plays = sql("select count(*) from scrobbles where user_id='#{dana_id}'").to_i
+  check("the invited user's first plays are recorded on their account", dana_plays.positive?, dana_plays)
+  check("every one of them is theirs, through their own source", sql("select count(*) from listening_observations o join listening_sources s on s.id = o.listening_source_id where o.user_id='#{dana_id}' and s.user_id<>'#{dana_id}'") == "0")
+  check("the invited user's Overview opens on their own plays", req(:get, "/api/overview?period=all").code == "200")
+  check("the owner's plays never carry the invited user's id", sql("select count(*) from scrobbles where user_id='#{dana_id}' and source<>'spotify'") == "0")
+end
+owner_before = %w[scrobbles listening_observations listening_sources sessions identities].to_h { |t| [ t, sql("select count(*) from #{t} where user_id<>'#{dana_id}'") ] }
+check("deleting the invited account needs the right name", req(:delete, "/api/account", headers: SAME_ORIGIN, body: { confirm_name: "someone" }).code == "422")
+check("the invited user deletes their own account", req(:delete, "/api/account", headers: SAME_ORIGIN, body: { confirm_name: "Dana" }).code == "200")
+check("nothing of theirs remains", %w[users scrobbles listening_observations listening_sources listening_polls sessions sign_in_links].all? { |t| sql("select count(*) from #{t} where #{t == 'users' ? 'id' : 'user_id'}='#{dana_id}'") == "0" })
+owner_after = %w[scrobbles listening_observations listening_sources sessions identities].to_h { |t| [ t, sql("select count(*) from #{t} where user_id<>'#{dana_id}'") ] }
+check("the owner's rows are exactly as before", owner_before == owner_after, "#{owner_before} #{owner_after}")
+$jar = owner_jar
+check("the owner is still signed in", req(:get, "/api/listening-sources").code == "200")
 
 if ENV["INGESTION"] == "false"
   sleep 75
