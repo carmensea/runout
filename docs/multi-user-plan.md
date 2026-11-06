@@ -179,3 +179,45 @@ Send the printed link to the person over a private channel with the beta note. I
 hours and works once. If it expires unopened, run the task again with the same name. Before they
 connect Spotify, add their Spotify email under User Management in the Spotify dashboard
 (Development Mode, 5 users).
+
+**PR 3 (branch `multi-user-spotify`) contains:** the tick spreads the accounts' polls evenly across
+its five minutes (one account polls at once, as before); `multi_user_polling_test.rb` proves, with
+two accounts against a stubbed Spotify: the stagger and that paused and re-auth accounts are left
+out; a refused refresh token stops one account only (its owner is told through `attention`, the
+other keeps polling and its plays); a 429 or 403 backs one account off while the other polls on
+and nothing is added twice; every play belongs to the account whose source reported it, even the
+same track at the same second, never linked across accounts; a Spotify account bound to one Runout
+user cannot be connected to another. Nothing else changes: the existing OAuth flow, token
+encryption, per-source cursor and status, and the shared pacer already work per account.
+
+**Runbook additions (with the owner's approval only):** before a tester connects Spotify, add their
+Spotify email under User Management in the Spotify dashboard (Development Mode, 5 users); after
+they connect, confirm over `railway ssh` that `ListeningSource` has one row per account with its
+own `high_water_at`, that each account's polls are `ok`, and that `Scrobble.group(:user_id).count`
+grows only for the account that listened.
+
+**Rate-limit review (owner's question before merging PR 3), with evidence:**
+1. *401 or 403 affect one account only.* `Spotify::Poller#fail!` writes the polled source alone
+   (`last_poll_at`, `consecutive_failures`, `last_error`, `next_poll_at`); a 401 triggers one
+   refresh for that source (`Account#with_token`), and a refused refresh marks that source
+   `needs_reauth` and clears only its credentials. Tests: `poller_test.rb` ("401 even after
+   refreshing", "403 waits an hour", "refused refresh"), `multi_user_polling_test.rb` ("refused
+   refresh token stops only that account", "a rate limit or a 403 on one account").
+2. *A standard 429 is respected across accounts.* `Spotify::Client#check!` cools the shared pacer
+   (`api_request_slots`, key `spotify`) down for Retry-After (capped at an hour), and every
+   account's next request goes through `reserve!` on that same row: a worker that would wait
+   longer than `MAX_WAIT` (120 s) gets `rate_limited` for that account at once with `next_poll_at`
+   set to the pause and makes no request; a shorter wait is simply waited. Sync now cannot
+   override it (`BINDING`). Test: "a standard 429 on one account holds every account".
+3. *`QUOTA_EXCEEDED` is recognised* (`reason` in the 429 body, `Error::QuotaExceeded`), the
+   polled account waits at least an hour, Sync now cannot override it. **Fix in this PR:** the
+   shared cool-down for an exhausted quota is now at least an hour too (`Client::QUOTA_COOL_DOWN`),
+   so the other accounts wait it out instead of each spending a request to learn the same answer.
+   Tests: "an exhausted developer quota waits at least an hour" (single), "an exhausted developer
+   quota on one account holds every account" (two accounts).
+4. *A shared pause never touches cursors, status or history.* `fail!` never writes `high_water_at`,
+   `covered_from`, `plays_added` or `state`; `finish_ok!` runs only on a successful read. The
+   two-account 429 test asserts those columns and the play count unchanged.
+5. *Resume without duplicates.* After the window the same page is read again and recorded as
+   `seen` (unique `source_event_id` per source); the test asserts one play per account and
+   `recorded: {seen: 1}` on the resumed poll, with failure counters back to zero.

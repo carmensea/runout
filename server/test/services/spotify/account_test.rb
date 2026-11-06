@@ -104,7 +104,7 @@ class Spotify::AccountTest < ActiveSupport::TestCase
     e = assert_raises(Spotify::Error::Forbidden) { client.recently_played("secret-token") }
     assert_equal "Spotify answered HTTP 403: Insufficient client scope", e.message
     e = assert_raises(Spotify::Error::RateLimited) { client.recently_played("secret-token") }
-    assert_equal [ 17, "QUOTA_EXCEEDED", [ 17 ] ], [ e.retry_after, e.reason, cooled ]
+    assert_equal [ 17, "QUOTA_EXCEEDED", [ 3600 ] ], [ e.retry_after, e.reason, cooled ], "an exhausted quota holds every account for the quota wait, whatever Retry-After says"
     assert_raises(Spotify::Error::Unavailable) { client.recently_played("secret-token") }
     stub_request(:get, url).to_timeout
     e = assert_raises(Spotify::Error::Unavailable) { client.recently_played("secret-token") }
