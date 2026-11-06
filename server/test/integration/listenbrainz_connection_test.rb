@@ -46,7 +46,7 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     source = ListeningSource.find_by!(provider: "listenbrainz", external_account_id: "dana_lb")
     assert_nil source.credentials, "the token is discarded after verification"
     assert_requested(:get, VALIDATE, headers: { "User-Agent" => Listenbrainz::Client.user_agent })
-    assert_includes Rails.application.config.filter_parameters, :token, "the request parameter never reaches the logs"
+    assert_equal "[FILTERED]", ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters).filter("token" => "lb-secret-token")["token"], "the request parameter never reaches the logs"
   end
 
   test "an invalid token, an empty token, and the flag being off are refused without creating anything" do
@@ -87,8 +87,8 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
   test "disconnecting keeps the plays; reconnecting reuses the same source" do
     dana, session = invite!("Dana")
     cookies[Authentication::COOKIE_NAME] = session
-    stub_validate("t1", user_name: "dana_lb")
-    connect("t1")
+    stub_validate("lb-token-1", user_name: "dana_lb")
+    connect("lb-token-1")
     source = ListeningSource.sole
     play = ListeningStorage.writing_for("listenbrainz") { scrobble(dana, at: Time.utc(2026, 11, 1, 12), variant: variant(track: "Kept", artist: "Band")) }
     play.update!(source: "listenbrainz")
@@ -108,8 +108,8 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     post "/api/listening-sources/listenbrainz/disconnect", headers: same_origin_headers
     assert_response :not_found
 
-    stub_validate("t2", user_name: "dana_lb")
-    connect("t2")
+    stub_validate("lb-token-2", user_name: "dana_lb")
+    connect("lb-token-2")
     assert_response :ok
     assert_equal 1, ListeningSource.count, "the same source, reconnected"
     assert_equal [ "connected", nil ], source.reload.values_at(:state, :disconnected_at)
@@ -120,11 +120,11 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     _, session = invite!("Dana")
     cookies[Authentication::COOKIE_NAME] = session
     stub_request(:get, VALIDATE).to_return(status: 429, headers: { "Retry-After" => "30" }, body: "")
-    connect("t")
+    connect("lb-token-x")
     assert_equal [ 429, "rate_limited" ], [ response.status, json["error"] ]
     assert json["retryAfter"].present?
     stub_request(:get, VALIDATE).to_return(status: 503, body: "")
-    connect("t")
+    connect("lb-token-x")
     assert_equal [ 503, "unavailable" ], [ response.status, json["error"] ]
     assert_equal 0, ListeningSource.count
   end
