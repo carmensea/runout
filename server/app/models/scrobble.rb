@@ -3,7 +3,7 @@
 class Scrobble < ApplicationRecord
   include HistoryStorage
 
-  SOURCES = %w[lastfm spotify].freeze
+  SOURCES = %w[lastfm spotify listenbrainz].freeze
 
   belongs_to :user
   belongs_to :name_variant
