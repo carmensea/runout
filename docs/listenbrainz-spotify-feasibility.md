@@ -1,7 +1,8 @@
 # ListenBrainz as a universal listening source: feasibility, experiment, architecture, PRs
 
 Written 2026-11-06 from ListenBrainz's source and documentation and Spotify's documentation, before
-any implementation. **No code until the experiment in §3 has run and the owner approves §5.** The
+any implementation. **Approved by the owner 2026-11-06 with the refinements in §8. No code until the
+experiment in §3 has run and the owner authorises the implementation.** The
 earlier plan (`docs/listenbrainz-plan.md`) still describes the ListenBrainz source itself; this
 file settles the Spotify-through-ListenBrainz path and the parts the owner reprioritised:
 YouTube Music device testing no longer blocks ListenBrainz development.
@@ -176,3 +177,47 @@ Estimates: A one day, B one and a half, C one, D one, E one, F half a day with t
 5. Ask MetaBrainz, by email, two things: whether a listens-read OAuth scope is planned, and that
    their position on Spotify-imported listens being open data covers third-party readers. Proposed:
    yes, in parallel, not blocking A–E.
+
+## 8. Owner's approval (2026-11-06) and refinements
+
+All five decisions in §7 approved. Two refinements that bind PRs A–D:
+
+- **Token minimisation.** The ListenBrainz token is used once, to verify ownership
+  (`validate-token` → `user_name`), and is then discarded: incremental polling reads public listens
+  without a token. The source stores the verified username and the ownership binding only. The
+  token is kept, encrypted, solely for a feature that needs it (the export-API backfill, §4.4),
+  and that feature asks for it in its own step; Runout will say what it keeps and why. Polling
+  without a token is subject to the lower anonymous rate limit, which one request a second
+  respects anyway.
+- **Deduplication.** ListenBrainz stores `listened_at` to the second; Runout's Spotify observations
+  carry milliseconds. The exact rule in §4.3 therefore compares the Spotify track id and the
+  timestamps *truncated to the second*, one-to-one (an observation links to at most one play, and
+  a play gains at most one observation per provider), with the provenance kept on both sides.
+  Anything short of that evidence goes through the existing name-and-window rule, and anything
+  ambiguous goes to review. Nothing ambiguous and no genuine same-second repeat is ever removed.
+
+Also from the owner: ListenBrainz's Spotify capacity is not to be assumed unlimited because no cap
+is documented; the MetaBrainz outreach asks about it. The outreach (in parallel, not blocking):
+approval for the `listenbrainz:connect-services` OAuth scope if it exists for third parties, any
+supported read-only account-linking authorisation, the use of Spotify-derived listens in Runout's
+private analytics and independent history store, and any restrictions or planned changes.
+
+## 9. Experiment checklist (for a Spotify user not on Runout's allowlist)
+
+About twenty minutes. Nothing from Runout is involved; the owner only looks at a public page.
+
+1. Go to listenbrainz.org and create an account (it signs you up at metabrainz.org). Note: your
+   ListenBrainz listening history is public.
+2. On listenbrainz.org open **Settings → Music services**. Under Spotify choose **Record
+   listening history** and approve on Spotify's consent screen.
+3. On Spotify, play three songs all the way through. Play one of them twice in a row.
+4. Wait ten minutes.
+5. Send the owner your ListenBrainz username. The owner opens
+   `https://api.listenbrainz.org/1/user/<username>/listens?count=10` and checks: four listens,
+   each with `track_name`, `artist_name`, `listened_at`, `additional_info.music_service` equal to
+   `spotify.com`, `submission_client` equal to `listenbrainz`, a `spotify_id`, a `duration_ms`;
+   the repeated song listed twice with different `listened_at`.
+6. Optional: disconnect Spotify from ListenBrainz afterwards if you do not want it kept.
+
+A missing song is Spotify's Recently Played gap, expected. Anything else missing, or no listens
+at all after twenty minutes, is the result to report.
