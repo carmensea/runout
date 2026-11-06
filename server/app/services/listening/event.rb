@@ -25,6 +25,8 @@ module Listening
     "spotify_played_at" => { meaning: "Spotify played_at (documented as when the track was played; believed to be the end of playback)" },
     # ListenBrainz listens from scrobblers (Pano, Web Scrobbler): when the track started, to the
     # second. Cross-provider linking for start times arrives with its own rule (plan §4.3, PR C).
-    "listen_started_at" => { meaning: "start of the play, second precision, as the scrobbler submitted it" }
+    "listen_started_at" => { meaning: "start of the play, second precision, as the scrobbler submitted it" },
+    # A ListenBrainz listen from a client whose timestamp convention is not known: kept as submitted.
+    "listenbrainz_listened_at" => { meaning: "ListenBrainz listened_at as submitted; start or end of play unknown, see context submission_client" }
   }.freeze
 end

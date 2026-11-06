@@ -156,12 +156,20 @@ class Listenbrainz::PollerTest < ActiveSupport::TestCase
     assert_equal 0, HistoryImport::Attention.for(erin)[:account]
   end
 
-  test "same-second listens of different tracks are two plays, and nothing is stored while the flag is off" do
+  test "same-second listens of different tracks are two plays, the same track twice in one second is one, and nothing is stored while the flag is off" do
     a = LISTENS[0]
     b = LISTENS[1].merge("listened_at" => a["listened_at"])
     stub_listens("dana_lb", [ a, b ])
     assert_equal 2, poll!.poll.recorded["created"]
     assert_equal [ 0, 1 ], Scrobble.where(user: @dana).order(:seq).pluck(:seq)
+
+    # Documented limitation: ListenBrainz keeps one listen per user, second and recording_msid (derived
+    # from the names), so an identical pair is already one listen there; were it ever served, Runout
+    # would keep one play, not two.
+    stub_listens("dana_lb", [ a, a.merge("recording_msid" => "another-msid") ])
+    @now = T + 10.minutes
+    assert_equal({ seen: 2 }, poll!.poll.recorded.symbolize_keys)
+    assert_equal 2, Scrobble.where(user: @dana).count
 
     Rails.configuration.x.listenbrainz_ingestion_enabled = "false"
     assert_equal :skipped, poll!.status

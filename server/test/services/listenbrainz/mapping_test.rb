@@ -42,6 +42,14 @@ class Listenbrainz::MappingTest < ActiveSupport::TestCase
                  [ e.provider_track_id, e.provider_album_id, e.provider_artist_ids, e.isrc, e.duration_ms ]
   end
 
+  test "a client with no known timestamp convention keeps listened_at as submitted, meaning unknown" do
+    listen = LISTENS[0].deep_dup
+    listen["track_metadata"]["additional_info"]["submission_client"] = "SomeOtherScrobbler"
+    e = Listenbrainz::Mapping.event(listen)
+    assert_equal [ "listenbrainz_listened_at", "1760000000", "SomeOtherScrobbler" ], [ e.timestamp_kind, e.reported_at_raw, e.context["submission_client"] ]
+    assert_equal "listen_started_at", Listenbrainz::Mapping.event(LISTENS[8]).timestamp_kind, "Pano Scrobbler"
+  end
+
   test "a listen without names or a time is malformed" do
     assert_raises(Listenbrainz::Mapping::Malformed) { Listenbrainz::Mapping.event({ "listened_at" => 1, "track_metadata" => { "artist_name" => "A" } }) }
     assert_raises(Listenbrainz::Mapping::Malformed) { Listenbrainz::Mapping.event({ "track_metadata" => { "artist_name" => "A", "track_name" => "T" } }) }

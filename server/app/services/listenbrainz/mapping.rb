@@ -8,6 +8,9 @@ module Listenbrainz
     class Malformed < StandardError; end
 
     SPOTIFY_URL = %r{\Ahttps?://open\.spotify\.com/(?:track|album|artist)/([A-Za-z0-9]+)}
+    # Scrobblers documented to submit the moment playback started (Last.fm semantics). Any other
+    # client's `listened_at` is kept as submitted with its meaning unknown: PR C reconciles kinds.
+    START_TIME_CLIENTS = [ "Web Scrobbler", "Pano Scrobbler" ].freeze
 
     module_function
 
@@ -22,15 +25,18 @@ module Listenbrainz
 
       info = meta["additional_info"].is_a?(Hash) ? meta["additional_info"] : {}
       release = meta["release_name"].to_s
-      from_spotify = info["music_service"].to_s == "spotify.com" && info["submission_client"].to_s == "listenbrainz"
       Listening::Event.new(
         provider: "listenbrainz",
-        # Second plus the submitted names: two plays of one recording cannot share a second, and
-        # the same play reported again (or re-mapped by ListenBrainz) keeps its id. Never the msid.
+        # Second plus the submitted names: repeats at different seconds and different tracks in one
+        # second are distinct; the same play reported again (or re-mapped by ListenBrainz) keeps its
+        # id. Never the msid. Limitation: one track reported twice in the same second collapses to
+        # one play here. ListenBrainz itself keeps one listen per user, second and recording_msid
+        # (the id it derives from the submitted names: listenbrainz-server's unique index
+        # listened_at_user_id_recording_msid_ndx_listen), so such a pair is already one listen
+        # there and cannot be told apart by anyone reading the public API.
         source_event_id: "#{listened_at}:#{Digest::SHA1.hexdigest("#{artist}\n#{track}\n#{release}")[0, 16]}",
         reported_at: Time.at(listened_at).utc, reported_at_raw: listened_at.to_s,
-        # ListenBrainz's own Spotify import stores Spotify's played_at verbatim; scrobblers submit the start.
-        timestamp_kind: from_spotify ? "spotify_played_at" : "listen_started_at",
+        timestamp_kind: timestamp_kind(info),
         duration_ms: duration_ms(info),
         artist_name: artist, track_name: track, album_name: release,
         provider_track_id: spotify_id(info["spotify_id"]), provider_album_id: spotify_id(info["spotify_album_id"]),
@@ -38,6 +44,17 @@ module Listenbrainz
         isrc: info["isrc"].presence,
         context: context(listen, info, meta["mbid_mapping"])
       )
+    end
+
+    # What `listened_at` means depends on who submitted it: ListenBrainz's own Spotify import copies
+    # Spotify's played_at (end of play); known scrobblers submit the start; anything else is kept as
+    # submitted with the client named in the context, its meaning decided in PR C, not here.
+    def timestamp_kind(info)
+      client = info["submission_client"].to_s
+      return "spotify_played_at" if info["music_service"].to_s == "spotify.com" && client == "listenbrainz"
+      return "listen_started_at" if START_TIME_CLIENTS.any? { |c| client.downcase.start_with?(c.downcase) }
+
+      "listenbrainz_listened_at"
     end
 
     # Scrobblers send `duration` in seconds, ListenBrainz's Spotify import `duration_ms`.
