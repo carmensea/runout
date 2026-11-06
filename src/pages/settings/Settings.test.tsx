@@ -255,6 +255,54 @@ describe('Settings: review', () => {
   });
 });
 
+describe('Settings: ListenBrainz', () => {
+  it('connects with a token that is checked once and never shown, then disconnects keeping plays', async () => {
+    const user = userEvent.setup();
+    const sources = fakeSourcesApi();
+    renderApp({ ...connectedApi(), sources }, '/settings#sources');
+    const panel = await screen.findByRole('region', { name: 'ListenBrainz' });
+    expect(panel).toHaveTextContent('Your ListenBrainz listening history is public');
+    const input = within(panel).getByLabelText('ListenBrainz user token');
+    expect(input).toHaveAttribute('type', 'password');
+    expect(within(panel).getByRole('button', { name: 'Connect ListenBrainz' })).toBeDisabled();
+    await user.type(input, ' lb-token ');
+    await user.click(within(panel).getByRole('button', { name: 'Connect ListenBrainz' }));
+    expect(sources.calls).toContain('connectListenbrainz:lb-token');
+    await waitFor(() => expect(panel).toHaveTextContent('dana_lb'));
+    expect(panel).not.toHaveTextContent('lb-token');
+    await user.click(within(panel).getByRole('button', { name: 'Disconnect ListenBrainz' }));
+    expect(within(panel).getByText(/Plays already stored stay/)).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Disconnect' }));
+    expect(sources.calls).toContain('disconnectListenbrainz');
+    await waitFor(() => expect(panel).toHaveTextContent('Disconnected'));
+    expect(within(panel).getByRole('button', { name: 'Connect ListenBrainz again' })).toBeInTheDocument();
+  });
+
+  it('explains a refused token and an account already taken', async () => {
+    const user = userEvent.setup();
+    const sources = fakeSourcesApi();
+    sources.connectListenbrainz = async (token) => {
+      throw new ApiError(token === 'taken' ? 409 : 422, 'refused', token === 'taken' ? 'account_taken' : 'invalid_token');
+    };
+    renderApp({ ...connectedApi(), sources }, '/settings#sources');
+    const panel = await screen.findByRole('region', { name: 'ListenBrainz' });
+    await user.type(within(panel).getByLabelText('ListenBrainz user token'), 'nope');
+    await user.click(within(panel).getByRole('button', { name: 'Connect ListenBrainz' }));
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('didn’t recognise that token');
+    await user.clear(within(panel).getByLabelText('ListenBrainz user token'));
+    await user.type(within(panel).getByLabelText('ListenBrainz user token'), 'taken');
+    await user.click(within(panel).getByRole('button', { name: 'Connect ListenBrainz' }));
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('already connected to another Runout account');
+  });
+
+  it('is absent while the server has ListenBrainz switched off', async () => {
+    const sources = fakeSourcesApi({ ...makeSources(), listenbrainz: { enabled: false, state: 'not_connected', account: null } });
+    renderApp({ ...connectedApi(), sources }, '/settings#sources');
+    await screen.findByRole('region', { name: 'Listening sources' });
+    expect(screen.queryByRole('region', { name: 'ListenBrainz' })).not.toBeInTheDocument();
+  });
+});
+
 describe('Settings: tabs', () => {
   it('opens the tab the hash names, keeps it when the period is written, and puts the chosen tab in the hash', async () => {
     const user = userEvent.setup();

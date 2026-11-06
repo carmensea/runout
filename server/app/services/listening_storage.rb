@@ -19,6 +19,7 @@ module ListeningStorage
     case provider.to_s
     when "lastfm" then HistoryImport.enabled?
     when "spotify" then ENABLED_VALUES.include?(Rails.configuration.x.spotify_ingestion_enabled.to_s.strip.downcase)
+    when "listenbrainz" then ENABLED_VALUES.include?(Rails.configuration.x.listenbrainz_ingestion_enabled.to_s.strip.downcase)
     when "lastfm_loved" then ENABLED_VALUES.include?(Rails.configuration.x.lastfm_loved_import_enabled.to_s.strip.downcase)
     else false
     end

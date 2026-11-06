@@ -5,7 +5,9 @@ module Api
     SYNC_INTERVAL = 1.minute
 
     require_authentication
-    before_action :find_spotify, except: %i[index reviews decide]
+    before_action :find_spotify, except: %i[index reviews decide connect_listenbrainz disconnect_listenbrainz]
+    # Token attempts are bounded: a token is a secret somebody could guess at.
+    rate_limit to: 10, within: 1.minute, only: :connect_listenbrainz, with: -> { render json: { error: "rate_limited" }, status: :too_many_requests }
 
     def index
       render json: Listening::SourceStatus.for(Current.user)
@@ -37,6 +39,30 @@ module Api
 
     def resume
       @source.update!(paused_at: nil, next_poll_at: nil)
+      render json: Listening::SourceStatus.for(Current.user)
+    end
+
+    # POST /api/listening-sources/listenbrainz { token }: verifies the token once with ListenBrainz,
+    # binds the username to this account, and forgets the token (Listenbrainz::Account).
+    def connect_listenbrainz
+      return render(json: { error: "ingestion_disabled" }, status: :conflict) unless ListeningStorage.enabled?("listenbrainz")
+      return render(json: { error: "invalid_token" }, status: :unprocessable_content) if params[:token].to_s.strip.empty?
+
+      Listenbrainz::Account.new.connect!(user: Current.user, token: params[:token])
+      render json: Listening::SourceStatus.for(Current.user)
+    rescue Listenbrainz::Account::InvalidToken then render json: { error: "invalid_token" }, status: :unprocessable_content
+    rescue Listenbrainz::Account::AccountTaken then render json: { error: "account_taken" }, status: :conflict
+    rescue Listenbrainz::Error::RateLimited => e then render json: { error: "rate_limited", retryAfter: (Time.current + e.retry_after).iso8601 }, status: :too_many_requests
+    rescue Listenbrainz::Error => e
+      Rails.logger.warn("ListenBrainz connection failed: #{e.class.name} #{e.message}")
+      render json: { error: "unavailable" }, status: :service_unavailable
+    end
+
+    def disconnect_listenbrainz
+      source = Current.user.listening_sources.where(provider: "listenbrainz").where.not(state: "disconnected").order(:id).last
+      return render(json: { error: "not_connected" }, status: :not_found) unless source
+
+      Listenbrainz::Account.new.disconnect!(source)
       render json: Listening::SourceStatus.for(Current.user)
     end
 

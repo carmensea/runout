@@ -66,6 +66,10 @@ export interface SourcesApi {
   reviews(signal?: AbortSignal): Promise<ListeningReviewItem[]>;
   /** Same play as a stored one (`scrobbleId`), or a separate play. Returns what is left to review. */
   decide(id: number, decision: { link: number } | 'separate'): Promise<ListeningReviewItem[]>;
+  /** Verifies the token with ListenBrainz once and binds the username; the token is not kept. ApiError codes: invalid_token, account_taken, ingestion_disabled, rate_limited, unavailable. */
+  connectListenbrainz(token: string): Promise<ListeningSources>;
+  /** Forgets the connection. Plays already stored stay. */
+  disconnectListenbrainz(): Promise<ListeningSources>;
 }
 
 export interface HistoryApi {
@@ -275,6 +279,8 @@ export function createHttpApi(baseUrl: string): RunoutApi {
         const body = decision === 'separate' ? {} : { scrobble_id: decision.link };
         return (await post<{ items: ListeningReviewItem[] }>(path, body)).items;
       },
+      connectListenbrainz: (token) => post<ListeningSources>('/listening-sources/listenbrainz', { token }),
+      disconnectListenbrainz: () => post<ListeningSources>('/listening-sources/listenbrainz/disconnect'),
     },
   };
 }
@@ -300,6 +306,8 @@ export const noSourcesApi: SourcesApi = {
   resumeSpotify: notConnected,
   reviews: notConnected,
   decide: notConnected,
+  connectListenbrainz: notConnected,
+  disconnectListenbrainz: notConnected,
 };
 
 /** Runout's own sign-in when there is no server: switched off, every call says so. */

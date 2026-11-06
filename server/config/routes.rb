@@ -13,6 +13,8 @@ Rails.application.routes.draw do
     post "listening-sources/spotify/sync", to: "listening_sources#sync", as: :spotify_sync
     post "listening-sources/spotify/pause", to: "listening_sources#pause", as: :spotify_pause
     post "listening-sources/spotify/resume", to: "listening_sources#resume", as: :spotify_resume
+    post "listening-sources/listenbrainz", to: "listening_sources#connect_listenbrainz", as: :listenbrainz_connect
+    post "listening-sources/listenbrainz/disconnect", to: "listening_sources#disconnect_listenbrainz", as: :listenbrainz_disconnect
     get "listening-sources/reviews", to: "listening_sources#reviews", as: :listening_reviews
     post "listening-sources/reviews/:id/:decision", to: "listening_sources#decide", as: :listening_review_decision,
                                                     constraints: { id: /\d+/, decision: /link|separate/ }

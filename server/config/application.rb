@@ -74,6 +74,9 @@ module Runout
     # Storing plays reported by Spotify (ListeningStorage, docs/spotify-plan.md). Off unless exactly
     # "true" or "1"; connecting an account and read-only checks don't need it.
     config.x.spotify_ingestion_enabled = ENV.fetch("SPOTIFY_INGESTION_ENABLED", "false")
+    # ListenBrainz as a listening source (docs/listenbrainz-spotify-feasibility.md): off unless "true"
+    # or "1". While off, accounts cannot be connected and nothing is read or stored.
+    config.x.listenbrainz_ingestion_enabled = ENV.fetch("LISTENBRAINZ_INGESTION_ENABLED", "false")
     # Importing the Last.fm loved list (Loved::Import, docs/loved-songs.md): off unless "true" or "1",
     # set for the one command that runs it. Nothing else writes Last.fm data.
     config.x.lastfm_loved_import_enabled = ENV.fetch("LASTFM_LOVED_IMPORT_ENABLED", "false")

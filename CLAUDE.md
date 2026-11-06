@@ -74,6 +74,10 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   `LASTFM_LOVED_IMPORT_ENABLED=true bin/rails loved:import` on Railway. It's done (2026-11-04, 859 songs):
   the flag is off again. It stores no plays and edits no scrobble, variant or catalogue link. Not a
   recurring refresh, not another run, not writes to Last.fm: each needs approval.
+- **ListenBrainz stays off until the owner switches it on.** `LISTENBRAINZ_INGESTION_ENABLED` is off in
+  every environment; while off, no ListenBrainz account can be connected and nothing is read or stored.
+  Connecting verifies the user's token once and discards it (`docs/listenbrainz-spotify-feasibility.md` §8).
+  Don't switch it on in production, or connect a real account, without the owner's explicit approval.
 - **Last.fm sync needs the reverse matching rule first.** Before Last.fm sync or import is ever
   switched on again, a Last.fm play matching a stored Spotify play must be linked, not inserted
   (`docs/spotify-plan.md` §5).

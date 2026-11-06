@@ -521,6 +521,20 @@ export interface ListeningSources {
   /** Last.fm: the historical archive. */
   lastfm: { role: 'archive'; connected: boolean; username: string | null };
   spotify: SpotifySource;
+  listenbrainz: ListenbrainzSource;
+}
+
+/** A ListenBrainz account: a verified username, no token kept. Absent from the UI while `enabled` is false. */
+export interface ListenbrainzSource {
+  enabled: boolean;
+  state: 'not_connected' | 'connected' | 'needs_reauth' | 'disconnected';
+  account: { id: string; displayName: string } | null;
+  connectedAt?: string;
+  disconnectedAt?: string | null;
+  lastSuccessAt?: string | null;
+  playsAdded?: number;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
 }
 
 export interface SpotifySource {

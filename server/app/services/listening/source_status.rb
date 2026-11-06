@@ -9,10 +9,23 @@ module Listening
 
     def for(user)
       source = user.listening_sources.spotify.order(Arel.sql("state = 'disconnected'"), updated_at: :desc).first
+      lb = user.listening_sources.where(provider: "listenbrainz").order(Arel.sql("state = 'disconnected'"), updated_at: :desc).first
       {
         lastfm: { role: "archive", connected: user.lastfm_identity.present?, username: user.lastfm_identity&.username },
-        spotify: spotify(source)
+        spotify: spotify(source),
+        listenbrainz: listenbrainz(lb)
       }
+    end
+
+    # The ListenBrainz connection: a verified username, never a token (there is none to show).
+    def listenbrainz(source)
+      base = { enabled: ListeningStorage.enabled?("listenbrainz") }
+      return base.merge(state: "not_connected", account: nil) unless source
+
+      base.merge(state: source.state, account: { id: source.external_account_id, displayName: source.display_name },
+                 connectedAt: source.connected_at.iso8601, disconnectedAt: source.disconnected_at&.iso8601,
+                 lastSuccessAt: source.last_success_at&.iso8601, playsAdded: source.plays_added,
+                 lastError: source.last_error, lastErrorAt: source.last_error_at&.iso8601)
     end
 
     def spotify(source)
