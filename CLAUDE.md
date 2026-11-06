@@ -103,6 +103,26 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
 Don't modify Homebrew, the PostgreSQL installation, or unrelated local configuration without
 asking. Ruby is 3.4.7 via chruby (`source /usr/local/share/chruby/chruby.sh && chruby ruby-3.4.7`).
 
+## Working trees (one per task, one per session)
+
+Two Claude sessions must never share a working tree: on 2026-11-05 a checkout in one moved the
+branch under another. The primary checkout `~/projects/runout` stays on `main` and is the owner's
+console (pull, review, merge, worktree admin); task work happens in a git worktree of its own.
+
+- **Create** one worktree per task, named after its branch, outside the primary:
+  `git -C ~/projects/runout fetch origin && git -C ~/projects/runout worktree add ~/projects/runout-worktrees/<task> -b <task> origin/main`.
+- **Prepare** it once: copy `.env`, `server/.env` and `server/tmp/local_secret.txt` from the primary
+  (git-ignored; the secret file keeps development encryption keys the same), run `npm ci`. Gems are
+  shared through chruby. Link the project memory so the session sees it:
+  `mkdir -p ~/.claude/projects/-Users-carmen-projects-runout-worktrees-<task> && ln -sfn ~/.claude/projects/-Users-carmen-projects-runout/memory ~/.claude/projects/-Users-carmen-projects-runout-worktrees-<task>/memory`.
+- **Launch** the session inside it: `cd ~/projects/runout-worktrees/<task> && claude`. Sessions are
+  named after the folder. `git checkout main` fails there by design (main is checked out in the primary).
+- **Background tasks never run `git checkout` or `git pull`.** Merge with `gh pr merge`, verify with
+  `git fetch` and `git log origin/main`. Confirm `git branch --show-current` before every commit.
+- **Databases are shared.** Every worktree uses the same PostgreSQL 17 server and `runout_test`; run
+  one backend suite at a time. Local servers need their own `PORT`.
+- **Remove** after the PR merges: `git -C ~/projects/runout worktree remove ~/projects/runout-worktrees/<task>`.
+
 ## Checks before committing
 
 - Frontend (repo root): `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
