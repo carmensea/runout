@@ -107,6 +107,11 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
 Don't modify Homebrew, the PostgreSQL installation, or unrelated local configuration without
 asking. Ruby is 3.4.7 via chruby (`source /usr/local/share/chruby/chruby.sh && chruby ruby-3.4.7`).
 
+**Runout's database is the PostgreSQL 17 cluster in `~/.local`** (`~/.local/postgresql-17/bin`, data
+`~/.local/var/postgresql-17`), started by hand with the command in `docs/real-import-runbook.md`; it
+does not start by itself after a reboot. Homebrew's `postgresql@14` cluster belongs to other projects:
+never start it on port 5432, use it, or modify it for Runout.
+
 ## Checks before committing
 
 - Frontend (repo root): `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.

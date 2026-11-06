@@ -4,7 +4,7 @@ module Listenbrainz
   # The ListenBrainz API (docs/listenbrainz-spotify-feasibility.md §2): one request a second through
   # the shared pacer (api_request_slots, key "listenbrainz"), a User-Agent naming the app, and the
   # rate-limit headers honoured. The user's token goes in the Authorization header only, is never
-  # logged, and in PR A is used for exactly one call: validate-token.
+  # logged, and is used for exactly one call: validate-token. Listens are read without a token.
   class Client
     API = "https://api.listenbrainz.org/1".freeze
     DEFAULT_INTERVAL = 1.0 # seconds between requests, as the API documentation asks
@@ -19,6 +19,18 @@ module Listenbrainz
     def validate_token(token)
       data = get("/validate-token", token: token)
       data["valid"] == true ? data["user_name"].to_s.presence : nil
+    end
+
+    # A user's public listens, newest first: those strictly before `max_ts` and strictly after
+    # `min_ts` (Unix seconds), at most `count` (ListenBrainz allows up to 1000). No token needed.
+    def listens(user_name, max_ts: nil, min_ts: nil, count: 100)
+      query = { max_ts: max_ts, min_ts: min_ts, count: count }.compact
+      data = get("/user/#{ERB::Util.url_encode(user_name)}/listens?#{URI.encode_www_form(query)}")
+      Array(data.dig("payload", "listens"))
+    end
+
+    def listen_count(user_name)
+      get("/user/#{ERB::Util.url_encode(user_name)}/listen-count").dig("payload", "count").to_i
     end
 
     def self.user_agent = "Runout/1.0 (#{Rails.configuration.x.app_origin})"
@@ -48,6 +60,7 @@ module Listenbrainz
         wait = headers&.fetch("retry-after", nil).to_s.then { |v| v.match?(/\A\d+\z/) ? v.to_i : 60 }
         @pacer.cool_down!([ wait, MAX_RETRY_AFTER ].min)
         raise Error::RateLimited.new(message, retry_after: wait)
+      when 404 then raise Error::NotFound.new(message, status: status)
       when 500..599 then raise Error::Unavailable.new(message, status: status)
       else raise Error::Rejected.new(message, status: status)
       end

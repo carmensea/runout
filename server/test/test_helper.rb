@@ -98,6 +98,11 @@ class ActionDispatch::IntegrationTest
 
   # Requests arrive on the app's own origin, as they do from the browser (RequestForgeryProtection).
   setup { host! "localhost:5173" }
+  # Rate limits count in the controllers' memory store; each test starts with a clean one, and a
+  # test that legitimately exceeds a limit mid-way (one person, many sign-ins) forgets the counters.
+  setup { forget_rate_limits! }
+
+  def forget_rate_limits! = ApplicationController.cache_store.clear
 
   def reset!
     super

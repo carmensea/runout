@@ -27,6 +27,9 @@ by hand (not a launchd service, so it doesn't start by itself after a reboot). T
 PG=~/.local/postgresql-17/bin
 ```
 
+Homebrew's `postgresql@14` on this Mac is a different cluster for other projects (no `postgres` role,
+no `runout_*` databases): never start it on port 5432 or modify it for Runout.
+
 If the server isn't running (after a reboot, say), start it with:
 
 ```sh

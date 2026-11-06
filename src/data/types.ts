@@ -531,10 +531,18 @@ export interface ListenbrainzSource {
   account: { id: string; displayName: string } | null;
   connectedAt?: string;
   disconnectedAt?: string | null;
+  paused?: boolean;
+  lastPollAt?: string | null;
   lastSuccessAt?: string | null;
+  nextPollAt?: string | null;
+  lastNewPlayAt?: string | null;
   playsAdded?: number;
+  newestPlayAt?: string | null;
+  coveredFrom?: string | null;
   lastError?: string | null;
   lastErrorAt?: string | null;
+  pendingReview?: number;
+  recentPolls?: SpotifyPoll[];
 }
 
 export interface SpotifySource {

@@ -129,8 +129,19 @@ class ListenbrainzConnectionTest < ActionDispatch::IntegrationTest
     assert_equal 0, ListeningSource.count
   end
 
-  # The controller's rate limit (10 a minute per address) is not exercised here: the test
-  # environment's cache is a null store, so Rails' rate_limit never counts.
+  test "connection attempts are rate limited per address, ten a minute" do
+    _, session = invite!("Dana")
+    cookies[Authentication::COOKIE_NAME] = session
+    stub_validate("lb-token-bad")
+    10.times { connect("lb-token-bad") }
+    assert_equal 422, response.status, "ten attempts are allowed"
+    connect("lb-token-bad")
+    assert_equal 429, response.status
+    travel 61.seconds do
+      connect("lb-token-bad")
+      assert_equal 422, response.status, "the window has passed"
+    end
+  end
 
   test "a token that is not shaped like one is refused before anything is sent" do
     _, session = invite!("Dana")

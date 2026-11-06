@@ -106,6 +106,7 @@ class PasskeysTest < ActionDispatch::IntegrationTest
     assert_equal 9, RecoveryCode.unused.count
 
     codes.drop(1).each do |code|
+      forget_rate_limits! # ten recovery sign-ins in a row would trip the five-an-hour limit
       delete "/api/session", headers: same_origin_headers
       post_json "/api/auth/recovery", { code: code }
       assert_response :ok
@@ -177,6 +178,7 @@ class PasskeysTest < ActionDispatch::IntegrationTest
     passkey_sign_in!(sign_count: 11, user_handle: "someone else")
     assert_equal [ 401, "passkey_rejected" ], [ response.status, json["error"] ], "handle of another account"
 
+    forget_rate_limits! # a dozen sign-in attempts in a row would trip the ten-a-minute limit
     WebauthnCredential.update_all(revoked_at: Time.current)
     passkey_sign_in!(sign_count: 12)
     assert_equal [ 401, "passkey_rejected" ], [ response.status, json["error"] ], "revoked"

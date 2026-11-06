@@ -32,6 +32,7 @@ module Listening
   class CrossSource
     SLACK = 30.seconds
     THRESHOLD = 240 # seconds: a scrobble needs half the track or four minutes, whichever is less
+    WINDOWED = %w[spotify_played_at].freeze
 
     Decision = Data.define(:action, :scrobble_id, :evidence) # action: :create, :link, :review
 
@@ -59,6 +60,12 @@ module Listening
     end
 
     def decide(event, variant)
+      # Only end-of-play reports have a candidate window yet; start-of-play reports become new
+      # plays until the start-time rule lands (docs/listenbrainz-spotify-feasibility.md §4.3).
+      unless WINDOWED.include?(event.timestamp_kind)
+        return Decision.new(action: :create, scrobble_id: nil, evidence: { rule: "cross_source_v2", reason: "no_window_for_kind", kind: event.timestamp_kind })
+      end
+
       usual = window(event)
       near = near_window(event)
       track_root = root_track(variant.track_id)

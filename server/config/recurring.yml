@@ -41,6 +41,12 @@ production:
     class: SpotifyPollJob
     queue: default
     schedule: <%= ENV.fetch("SPOTIFY_POLL_SCHEDULE", "every 5 minutes") %>
+  # ListenBrainz import (Listenbrainz::Poller): one listens poll per connected account. Does nothing
+  # while LISTENBRAINZ_INGESTION_ENABLED is off (docs/listenbrainz-spotify-feasibility.md §4.2).
+  listenbrainz_poll:
+    class: ListenbrainzPollJob
+    queue: default
+    schedule: <%= ENV.fetch("LISTENBRAINZ_POLL_SCHEDULE", "every 10 minutes") %>
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
@@ -72,3 +78,9 @@ development:
     class: SpotifyPollJob
     queue: default
     schedule: <%= ENV.fetch("SPOTIFY_POLL_SCHEDULE", "every 5 minutes") %>
+  # ListenBrainz import (Listenbrainz::Poller): one listens poll per connected account. Does nothing
+  # while LISTENBRAINZ_INGESTION_ENABLED is off (docs/listenbrainz-spotify-feasibility.md §4.2).
+  listenbrainz_poll:
+    class: ListenbrainzPollJob
+    queue: default
+    schedule: <%= ENV.fetch("LISTENBRAINZ_POLL_SCHEDULE", "every 10 minutes") %>
