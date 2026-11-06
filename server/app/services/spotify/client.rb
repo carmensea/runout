@@ -9,6 +9,7 @@ module Spotify
   class Client
     ACCOUNTS = "https://accounts.spotify.com/api/token".freeze
     API = "https://api.spotify.com/v1".freeze
+    QUOTA_COOL_DOWN = 3600 # seconds: Poller::QUOTA_WAIT, for every account at once
     DEFAULT_INTERVAL = 0.5 # seconds between requests; SPOTIFY_MIN_REQUEST_INTERVAL overrides it
     MAX_RETRY_AFTER = 3600
 
@@ -85,8 +86,12 @@ module Spotify
       when 403 then raise Error::Forbidden.new(message, status: status)
       when 429
         wait = headers&.fetch("retry-after", nil).to_s.then { |v| v.match?(/\A\d+\z/) ? v.to_i : 30 }
-        @pacer.cool_down!([ wait, MAX_RETRY_AFTER ].min)
         reason = error_object(data)["reason"] || data["reason"]
+        # The pause is shared by every account (api_request_slots): a rate limit is app-wide and
+        # the Development Mode quota is per developer account, so nobody else retries meanwhile.
+        # An exhausted quota holds everyone for at least QUOTA_COOL_DOWN; Retry-After alone would
+        # send each other account to spend a request on the same answer.
+        @pacer.cool_down!(reason == "QUOTA_EXCEEDED" ? [ wait, QUOTA_COOL_DOWN ].max : [ wait, MAX_RETRY_AFTER ].min)
         raise (reason == "QUOTA_EXCEEDED" ? Error::QuotaExceeded : Error::RateLimited).new(message, retry_after: wait, reason: reason)
       when 500..599 then raise Error::Unavailable.new(message, status: status)
       else raise Error::Rejected.new(message, status: status)
