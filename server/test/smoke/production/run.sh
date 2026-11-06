@@ -60,7 +60,7 @@ docker run -d --name runout-smoke-app --network "$NET" --network-alias app -v "$
   -e LASTFM_API_KEY=stub -e LASTFM_SHARED_SECRET=stub -e LASTFM_ALLOWED_USERNAME=listener -e LASTFM_MIN_REQUEST_INTERVAL=0 \
   -e SPOTIFY_CLIENT_ID=stub -e SPOTIFY_CLIENT_SECRET=stub -e SPOTIFY_MIN_REQUEST_INTERVAL=0 \
   -e SPOTIFY_REDIRECT_URI=https://runout.test/api/auth/spotify/callback \
-  -e SPOTIFY_INGESTION_ENABLED="$INGESTION" -e SPOTIFY_POLL_SCHEDULE="every minute" runout:smoke > /dev/null
+  -e SPOTIFY_INGESTION_ENABLED="$INGESTION" -e SPOTIFY_POLL_SCHEDULE="every minute" -e RUNOUT_PASSKEYS_ENABLED=true runout:smoke > /dev/null
 
 docker run --name runout-smoke-driver --network "$NET" -e INGESTION="$INGESTION" -e MIGRATIONS=/migrate \
   -v "$STATE:/state" -v "$HERE/driver.rb:/driver.rb:ro" -v "$ROOT/server/db/migrate:/migrate:ro" \

@@ -27,6 +27,8 @@ def plays
 end
 
 def user = File.read("stub_user").strip
+# The Spotify account the stub answers for: the driver switches it to connect a second Runout user.
+def spotify_account = File.exist?("stub_spotify_account") ? File.read("stub_spotify_account").strip : "stub-account"
 
 loop do
   socket = begin
@@ -47,7 +49,7 @@ loop do
     body = case path
     when %r{/api/token} then { access_token: "STUBACCESS", refresh_token: "STUBREFRESHSECRET", scope: "user-read-recently-played", expires_in: 3600, token_type: "Bearer" }
     when %r{/v1/me/player} then { items: plays, next: nil, cursors: nil, limit: 50 }
-    when %r{/v1/me} then { id: "stub-account", display_name: "Stub" }
+    when %r{/v1/me} then { id: spotify_account, display_name: "Stub #{spotify_account}" }
     when %r{/2\.0} then query["method"] == "auth.getSession" ? { session: { name: user, key: "STUBLASTFMKEY", subscriber: 0 } } : { user: { name: user, url: "https://www.last.fm/user/x", playcount: "0", registered: { unixtime: 1199145600 } } }
     else {}
     end.to_json
