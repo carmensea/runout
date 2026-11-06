@@ -1,5 +1,5 @@
 # The recurring ListenBrainz tick: one poll per connected, unpaused ListenBrainz account, spread
-# across the tick like the Spotify one. Does nothing while LISTENBRAINZ_INGESTION_ENABLED is off.
+# across the tick like the Spotify one, and one backfill run for each account with history left. Does nothing while LISTENBRAINZ_INGESTION_ENABLED is off.
 class ListenbrainzPollJob < ApplicationJob
   queue_as :default
 
@@ -10,7 +10,11 @@ class ListenbrainzPollJob < ApplicationJob
   def perform
     return unless ListeningStorage.enabled?("listenbrainz")
 
-    ids = ListeningSource.where(provider: "listenbrainz", state: "connected", paused_at: nil).order(:id).pluck(:id)
+    sources = ListeningSource.where(provider: "listenbrainz", state: "connected", paused_at: nil).order(:id)
+    ids = sources.pluck(:id)
     ids.each_with_index { |id, i| ListenbrainzPollSourceJob.set(wait: TICK * i / ids.size).perform_later(id) }
+    # History still to read (Listenbrainz::Backfill): one bounded run per account per tick, after its poll.
+    todo = sources.where.not(covered_from: nil).where("backfill_state IS NULL OR backfill_state <> 'done'").pluck(:id)
+    todo.each_with_index { |id, i| ListenbrainzBackfillJob.set(wait: TICK * i / todo.size + 1.minute).perform_later(id) }
   end
 end

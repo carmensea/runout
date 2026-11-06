@@ -542,6 +542,7 @@ export interface ListenbrainzSource {
   lastError?: string | null;
   lastErrorAt?: string | null;
   pendingReview?: number;
+  backfill?: { state: 'running' | 'done'; fetched: number; total: number | null; before: string | null; startedAt: string | null; finishedAt: string | null } | null;
   recentPolls?: SpotifyPoll[];
 }
 

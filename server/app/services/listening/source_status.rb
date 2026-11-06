@@ -29,6 +29,9 @@ module Listening
                  newestPlayAt: source.high_water_at&.iso8601, coveredFrom: source.covered_from&.iso8601,
                  lastError: source.last_error, lastErrorAt: source.last_error_at&.iso8601,
                  pendingReview: ListeningObservation.where(listening_source_id: source.id, link_state: "pending_review").count,
+                 backfill: source.backfill_state && { state: source.backfill_state, fetched: source.backfill_fetched, total: source.backfill_total,
+                                                       before: source.backfill_before&.iso8601, startedAt: source.backfill_started_at&.iso8601,
+                                                       finishedAt: source.backfill_finished_at&.iso8601 },
                  recentPolls: recent_polls(source))
     end
 
