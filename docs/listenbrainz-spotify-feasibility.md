@@ -16,9 +16,12 @@ API with no Runout Spotify credentials involved. The caveats: ListenBrainz's Spo
 plays the way Runout's own does (Spotify's Recently Played limits), and since 20 July 2026 every
 Spotify connection, ListenBrainz's included, must be renewed every six months.
 
-The connection to Runout is a pasted ListenBrainz user token, verified with ListenBrainz. There is
-no OAuth scope today that would let Runout obtain that token or the listens on a user's behalf; the
-listens themselves are public and need no token to read.
+For the MVP the connection to Runout is a pasted ListenBrainz user token, verified once with
+ListenBrainz and then discarded (§8); the listens themselves are public and need no token to read.
+The seamless path exists and is approval-gated: with MetaBrainz OAuth (`profile` for the username,
+`listenbrainz:connect-services` for the hand-off) Runout could sign a person in with their
+MetaBrainz account and start the Spotify-to-ListenBrainz connection from inside Runout, with
+ListenBrainz running Spotify's consent. That needs MetaBrainz to approve Runout for the scope.
 
 ## 2. What the sources say
 
@@ -33,7 +36,7 @@ listens themselves are public and need no token to read.
 | What may be missed | More than 50 plays between two of ListenBrainz's polls of that user (their loop is continuous, so rare); plays Spotify itself leaves out of Recently Played (Runout measured about one in five, `docs/spotify-plan.md` §9, [[spotify-feed-gaps]]); offline plays until Spotify reports them. | the importer; Runout's measurements |
 | What each listen carries | `track_name`, `artist_name`, `release_name`; `additional_info`: `spotify_id` and `origin_url` (the track URL), `spotify_artist_ids`, `spotify_album_id`, `spotify_album_artist_ids`, `release_artist_name`, `duration_ms`, `isrc` when Spotify has one, `music_service: "spotify.com"`, `submission_client: "listenbrainz"`; plus ListenBrainz's `recording_msid` and its `mbid_mapping` guess. Enough for Runout's `Listening::Event` (names, provider ids, ISRC, duration, timestamp) and for provenance. | `spotify.py` lines 54–104; `docs/listenbrainz-plan.md` §3 |
 | Repeats distinguishable? | Yes: each play has its own `listened_at` (Spotify's millisecond `played_at`, stored to the second). Two plays of the same recording ending in the same second would collapse in ListenBrainz; practically impossible for real listening. | ListenBrainz JSON docs; importer |
-| Third-party OAuth to a user's ListenBrainz? | Not today. The ListenBrainz API authenticates with the user's own token (`Authorization: Token …`). MetaBrainz OAuth2 (moving from musicbrainz.org to metabrainz.org in July 2026, PKCE mandatory, apps self-registered at metabrainz.org/profile/applications) documents the scopes profile, email, tag, rating, collection, submit_isrc, submit_barcode: none for listens or tokens, and ListenBrainz's `validate-token` does not accept OAuth bearer tokens (community reports). So Runout cannot initiate a connection flow; the user pastes their token. A listens scope would be a request to MetaBrainz. | ListenBrainz API docs; MusicBrainz OAuth2 doc; MetaBrainz blog 2026-06-25 |
+| Third-party OAuth to a user's ListenBrainz? | **Two things, kept apart.** (1) Reading listens needs no token; the ListenBrainz API's own authentication is the user token (`Authorization: Token …`), which `validate-token` turns into a username. MetaBrainz OAuth2 (metabrainz.org since July 2026, PKCE mandatory, apps self-registered at metabrainz.org/profile/applications) documents `profile`, `email`, `tag`, `rating`, `collection`, `submit_isrc`, `submit_barcode`; its `profile` scope yields the MetaBrainz username, which is the ListenBrainz username. (2) **Connecting Spotify to ListenBrainz from another application is documented**: `POST https://listenbrainz.org/connect/spotify/` with a MetaBrainz OAuth access token carrying `listenbrainz:connect-services` returns a single-use URL; ListenBrainz shows the user a confirmation page naming the app, the return host and the ListenBrainz account, runs Spotify's consent itself, stores the tokens, and sends the user back to the app's `redirect_uri` with `status=connected` or an error. The scope "is only granted to applications MetaBrainz has approved for it"; there is no separate ListenBrainz client id. User tokens are not accepted for it. | `docs/users/connect-music-services.rst` and `listenbrainz/webserver/views/external_connect.py` in listenbrainz-server; ListenBrainz API docs; MusicBrainz OAuth2 doc; MetaBrainz blog 2026-06-25 |
 | ListenBrainz data terms | Listens are public and published as CC0 data dumps ("Creative Commons Zero (CC0)"; commercial use allowed, support urged). API use: one request a second, honour the rate-limit headers, send a `User-Agent` naming the app and a contact. | metabrainz.org/datasets/postgres-dumps; ListenBrainz API docs |
 | Spotify Developer Terms | They bind the SDA that accesses Spotify: ListenBrainz. The clauses that matter there are "do not transfer Spotify Content to third parties … even if a user consents" (IV.2.5) and the storage and caching limits (IV.3.1–3.2). ListenBrainz's documented purpose is to publish users' listens as open data, and MetaBrainz has done so for years. Runout accesses no Spotify platform for these users; it reads ListenBrainz's public CC0 data under ListenBrainz's terms. Runout's own direct Spotify integration stays bound by Spotify's terms, as now. This is a reading of the published texts, not legal advice; the owner can ask MetaBrainz to confirm their position. | developer.spotify.com/terms v10 (15 May 2025) |
 | Account creation | A ListenBrainz account is a MetaBrainz account (sign-up moved to metabrainz.org on 27 July 2026). Runout never creates one; it links to the sign-up page. | MetaBrainz blog 2026-06-25 |
@@ -147,13 +150,15 @@ the source so a retry resumes and never re-adds (the recorder is idempotent anyw
 | D. Backfill | 30 days at connect; export-API full history, resumable | export flow with a stubbed ZIP; retry adds nothing twice |
 | E. Experience | Sources panel wording (Direct Spotify vs ListenBrainz vs Historical import), onboarding guidance for a Spotify listener (create a ListenBrainz account, connect Spotify there, paste the token here) and, after step 0, for a YouTube Music listener | frontend states; captures in the five themes |
 | F. Real-world check and go-live | the §3 account connected to a disposable copy, then production with the flag on | the smoke test gains a fake ListenBrainz |
+| G. Seamless connection (after MetaBrainz approval) | Runout registered as a MetaBrainz OAuth app (PKCE); "Sign in with MetaBrainz" yields the username (`profile`); "Connect Spotify through ListenBrainz" posts to `/connect/spotify/` with the `connect-services` token and handles the return (`status`, `state`, the five errors, repeats); no ListenBrainz user token involved at all | stubbed MetaBrainz introspection and ListenBrainz connect endpoints; state bound to the browser session; repeated returns ignored |
 
 Estimates: A one day, B one and a half, C one, D one, E one, F half a day with the owner.
 
 ## 6. Blockers and risks, plainly
 
-- **No OAuth path to a user's ListenBrainz token.** The paste-a-token step is the connection for
-  now. A listens scope would be a request to MetaBrainz; nothing in Runout depends on it.
+- **The seamless path is approval-gated.** `listenbrainz:connect-services` is granted by MetaBrainz
+  per application; until then the person pastes a token once (§8) and connects Spotify on
+  listenbrainz.org themselves. Nothing in PRs A–E depends on the scope; PR G (below) adds it.
 - **Six-month Spotify reconnection** on ListenBrainz's side: when a user's ListenBrainz import
   stops, Runout sees no new listens; the drift check (`listen-count` against stored) cannot tell
   "stopped listening" from "stopped importing". Runout will say "no new listens from ListenBrainz
@@ -198,8 +203,9 @@ All five decisions in §7 approved. Two refinements that bind PRs A–D:
 
 Also from the owner: ListenBrainz's Spotify capacity is not to be assumed unlimited because no cap
 is documented; the MetaBrainz outreach asks about it. The outreach (in parallel, not blocking):
-approval for the `listenbrainz:connect-services` OAuth scope if it exists for third parties, any
-supported read-only account-linking authorisation, the use of Spotify-derived listens in Runout's
+approval of Runout for the documented `listenbrainz:connect-services` OAuth scope (the
+third-party connection flow in `docs/users/connect-music-services.rst`), any supported read-only
+account-linking authorisation, the use of Spotify-derived listens in Runout's
 private analytics and independent history store, and any restrictions or planned changes.
 
 ## 9. Experiment checklist (for a Spotify user not on Runout's allowlist)
