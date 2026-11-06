@@ -260,3 +260,22 @@ joined it; the compact spacing now applies up to 1339 px.
 4. After they connect: `ListeningSource` has their row, their first poll is `ok`, and
    `Scrobble.group(:user_id).count` grows only for them; the owner's polls continue.
 5. A backup after the first tester's data exists, restore-tested as usual.
+
+**Revocation and rollback (2026-11-06):** everything destructive takes the account's immutable id,
+checks the display name against it, and needs an explicit confirmation.
+- Revoke an unredeemed invitation (nothing else changes):
+  `railway ssh -s runout -- bin/rails "auth:revoke_invitation[<uuid>,<display name>]"`. It expires
+  every unused invitation link for that account and says whether the account is empty.
+- Remove an invited account and everything stored for it:
+  `railway ssh -s runout -- bin/rails "auth:remove_account[<uuid>,<display name>,DELETE <uuid>]"`.
+  Without the exact third argument it only prints what it would remove. An account with a Last.fm
+  identity (the owner's) is refused: that one is deleted from its own Settings, never by a task.
+- A tester deletes themselves from Settings → Account; the notice names the service they connected
+  (Spotify's Manage apps, or Last.fm's application settings) and the backup retention.
+- App rollback: Railway, redeploy the previous deployment. The migrations since PR 1 are additive
+  and their reversals were tested; no data step is needed.
+
+**Beta disclosure** (on the onboarding source step): Spotify's Recently Played omissions; the
+operator can read the database and so the listening history; encrypted backups keep daily copies
+for 30 days and monthly ones for 12 months; deletion from Settings removes everything at once and
+earlier backups age out on that schedule.

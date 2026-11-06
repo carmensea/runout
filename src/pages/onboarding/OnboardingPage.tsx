@@ -110,8 +110,13 @@ export function OnboardingPage() {
       {step === 'source' && (
         <section className={settings.panel} aria-labelledby="ob-source">
           <span id="ob-source" className={settings.panelTitle}>Connect a music source</span>
-          <span>Runout keeps the plays a connected service reports, in your own archive. Spotify reports your 50 most recent plays and sometimes misses one: Runout records what it gets and never invents the rest.</span>
-          <span className={settings.note}>This is a beta. The archive’s owner can see the database, and backups include your plays.</span>
+          <span>Runout keeps the plays a connected service reports, in your own archive.</span>
+          <ul className={styles.disclosure} aria-label="What to know in this beta">
+            <li>Spotify reports your 50 most recent plays and sometimes misses one. Runout records what it gets and never invents the rest.</li>
+            <li>The person running Runout can read the database, so they can see your listening history. Nobody else can.</li>
+            <li>Encrypted backups include your plays: daily ones are kept for 30 days, monthly ones for 12 months.</li>
+            <li>You can delete your account at any time in Settings → Account. It removes everything at once; backups made before then age out on that schedule.</li>
+          </ul>
           <div className={settings.actions}>
             {connectUrl && <a className={stateStyles.primary} href={connectUrl}>Connect Spotify</a>}
             <button type="button" className={stateStyles.secondary} onClick={() => navigate(withPeriod('/overview'))}>

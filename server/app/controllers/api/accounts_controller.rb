@@ -8,6 +8,7 @@ module Api
   # Runout cannot revoke its access on Last.fm's side; the response links to where the user can.
   class AccountsController < ApplicationController
     LASTFM_APPLICATIONS_URL = "https://www.last.fm/settings/applications".freeze
+    SPOTIFY_APPS_URL = "https://www.spotify.com/account/apps/".freeze
 
     require_authentication
 
@@ -27,9 +28,12 @@ module Api
       end
 
       user = Current.user
+      lastfm = user.lastfm_identity.present?
+      spotify = user.listening_sources.where(provider: "spotify").exists?
       end_session
       user.destroy!
-      render json: { deleted: true, revokeAccessUrl: LASTFM_APPLICATIONS_URL }
+      # Where the person can also remove Runout on the services' side; null for a service they never connected.
+      render json: { deleted: true, revokeAccessUrl: (LASTFM_APPLICATIONS_URL if lastfm), spotifyAppsUrl: (SPOTIFY_APPS_URL if spotify) }
     end
   end
 end

@@ -26,7 +26,8 @@ export interface RunoutApi {
   signInUrl(): string | null;
   signOut(): Promise<void>;
   /** Erases the signed-in account and its data. `confirmUsername` must match the Last.fm username. */
-  deleteAccount(confirmName: string): Promise<{ revokeAccessUrl: string }>;
+  /** Where Runout's access can also be removed on the services' side; null for a service never connected. */
+  deleteAccount(confirmName: string): Promise<{ revokeAccessUrl: string | null; spotifyAppsUrl: string | null }>;
   /** Saves the theme on the account, so it follows the owner between browsers and sign-ins. */
   setTheme(theme: string): Promise<void>;
   /** Listening-history import, sync and review controls (Settings). */
@@ -257,7 +258,7 @@ export function createHttpApi(baseUrl: string): RunoutApi {
         body: JSON.stringify({ confirm_name: confirmName }),
       });
       if (!res.ok) throw new ApiError(res.status, `Account deletion failed with HTTP ${res.status}.`);
-      return (await res.json()) as { revokeAccessUrl: string };
+      return (await res.json()) as { revokeAccessUrl: string | null; spotifyAppsUrl: string | null };
     },
     history,
     auth,
