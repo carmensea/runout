@@ -73,6 +73,41 @@ jobs:
       - name: Sign-in, OAuth, polling, restarts, deduplication
         run: server/test/smoke/production/run.sh
 
+  schema-restore:
+    name: Schema survives a restore (PostgreSQL 18, the backup job's comparison)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RAILS_ENV: test
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: server
+          bundler-cache: true
+      # Every migration from scratch, as production ran them; then the backup job's own dump,
+      # restore and schema comparison, with PostgreSQL 18 tools inside the service container. A
+      # constraint that comes back different from a restore fails the real backup
+      # (docs/railway-deployment.md §7, "Schema gotcha"), so it fails here first.
+      - run: bin/rails db:create db:migrate
+      - run: ../deploy/backup/schema_restore_check.sh ${{ job.services.postgres.id }} runout_test
+
   backup:
     name: Backup job (PostgreSQL 18, restore, encryption, retention, failures)
     runs-on: ubuntu-24.04
