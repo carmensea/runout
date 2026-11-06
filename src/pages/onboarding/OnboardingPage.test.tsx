@@ -50,7 +50,11 @@ describe('Onboarding', () => {
 
     await user.click(screen.getByRole('button', { name: 'I’ve saved them' }));
     expect(screen.getByRole('link', { name: 'Connect Spotify' })).toHaveAttribute('href', '/api/auth/spotify');
-    expect(screen.getByText(/sometimes misses one/)).toBeInTheDocument();
+    const disclosure = screen.getByRole('list', { name: 'What to know in this beta' });
+    expect(disclosure).toHaveTextContent('sometimes misses one');
+    expect(disclosure).toHaveTextContent('can read the database');
+    expect(disclosure).toHaveTextContent('daily ones are kept for 30 days, monthly ones for 12 months');
+    expect(disclosure).toHaveTextContent('delete your account at any time in Settings');
     await user.click(screen.getByRole('button', { name: 'Skip for now' }));
     await waitFor(() => expect(location.current).toMatch(/^\/overview/));
   });

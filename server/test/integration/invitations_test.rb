@@ -125,4 +125,48 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     assert_equal 2, User.count
     assert_equal 1, Session.where(user: owner).count, "the owner's browser session is untouched"
   end
+
+  test "an unredeemed invitation is revoked by id and name without touching anything else" do
+    link = invite!
+    dana = User.sole
+    task = Rake::Task["auth:revoke_invitation"]
+    assert_raises(SystemExit) { capture_io { task.invoke(dana.id, "someone else") } }
+    task.reenable
+    assert_raises(SystemExit) { capture_io { task.invoke(SecureRandom.uuid, "Dana") } }
+    task.reenable
+    out, = capture_io { task.invoke(dana.id, "Dana") }
+    assert_match(/Revoked 1 unredeemed invitation link/, out)
+    assert_match(/auth:remove_account\[#{dana.id},Dana,DELETE #{dana.id}\]/, out)
+    assert User.exists?(dana.id)
+    get link
+    assert_redirected_to "/overview?auth_error=link_invalid"
+  end
+
+  test "removing an invited account needs its id, its name and the exact confirmation; the owner's account is refused" do
+    sign_in_via_lastfm(username: "listener")
+    owner = User.sole
+    cookies.delete(Authentication::COOKIE_NAME)
+    link = invite!
+    get link
+    dana = User.find_by!(display_name: "Dana")
+    task = Rake::Task["auth:remove_account"]
+
+    assert_raises(SystemExit) { capture_io { task.invoke(dana.id, "Dana", "yes") } }
+    task.reenable
+    assert_raises(SystemExit) { capture_io { task.invoke(dana.id, "Dana", "DELETE #{owner.id}") } }
+    task.reenable
+    assert_raises(SystemExit) { capture_io { task.invoke(dana.id, "Other", "DELETE #{dana.id}") } }
+    task.reenable
+    assert User.exists?(dana.id), "nothing deleted without the exact confirmation"
+    assert_raises(SystemExit) { capture_io { task.invoke(owner.id, "listener", "DELETE #{owner.id}") } }
+    task.reenable
+    assert User.exists?(owner.id), "an account with Last.fm is never removed by the operator"
+
+    out, = capture_io { task.invoke(dana.id, "Dana", "DELETE #{dana.id}") }
+    assert_match(/Removed Dana/, out)
+    assert_not User.exists?(dana.id)
+    assert_equal 0, Session.where(user_id: dana.id).count
+    assert User.exists?(owner.id)
+    assert_equal 1, Session.where(user: owner).count
+  end
 end

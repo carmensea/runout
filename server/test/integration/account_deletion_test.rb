@@ -9,6 +9,7 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
     delete "/api/account", params: { confirm_name: "LISTENER" }, headers: same_origin_headers, as: :json
     assert_response :ok
     assert_equal "https://www.last.fm/settings/applications", response.parsed_body["revokeAccessUrl"]
+    assert_nil response.parsed_body["spotifyAppsUrl"], "no Spotify was connected"
 
     assert_not User.exists?(user.id)
     assert_equal 0, Identity.count
@@ -55,5 +56,17 @@ class AccountDeletionTest < ActionDispatch::IntegrationTest
 
   def same_origin_headers
     { "Origin" => "http://localhost:5173", "X-Requested-With" => "XMLHttpRequest" }
+  end
+
+  test "a Spotify-only account is told about Spotify's app settings, not Last.fm's" do
+    user = User.create!(display_name: "Dana", reporting_timezone: "America/Los_Angeles")
+    ListeningSource.create!(user: user, provider: "spotify", external_account_id: "dana-spotify", display_name: "Dana", state: "connected", connected_at: Time.current)
+    _, token = Session.start!(user: user, ip_address: "127.0.0.1", user_agent: "test")
+    cookies[Authentication::COOKIE_NAME] = token
+
+    delete "/api/account", params: { confirm_name: "dana" }, headers: same_origin_headers, as: :json
+    assert_response :ok
+    assert_equal({ "deleted" => true, "revokeAccessUrl" => nil, "spotifyAppsUrl" => "https://www.spotify.com/account/apps/" }, response.parsed_body)
+    assert_not User.exists?(user.id)
   end
 end

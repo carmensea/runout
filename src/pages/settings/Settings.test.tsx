@@ -108,6 +108,28 @@ describe('Settings: history without Last.fm', () => {
   });
 });
 
+describe('Settings: deletion notice', () => {
+  it('speaks of Spotify, not Last.fm, for an account that only connected Spotify', async () => {
+    const user = userEvent.setup();
+    let signedIn = true;
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => (signedIn ? { status: 'none', displayName: 'Dana', timezone: 'Europe/London' } : { status: 'signed_out' }),
+      deleteAccount: async () => {
+        signedIn = false;
+        return { revokeAccessUrl: null, spotifyAppsUrl: 'https://www.spotify.com/account/apps/' };
+      },
+    };
+    renderApp(api, '/settings#account');
+    await user.type(await screen.findByLabelText(/Type your name/), 'Dana');
+    await user.click(screen.getByRole('button', { name: 'Delete account' }));
+    expect(await screen.findByText('Your Runout account and its data were deleted.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manage apps' })).toHaveAttribute('href', 'https://www.spotify.com/account/apps/');
+    expect(screen.queryByRole('link', { name: 'Last.fm application settings' })).not.toBeInTheDocument();
+    expect(screen.getByText(/daily ones for 30 days, monthly ones for 12 months/)).toBeInTheDocument();
+  });
+});
+
 describe('Settings: sync', () => {
   it('pauses automatic sync, and says when a manual check is too soon', async () => {
     const user = userEvent.setup();

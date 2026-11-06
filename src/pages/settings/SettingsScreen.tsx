@@ -55,7 +55,7 @@ export function SettingsScreen() {
   // Likewise for Runout's own sign-in: while it reloads after an action, keep the section mounted.
   const [authOn, setAuthOn] = useState(false);
   if (auth.status === 'success' && (auth.data !== null) !== authOn) setAuthOn(auth.data !== null);
-  const [deletedRevokeUrl, setDeletedRevokeUrl] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState<{ revokeAccessUrl: string | null; spotifyAppsUrl: string | null } | null>(null);
 
   async function signOut() {
     setState('busy');
@@ -73,10 +73,10 @@ export function SettingsScreen() {
     <main id="main" className={settings.main}>
       <div className="eyebrow">08 / Settings</div>
       <h1 className={settings.title}>Settings</h1>
-      {!signedIn && !deletedRevokeUrl && (
+      {!signedIn && !deleted && (
         <p className={settings.lede}>Sign in to see your listening history and manage it here.</p>
       )}
-      {!signedIn && !deletedRevokeUrl && authOn && (
+      {!signedIn && !deleted && authOn && (
         <div className={settings.panel} id="sign-in">
           <SignIn lastfmUrl={api.signInUrl()} align="left" />
         </div>
@@ -126,13 +126,23 @@ export function SettingsScreen() {
       {(!signedIn || tab === 'account') && (
       <section className={settings.section} aria-labelledby="account-title">
         <h2 id="account-title" className={settings.h2}>Account</h2>
-      {deletedRevokeUrl && (
+      {deleted && (
         <div className={settings.panel} role="status">
           <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>Your Runout account and its data were deleted.</strong>
-          <span>
-            Runout cannot remove its own access on Last.fm. To do that, open your{' '}
-            <a href={deletedRevokeUrl} target="_blank" rel="noreferrer">Last.fm application settings</a> and remove Runout.
-          </span>
+          {deleted.revokeAccessUrl && (
+            <span>
+              Runout cannot remove its own access on Last.fm. To do that, open your{' '}
+              <a href={deleted.revokeAccessUrl} target="_blank" rel="noreferrer">Last.fm application settings</a> and remove Runout.
+            </span>
+          )}
+          {deleted.spotifyAppsUrl && (
+            <span>
+              Runout’s keys to your Spotify account went with your data. Spotify still lists Runout under{' '}
+              <a href={deleted.spotifyAppsUrl} target="_blank" rel="noreferrer">Manage apps</a> until you remove it there.
+            </span>
+          )}
+          {!deleted.revokeAccessUrl && !deleted.spotifyAppsUrl && <span>Nothing else is left to do.</span>}
+          <span className={settings.note}>Backups made before today keep a copy until they age out: daily ones for 30 days, monthly ones for 12 months.</span>
         </div>
       )}
       {signedIn && (
@@ -153,8 +163,8 @@ export function SettingsScreen() {
       {signedIn && (
         <DeleteAccount
           name={signedIn.displayName}
-          onDeleted={(revokeUrl) => {
-            setDeletedRevokeUrl(revokeUrl);
+          onDeleted={(result) => {
+            setDeleted(result);
             connection.retry();
           }}
         />
@@ -168,7 +178,7 @@ export function SettingsScreen() {
   );
 }
 
-function DeleteAccount({ name, onDeleted }: { name: string; onDeleted(revokeUrl: string): void }) {
+function DeleteAccount({ name, onDeleted }: { name: string; onDeleted(result: { revokeAccessUrl: string | null; spotifyAppsUrl: string | null }): void }) {
   const { api } = useAppData();
   const inputId = useId();
   const [typed, setTyped] = useState('');
@@ -178,8 +188,7 @@ function DeleteAccount({ name, onDeleted }: { name: string; onDeleted(revokeUrl:
   async function remove() {
     setState('busy');
     try {
-      const { revokeAccessUrl } = await api.deleteAccount(typed.trim());
-      onDeleted(revokeAccessUrl);
+      onDeleted(await api.deleteAccount(typed.trim()));
     } catch {
       setState('error');
     }

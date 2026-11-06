@@ -42,6 +42,16 @@
   color: var(--ac);
 }
 
+.disclosure {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fg2);
+  font-size: 13px;
+}
+
 .done .stepNumber {
   background: var(--s2);
   border-color: var(--s2);

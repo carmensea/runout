@@ -78,7 +78,7 @@ describe('Overview, authentication states', () => {
       deleteAccount: async (confirm) => {
         confirmations.push(confirm);
         signedIn = false;
-        return { revokeAccessUrl: 'https://www.last.fm/settings/applications' };
+        return { revokeAccessUrl: 'https://www.last.fm/settings/applications', spotifyAppsUrl: null };
       },
     };
     renderApp(api, '/settings#account');
