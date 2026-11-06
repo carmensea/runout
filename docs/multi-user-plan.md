@@ -179,3 +179,19 @@ Send the printed link to the person over a private channel with the beta note. I
 hours and works once. If it expires unopened, run the task again with the same name. Before they
 connect Spotify, add their Spotify email under User Management in the Spotify dashboard
 (Development Mode, 5 users).
+
+**PR 3 (branch `multi-user-spotify`) contains:** the tick spreads the accounts' polls evenly across
+its five minutes (one account polls at once, as before); `multi_user_polling_test.rb` proves, with
+two accounts against a stubbed Spotify: the stagger and that paused and re-auth accounts are left
+out; a refused refresh token stops one account only (its owner is told through `attention`, the
+other keeps polling and its plays); a 429 or 403 backs one account off while the other polls on
+and nothing is added twice; every play belongs to the account whose source reported it, even the
+same track at the same second, never linked across accounts; a Spotify account bound to one Runout
+user cannot be connected to another. Nothing else changes: the existing OAuth flow, token
+encryption, per-source cursor and status, and the shared pacer already work per account.
+
+**Runbook additions (with the owner's approval only):** before a tester connects Spotify, add their
+Spotify email under User Management in the Spotify dashboard (Development Mode, 5 users); after
+they connect, confirm over `railway ssh` that `ListeningSource` has one row per account with its
+own `high_water_at`, that each account's polls are `ok`, and that `Scrobble.group(:user_id).count`
+grows only for the account that listened.
