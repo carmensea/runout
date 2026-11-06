@@ -527,6 +527,7 @@ export interface ListeningSources {
 /** A ListenBrainz account: a verified username, no token kept. Absent from the UI while `enabled` is false. */
 export interface ListenbrainzSource {
   enabled: boolean;
+  pollSchedule?: string;
   state: 'not_connected' | 'connected' | 'needs_reauth' | 'disconnected';
   account: { id: string; displayName: string } | null;
   connectedAt?: string;
@@ -578,7 +579,7 @@ export interface SpotifySource {
 
 export interface SpotifyPoll {
   startedAt: string;
-  trigger: 'schedule' | 'manual' | 'task';
+  trigger: 'schedule' | 'manual' | 'task' | 'backfill';
   outcome: 'ok' | 'rate_limited' | 'quota_exceeded' | 'unauthorized' | 'unavailable' | 'forbidden' | 'needs_reauth' | 'failed' | 'running';
   items: number;
   added: number;

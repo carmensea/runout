@@ -5,6 +5,8 @@ import { ApiError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
 import type { ListenbrainzSource, ListeningReviewItem, ListeningSources, SpotifyPoll, SpotifySource } from '../../data/types';
 import { usePolling } from '../../hooks/usePolling';
+import { describeListenbrainzError } from '../../lib/listenbrainzErrors';
+import { ListenbrainzConnectForm, ListenbrainzHelp } from './ListenbrainzConnect';
 import styles from './Settings.module.css';
 
 /** Every 30 s while a poll is running or due soon, otherwise every minute. */
@@ -307,14 +309,6 @@ function ReviewPanel({ onChanged }: { onChanged(): void }) {
   );
 }
 
-const LISTENBRAINZ_ERRORS: Record<string, string> = {
-  invalid_token: 'ListenBrainz didn’t recognise that token. Copy it again from listenbrainz.org → Settings.',
-  account_taken: 'That ListenBrainz account is already connected to another Runout account.',
-  ingestion_disabled: 'ListenBrainz isn’t switched on on this server yet.',
-  rate_limited: 'Too many attempts. Wait a minute and try again.',
-  unavailable: 'ListenBrainz couldn’t be reached. Try again in a few minutes.',
-};
-
 /**
  * ListenBrainz: a verified username, no token kept. ListenBrainz gathers listens from its own
  * Spotify connection and from scrobblers (YouTube Music through Pano Scrobbler or Web Scrobbler);
@@ -322,12 +316,13 @@ const LISTENBRAINZ_ERRORS: Record<string, string> = {
  */
 function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: ListenbrainzSource; onChanged(): void }) {
   const { api, fmt, timeZone } = useAppData();
-  const [token, setToken] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const inputId = 'listenbrainz-token';
+  const [queued, setQueued] = useState(false);
   const linked = listenbrainz.state === 'connected' || listenbrainz.state === 'needs_reauth';
+  const active = listenbrainz.state === 'connected';
+  const backfill = listenbrainz.backfill;
   const at = (iso: string | null | undefined) => (iso ? fmt.dateTime(iso, timeZone) : 'Never');
 
   async function run(name: string, action: () => Promise<unknown>) {
@@ -335,12 +330,11 @@ function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: Listenbr
     setError(null);
     try {
       await action();
-      setToken('');
+      if (name === 'backfill') setQueued(true);
       setConfirming(false);
       onChanged();
     } catch (e) {
-      const code = e instanceof ApiError ? e.code : null;
-      setError((code && LISTENBRAINZ_ERRORS[code]) ?? 'That didn’t work. Check your connection and try again.');
+      setError(describeListenbrainzError(e));
     } finally {
       setPending(null);
     }
@@ -360,35 +354,52 @@ function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: Listenbr
           <>
             <dt>Account</dt>
             <dd>{listenbrainz.account.displayName}</dd>
-            <dt>Connected</dt>
-            <dd>{at(listenbrainz.connectedAt)}</dd>
+            <dt>Importing</dt>
+            <dd>{importingText(listenbrainz)}</dd>
             <dt>Last import</dt>
-            <dd>{listenbrainz.lastSuccessAt ? `${at(listenbrainz.lastSuccessAt)}, ${fmt.count(listenbrainz.playsAdded ?? 0)} plays added in all` : 'Not yet'}</dd>
+            <dd>{at(listenbrainz.lastSuccessAt)}{listenbrainz.lastPollAt && listenbrainz.lastPollAt !== listenbrainz.lastSuccessAt && ` (last attempt ${at(listenbrainz.lastPollAt)})`}</dd>
+            <dt>Last new play</dt>
+            <dd>{listenbrainz.lastNewPlayAt ? `${at(listenbrainz.lastNewPlayAt)}, ${fmt.count(listenbrainz.playsAdded ?? 0)} added in all` : 'None yet'}</dd>
+            {listenbrainz.coveredFrom && (
+              <>
+                <dt>Recorded from</dt>
+                <dd>{at(listenbrainz.coveredFrom)}</dd>
+              </>
+            )}
+            <dt>Full history</dt>
+            <dd>{backfillText(listenbrainz, fmt.count, at)}</dd>
           </>
         )}
       </dl>
-      {!linked && (
-        <>
-          <span className={styles.note}>
-            Your ListenBrainz listening history is public. Connecting tells Runout which account is yours: Runout checks the token once
-            with ListenBrainz and does not keep it. The token is on listenbrainz.org → Settings.
-          </span>
-          <label className={styles.fieldLabel} htmlFor={inputId}>
-            ListenBrainz user token
-            <input id={inputId} className={styles.select} type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
-          </label>
-          <div className={styles.actions}>
-            <button type="button" className={stateStyles.primary} disabled={!!pending || token.trim() === ''} onClick={() => run('connect', () => api.sources.connectListenbrainz(token.trim()))}>
-              {pending === 'connect' ? 'Checking with ListenBrainz' : listenbrainz.state === 'disconnected' ? 'Connect ListenBrainz again' : 'Connect ListenBrainz'}
-            </button>
-          </div>
-        </>
+
+      {listenbrainz.state === 'needs_reauth' && (
+        <span className={styles.note}>
+          ListenBrainz no longer has an account by that name{listenbrainz.lastError ? ` (${listenbrainz.lastError})` : ''}. If you renamed it,
+          connect again with the token from its Settings; plays already stored stay.
+        </span>
       )}
-      {linked && !confirming && (
+      {active && listenbrainz.lastError && (
+        <p className={styles.error} role="status">
+          Last problem, {at(listenbrainz.lastErrorAt)}: {listenbrainz.lastError}.
+          {listenbrainz.nextPollAt && ` Runout tries again after ${fmt.time(listenbrainz.nextPollAt, timeZone)}.`}
+        </p>
+      )}
+
+      {!active && <ListenbrainzConnectForm state={listenbrainz.state} onConnected={onChanged} />}
+
+      {active && (
         <div className={styles.actions}>
-          <button type="button" className={stateStyles.secondary} disabled={!!pending} onClick={() => setConfirming(true)}>Disconnect ListenBrainz</button>
+          {backfill?.state !== 'done' && (
+            <button type="button" className={stateStyles.primary} disabled={!!pending} onClick={() => run('backfill', api.sources.backfillListenbrainz)}>
+              {pending === 'backfill' ? 'Queuing' : backfill ? 'Continue the full import' : 'Import your full history'}
+            </button>
+          )}
+          {!confirming && (
+            <button type="button" className={stateStyles.secondary} disabled={!!pending} onClick={() => setConfirming(true)}>Disconnect ListenBrainz</button>
+          )}
         </div>
       )}
+      {queued && !error && <p className={styles.note} role="status">Reading ListenBrainz now. The full import carries on in the background; this page keeps up.</p>}
       {confirming && (
         <div className={styles.confirm} role="group" aria-label="Disconnect ListenBrainz">
           <span>Runout stops importing from ListenBrainz. Plays already stored stay, and connecting again continues where it left off.</span>
@@ -401,8 +412,51 @@ function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: Listenbr
         </div>
       )}
       {error && <p className={styles.error} role="alert">{error}</p>}
+
+      <ListenbrainzHelp />
+      {linked && (listenbrainz.recentPolls?.length ?? 0) > 0 && (
+        <details className={styles.technical}>
+          <summary>Recent imports</summary>
+          <ul className={styles.list}>
+            {listenbrainz.recentPolls!.map((p) => (
+              <li key={p.startedAt} className={styles.row}>
+                <span className={styles.rowTitle}>{at(p.startedAt)} · {LB_OUTCOMES[p.outcome] ?? p.outcome}{p.trigger === 'backfill' ? ' (full history)' : p.trigger === 'manual' ? ' (asked for)' : ''}</span>
+                <span className={styles.rowBody}>
+                  {p.outcome === 'ok'
+                    ? `${fmt.count(p.items)} plays read: ${fmt.count(p.added)} new${p.linked ? `, ${fmt.count(p.linked)} already in your archive` : ''}${p.held ? `, ${fmt.count(p.held)} to check` : ''}`
+                    : p.error}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
+}
+
+const LB_OUTCOMES: Record<string, string> = {
+  ok: 'Imported',
+  rate_limited: 'ListenBrainz asked Runout to wait',
+  unavailable: 'ListenBrainz couldn’t be reached',
+  needs_reauth: 'The account is gone or renamed',
+  failed: 'Stopped by an error',
+  running: 'Reading',
+};
+
+function importingText(lb: ListenbrainzSource): string {
+  if (!lb.enabled) return 'Off: this server isn’t storing plays from ListenBrainz yet';
+  if (lb.state !== 'connected') return 'Stopped until ListenBrainz is connected again';
+  if (lb.paused) return 'Paused';
+  return `On, ${lb.pollSchedule ?? 'every few minutes'}`;
+}
+
+function backfillText(lb: ListenbrainzSource, count: (n: number) => string, at: (iso: string | null | undefined) => string): string {
+  const b = lb.backfill;
+  if (!b) return lb.coveredFrom ? 'Not imported yet: only the last 30 days so far' : 'Starts after the first import';
+  if (b.state === 'done') return `Imported, ${at(b.finishedAt)}`;
+  const total = b.total ? ` of about ${count(b.total)}` : '';
+  return `Importing: ${count(b.fetched)} plays read${total}, back to ${at(b.before)}`;
 }
 
 const STATE_TEXT: Record<SpotifySource['state'], string> = {

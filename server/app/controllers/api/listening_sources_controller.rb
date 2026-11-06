@@ -5,7 +5,7 @@ module Api
     SYNC_INTERVAL = 1.minute
 
     require_authentication
-    before_action :find_spotify, except: %i[index reviews decide connect_listenbrainz disconnect_listenbrainz]
+    before_action :find_spotify, except: %i[index reviews decide connect_listenbrainz disconnect_listenbrainz backfill_listenbrainz]
     # Token attempts are bounded: a token is a secret somebody could guess at.
     rate_limit to: 10, within: 1.minute, only: :connect_listenbrainz, with: -> { render json: { error: "rate_limited" }, status: :too_many_requests }
 
@@ -64,6 +64,24 @@ module Api
 
       Listenbrainz::Account.new.disconnect!(source)
       render json: Listening::SourceStatus.for(Current.user)
+    end
+
+    # POST /api/listening-sources/listenbrainz/backfill: reads ListenBrainz now, then starts or
+    # continues the full-history import (Listenbrainz::Backfill); the tick carries on from there.
+    def backfill_listenbrainz
+      return render(json: { error: "ingestion_disabled" }, status: :conflict) unless ListeningStorage.enabled?("listenbrainz")
+
+      source = Current.user.listening_sources.where(provider: "listenbrainz", state: "connected").order(:id).last
+      return render(json: { error: "not_connected" }, status: :conflict) unless source
+
+      last = source.polls.where(trigger: "manual").maximum(:started_at)
+      if last && last > SYNC_INTERVAL.ago
+        return render json: { error: "too_soon", retryAfter: (last + SYNC_INTERVAL).iso8601 }, status: :too_many_requests
+      end
+
+      ListenbrainzPollSourceJob.perform_later(source.id, trigger: "manual", force: true)
+      ListenbrainzBackfillJob.set(wait: 1.minute).perform_later(source.id)
+      render json: { queued: true }, status: :accepted
     end
 
     # Plays a provider reported that might be plays already stored (Listening::CrossSource).

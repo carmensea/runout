@@ -15,6 +15,7 @@ Rails.application.routes.draw do
     post "listening-sources/spotify/resume", to: "listening_sources#resume", as: :spotify_resume
     post "listening-sources/listenbrainz", to: "listening_sources#connect_listenbrainz", as: :listenbrainz_connect
     post "listening-sources/listenbrainz/disconnect", to: "listening_sources#disconnect_listenbrainz", as: :listenbrainz_disconnect
+    post "listening-sources/listenbrainz/backfill", to: "listening_sources#backfill_listenbrainz", as: :listenbrainz_backfill
     get "listening-sources/reviews", to: "listening_sources#reviews", as: :listening_reviews
     post "listening-sources/reviews/:id/:decision", to: "listening_sources#decide", as: :listening_review_decision,
                                                     constraints: { id: /\d+/, decision: /link|separate/ }

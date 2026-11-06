@@ -295,6 +295,44 @@ describe('Settings: ListenBrainz', () => {
     expect(await within(panel).findByRole('alert')).toHaveTextContent('already connected to another Runout account');
   });
 
+  it('shows sync health and the full-history import, and lets a renamed account be connected again', async () => {
+    const user = userEvent.setup();
+    const connected = {
+      enabled: true, state: 'connected' as const, account: { id: 'dana_lb', displayName: 'dana_lb' }, connectedAt: '2026-11-06T10:00:00Z',
+      lastPollAt: '2026-11-06T12:10:00Z', lastSuccessAt: '2026-11-06T12:10:00Z', lastNewPlayAt: '2026-11-06T12:10:00Z', playsAdded: 42,
+      coveredFrom: '2026-10-07T10:00:00Z', pollSchedule: 'every 10 minutes', backfill: null,
+      recentPolls: [{ startedAt: '2026-11-06T12:10:00Z', trigger: 'schedule' as const, outcome: 'ok' as const, items: 12, added: 3, linked: 1, held: 0, error: null }],
+    };
+    const sources = fakeSourcesApi({ ...makeSources(), listenbrainz: connected });
+    renderApp({ ...connectedApi(), sources }, '/settings#sources');
+    const panel = await screen.findByRole('region', { name: 'ListenBrainz' });
+    expect(panel).toHaveTextContent('On, every 10 minutes');
+    expect(panel).toHaveTextContent('42 added in all');
+    expect(panel).toHaveTextContent('Not imported yet: only the last 30 days so far');
+    expect(within(panel).queryByLabelText('ListenBrainz user token')).not.toBeInTheDocument();
+    await user.click(within(panel).getByText('Getting your plays into ListenBrainz'));
+    expect(panel).toHaveTextContent('Pano Scrobbler');
+    expect(panel).toHaveTextContent('Web Scrobbler');
+    expect(panel).toHaveTextContent('Not yet checked');
+    expect(panel).toHaveTextContent('a route Runout has checked');
+    await user.click(within(panel).getByRole('button', { name: 'Import your full history' }));
+    expect(sources.calls).toContain('backfillListenbrainz');
+    await waitFor(() => expect(panel).toHaveTextContent('Importing: 0 plays read of about 12,000'));
+    expect(within(panel).getByRole('button', { name: 'Continue the full import' })).toBeInTheDocument();
+    expect(within(panel).getByRole('status')).toHaveTextContent('Reading ListenBrainz now');
+  });
+
+  it('lets a renamed or vanished account be connected again with a new token', async () => {
+    const user = userEvent.setup();
+    const renamed = fakeSourcesApi({ ...makeSources(), listenbrainz: { enabled: true, state: 'needs_reauth', account: { id: 'dana_lb', displayName: 'dana_lb' }, connectedAt: '2026-11-06T10:00:00Z', lastError: 'no such user' } });
+    renderApp({ ...connectedApi(), sources: renamed }, '/settings#sources');
+    const panel = await screen.findByRole('region', { name: 'ListenBrainz' });
+    expect(panel).toHaveTextContent('no longer has an account by that name');
+    await user.type(within(panel).getByLabelText('ListenBrainz user token'), 'new-token');
+    await user.click(within(panel).getByRole('button', { name: 'Connect ListenBrainz again' }));
+    expect(renamed.calls).toContain('connectListenbrainz:new-token');
+  });
+
   it('is absent while the server has ListenBrainz switched off', async () => {
     const sources = fakeSourcesApi({ ...makeSources(), listenbrainz: { enabled: false, state: 'not_connected', account: null } });
     renderApp({ ...connectedApi(), sources }, '/settings#sources');
