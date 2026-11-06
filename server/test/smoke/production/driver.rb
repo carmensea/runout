@@ -162,6 +162,7 @@ check("the owner's Spotify account cannot be connected to the invited user",
       req(:get, "/api/auth/spotify/callback?#{URI.encode_www_form(state: query["state"], code: "c")}")["location"].to_s.include?("spotify_error=account_taken"))
 check("and the owner's source is untouched", sql("select count(*) from listening_sources where external_account_id='stub-account' and state='connected'") == "1")
 File.write("#{STATE}/stub_spotify_account", "stub-dana\n")
+sleep 61 # the OAuth routes allow 10 requests a minute per address, and the owner's flow above used most of them
 start = URI(req(:get, "/api/auth/spotify")["location"])
 authorize = URI(req(:get, "#{start.path}?#{start.query}")["location"])
 query = URI.decode_www_form(authorize.query).to_h
