@@ -9,6 +9,7 @@ module Listenbrainz
     end
 
     class Unavailable < Error; end # network failures and 5xx: try again later
+    class NotFound < Error; end    # 404: no such ListenBrainz user (renamed or deleted)
     class Rejected < Error; end    # any other refusal
 
     class RateLimited < Error      # 429: wait at least retry_after seconds

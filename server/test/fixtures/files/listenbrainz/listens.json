@@ -1,0 +1,268 @@
+{
+  "payload": {
+    "count": 9,
+    "latest_listen_ts": 1760000000,
+    "listens": [
+      {
+        "inserted_at": 1760000114,
+        "listened_at": 1760000000,
+        "recording_msid": "cf2608ef-350c-5e4b-aae9-57090245684e",
+        "track_metadata": {
+          "additional_info": {
+            "duration": 230,
+            "music_service_name": "YouTube Music",
+            "origin_url": "https://music.youtube.com/watch?v=video01&list=PLfixture01",
+            "submission_client": "Web Scrobbler",
+            "submission_client_version": "3.23.1"
+          },
+          "artist_name": "Fixture Artist 1",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "f9f3d760-3d9e-5367-9b07-ceb60a300232"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 1",
+                "artist_mbid": "f9f3d760-3d9e-5367-9b07-ceb60a300232",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000001,
+            "caa_release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282",
+            "recording_mbid": "abdba13a-221b-58c3-8bd5-222c8aeee122",
+            "recording_name": "Fixture Track 1",
+            "release_group_mbid": "0d38f176-ea14-5e23-a80a-51406c741efd",
+            "release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282"
+          },
+          "release_name": "Fixture Release 1",
+          "track_name": "Fixture Track 1"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1759999915,
+        "listened_at": 1759999834,
+        "recording_msid": "36477bba-a0f7-5908-90fc-96aa35fa4403",
+        "track_metadata": {
+          "additional_info": {
+            "duration": 164,
+            "music_service_name": "YouTube Music",
+            "origin_url": "https://music.youtube.com/playlist?list=PLfixture02",
+            "submission_client": "Web Scrobbler",
+            "submission_client_version": "3.23.1"
+          },
+          "artist_name": "Fixture Artist 2",
+          "track_name": "Fixture Track 2"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1759999717,
+        "listened_at": 1759999604,
+        "recording_msid": "cf2608ef-350c-5e4b-aae9-57090245684e",
+        "track_metadata": {
+          "additional_info": {
+            "duration": 230,
+            "music_service_name": "YouTube Music",
+            "origin_url": "https://music.youtube.com/playlist?list=PLfixture03",
+            "submission_client": "Web Scrobbler",
+            "submission_client_version": "3.23.1"
+          },
+          "artist_name": "Fixture Artist 1",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "f9f3d760-3d9e-5367-9b07-ceb60a300232"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 1",
+                "artist_mbid": "f9f3d760-3d9e-5367-9b07-ceb60a300232",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000006,
+            "caa_release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282",
+            "recording_mbid": "abdba13a-221b-58c3-8bd5-222c8aeee122",
+            "recording_name": "Fixture Track 1",
+            "release_group_mbid": "0d38f176-ea14-5e23-a80a-51406c741efd",
+            "release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282"
+          },
+          "release_name": "Fixture Release 1",
+          "track_name": "Fixture Track 1"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1759999523,
+        "listened_at": 1759999443,
+        "recording_msid": "11541175-63d6-5341-a409-c7f9d8a8417c",
+        "track_metadata": {
+          "additional_info": {
+            "duration": 161,
+            "music_service_name": "YouTube Music",
+            "origin_url": "https://music.youtube.com/playlist?list=PLfixture04",
+            "submission_client": "Web Scrobbler",
+            "submission_client_version": "3.23.1"
+          },
+          "artist_name": "Fixture Artist 1",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "f9f3d760-3d9e-5367-9b07-ceb60a300232"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 1",
+                "artist_mbid": "f9f3d760-3d9e-5367-9b07-ceb60a300232",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000006,
+            "caa_release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282",
+            "recording_mbid": "25532d52-422f-5ca9-ae3e-a09e290c61b3",
+            "recording_name": "Fixture Track 3",
+            "release_group_mbid": "0d38f176-ea14-5e23-a80a-51406c741efd",
+            "release_mbid": "7f8738b7-3a60-5a32-8279-13a925612282"
+          },
+          "release_name": "Fixture Release 2",
+          "track_name": "Fixture Track 3"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1759999209,
+        "listened_at": 1759999163,
+        "recording_msid": "98f2a009-85b4-5e38-95eb-f6bc093614b3",
+        "track_metadata": {
+          "additional_info": {
+            "duration_ms": 92000,
+            "submission_client": "Pano Scrobbler",
+            "submission_client_version": "4.47"
+          },
+          "artist_name": "Fixture Artist 2",
+          "release_name": "Fixture Release 3",
+          "track_name": "Fixture Track 4"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1759998907,
+        "listened_at": 1759998861,
+        "recording_msid": "98f2a009-85b4-5e38-95eb-f6bc093614b3",
+        "track_metadata": {
+          "additional_info": {
+            "duration_ms": 92000,
+            "submission_client": "Pano Scrobbler",
+            "submission_client_version": "4.47"
+          },
+          "artist_name": "Fixture Artist 2",
+          "release_name": "Fixture Release 3",
+          "track_name": "Fixture Track 4"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1760000696,
+        "listened_at": 1759997285,
+        "recording_msid": "629c0e3d-4c82-53a9-8590-900009e901bf",
+        "track_metadata": {
+          "additional_info": {
+            "duration_ms": 191000,
+            "submission_client": "Pano Scrobbler",
+            "submission_client_version": "4.47"
+          },
+          "artist_name": "Fixture Artist 3",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "17553294-6493-5727-b1c2-1fa52f68ee9e"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 3",
+                "artist_mbid": "17553294-6493-5727-b1c2-1fa52f68ee9e",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000010,
+            "caa_release_mbid": "3e146cd2-d97b-514d-8cd1-47dde0182697",
+            "recording_mbid": "3e89e815-a05a-576e-8ca0-3a61e5d7d0fc",
+            "recording_name": "Fixture Track 5",
+            "release_group_mbid": "f88e6f75-1f9e-59b2-9f4b-e32ee8b7916c",
+            "release_mbid": "3e146cd2-d97b-514d-8cd1-47dde0182697"
+          },
+          "release_name": "Fixture Release 4",
+          "track_name": "Fixture Track 5"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1760000696,
+        "listened_at": 1759996781,
+        "recording_msid": "629c0e3d-4c82-53a9-8590-900009e901bf",
+        "track_metadata": {
+          "additional_info": {
+            "duration_ms": 191000,
+            "submission_client": "Pano Scrobbler",
+            "submission_client_version": "4.47"
+          },
+          "artist_name": "Fixture Artist 3",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "17553294-6493-5727-b1c2-1fa52f68ee9e"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 3",
+                "artist_mbid": "17553294-6493-5727-b1c2-1fa52f68ee9e",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000014,
+            "caa_release_mbid": "3e146cd2-d97b-514d-8cd1-47dde0182697",
+            "recording_mbid": "3e89e815-a05a-576e-8ca0-3a61e5d7d0fc",
+            "recording_name": "Fixture Track 5",
+            "release_group_mbid": "f88e6f75-1f9e-59b2-9f4b-e32ee8b7916c",
+            "release_mbid": "3e146cd2-d97b-514d-8cd1-47dde0182697"
+          },
+          "release_name": "Fixture Release 4",
+          "track_name": "Fixture Track 5"
+        },
+        "user_name": "fixture_user"
+      },
+      {
+        "inserted_at": 1760000696,
+        "listened_at": 1759996602,
+        "recording_msid": "badd3466-60f1-5195-bff8-7ffa616e3da1",
+        "track_metadata": {
+          "additional_info": {
+            "duration_ms": 179000,
+            "submission_client": "Pano Scrobbler",
+            "submission_client_version": "4.47"
+          },
+          "artist_name": "Fixture Artist 3",
+          "mbid_mapping": {
+            "artist_mbids": [
+              "17553294-6493-5727-b1c2-1fa52f68ee9e"
+            ],
+            "artists": [
+              {
+                "artist_credit_name": "Fixture Artist 3",
+                "artist_mbid": "17553294-6493-5727-b1c2-1fa52f68ee9e",
+                "join_phrase": ""
+              }
+            ],
+            "caa_id": 10000000014,
+            "caa_release_mbid": "01335396-dc98-5528-a901-96c018994342",
+            "recording_mbid": "67a9311a-260e-5e6c-afea-84f9240624e4",
+            "recording_name": "Fixture Track 6",
+            "release_group_mbid": "99f73f94-65d9-564d-a39a-f4542d25f663",
+            "release_mbid": "01335396-dc98-5528-a901-96c018994342"
+          },
+          "track_name": "Fixture Track 6"
+        },
+        "user_name": "fixture_user"
+      }
+    ],
+    "oldest_listen_ts": 1759996602,
+    "user_id": "fixture_user"
+  }
+}
