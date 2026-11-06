@@ -399,7 +399,7 @@ function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: Listenbr
           )}
         </div>
       )}
-      {queued && !error && <p className={styles.note} role="status">Reading ListenBrainz now. The full import continues in the background a few thousand plays at a time; this page keeps up.</p>}
+      {queued && !error && <p className={styles.note} role="status">Reading ListenBrainz now. The full import carries on in the background; this page keeps up.</p>}
       {confirming && (
         <div className={styles.confirm} role="group" aria-label="Disconnect ListenBrainz">
           <span>Runout stops importing from ListenBrainz. Plays already stored stay, and connecting again continues where it left off.</span>

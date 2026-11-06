@@ -65,23 +65,24 @@ export function ListenbrainzHelp() {
           <span className={styles.rowTitle}>Spotify</span>
           <span className={styles.rowBody}>
             On listenbrainz.org, open Settings → Music services, connect Spotify and choose to record your listens. ListenBrainz then
-            keeps every play Spotify reports to it, and Runout imports them from there. Runout hasn’t yet checked this route against
-            a real account in this beta; connecting Spotify directly in Runout is the tested one. Both at once is fine: the same play
-            is counted once.
+            keeps every play Spotify reports to it, and Runout imports them from there. Not yet checked: Runout hasn’t tried this
+            route with a real account, so connecting Spotify directly in Runout is the one to rely on for now. Both at once is fine:
+            the same play is counted once.
           </span>
         </li>
         <li className={styles.row}>
           <span className={styles.rowTitle}>YouTube Music on Android</span>
           <span className={styles.rowBody}>
             Install Pano Scrobbler from Google Play. In its settings, add ListenBrainz as a scrobbling service and paste the same user
-            token. Pano then reports what you play in the YouTube Music app.
+            token. Pano then reports what you play in the YouTube Music app. This is a route Runout has checked: plays reported this
+            way reach ListenBrainz with the track, the artist and the time.
           </span>
         </li>
         <li className={styles.row}>
           <span className={styles.rowTitle}>YouTube Music in a browser</span>
           <span className={styles.rowBody}>
             Install the Web Scrobbler extension for Chrome, Firefox or Edge. In its options, under Accounts, add ListenBrainz with the
-            same user token. It reports what you play on music.youtube.com.
+            same user token. It reports what you play on music.youtube.com. Checked by Runout the same way.
           </span>
         </li>
         <li className={styles.row}>

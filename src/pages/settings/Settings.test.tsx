@@ -313,7 +313,8 @@ describe('Settings: ListenBrainz', () => {
     await user.click(within(panel).getByText('Getting your plays into ListenBrainz'));
     expect(panel).toHaveTextContent('Pano Scrobbler');
     expect(panel).toHaveTextContent('Web Scrobbler');
-    expect(panel).toHaveTextContent('hasn’t yet checked this route');
+    expect(panel).toHaveTextContent('Not yet checked');
+    expect(panel).toHaveTextContent('a route Runout has checked');
     await user.click(within(panel).getByRole('button', { name: 'Import your full history' }));
     expect(sources.calls).toContain('backfillListenbrainz');
     await waitFor(() => expect(panel).toHaveTextContent('Importing: 0 plays read of about 12,000'));
