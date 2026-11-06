@@ -102,10 +102,17 @@ module Listenbrainz
         poll.increment(:pages)
         poll.increment(:http_requests)
         newer = page.select { |l| l["listened_at"].to_i > floor.to_i }
-        items.concat(newer)
-        return [ items, true ] if page.empty? || newer.size < page.size || page.size < PAGE
+        if page.empty? || newer.size < page.size || page.size < PAGE
+          items.concat(newer)
+          return [ items, true ]
+        end
 
-        max_ts = page.map { |l| l["listened_at"].to_i }.min
+        # A full page's oldest second is left for the next page (which starts one second after it),
+        # so listens sharing that second across the boundary are neither lost nor read twice.
+        boundary = page.map { |l| l["listened_at"].to_i }.min
+        kept = newer.reject { |l| l["listened_at"].to_i == boundary }
+        items.concat(kept.empty? ? newer : kept)
+        max_ts = kept.empty? ? boundary : boundary + 1
       end
       [ items, false ]
     end
