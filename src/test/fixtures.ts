@@ -131,6 +131,7 @@ export function makeSources(spotify: Partial<SpotifySource> = {}): ListeningSour
   return {
     lastfm: { role: 'archive', connected: true, username: 'test-user' },
     spotify: { configured: true, ingestionEnabled: false, state: 'not_connected', account: null, ...spotify },
+    listenbrainz: { enabled: true, state: 'not_connected', account: null },
   };
 }
 
@@ -159,6 +160,16 @@ export function fakeSourcesApi(initial: ListeningSources = makeSources(), review
       queue = queue.filter((item) => item.id !== id);
       set({ pendingReview: queue.length });
       return queue;
+    },
+    connectListenbrainz: async (token) => {
+      calls.push(`connectListenbrainz:${token}`);
+      current = { ...current, listenbrainz: { ...current.listenbrainz, state: 'connected', account: { id: 'dana_lb', displayName: 'dana_lb' }, connectedAt: '2026-11-06T10:00:00Z' } };
+      return current;
+    },
+    disconnectListenbrainz: async () => {
+      calls.push('disconnectListenbrainz');
+      current = { ...current, listenbrainz: { ...current.listenbrainz, state: 'disconnected', disconnectedAt: '2026-11-06T11:00:00Z' } };
+      return current;
     },
   };
 }

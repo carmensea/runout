@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import stateStyles from '../../components/states/States.module.css';
 import { ApiError } from '../../data/api';
 import { useAppData } from '../../data/AppDataContext';
-import type { ListeningReviewItem, ListeningSources, SpotifyPoll, SpotifySource } from '../../data/types';
+import type { ListenbrainzSource, ListeningReviewItem, ListeningSources, SpotifyPoll, SpotifySource } from '../../data/types';
 import { usePolling } from '../../hooks/usePolling';
 import styles from './Settings.module.css';
 
@@ -77,6 +77,7 @@ export function SourcesSection() {
       {error && <p className={styles.error} role="alert">{CONNECT_ERRORS[error] ?? 'Spotify couldn’t be connected. Try again.'}</p>}
       <LastfmPanel lastfm={sources.data.lastfm} />
       <SpotifyPanel spotify={spotify} onChanged={sources.refresh} />
+      {sources.data.listenbrainz.enabled && <ListenbrainzPanel listenbrainz={sources.data.listenbrainz} onChanged={sources.refresh} />}
       {(spotify.pendingReview ?? 0) > 0 && <ReviewPanel onChanged={sources.refresh} />}
     </>
   );
@@ -302,6 +303,104 @@ function ReviewPanel({ onChanged }: { onChanged(): void }) {
         </ul>
       )}
       {failed && <p className={styles.error} role="alert">That decision didn’t save. Try again.</p>}
+    </section>
+  );
+}
+
+const LISTENBRAINZ_ERRORS: Record<string, string> = {
+  invalid_token: 'ListenBrainz didn’t recognise that token. Copy it again from listenbrainz.org → Settings.',
+  account_taken: 'That ListenBrainz account is already connected to another Runout account.',
+  ingestion_disabled: 'ListenBrainz isn’t switched on on this server yet.',
+  rate_limited: 'Too many attempts. Wait a minute and try again.',
+  unavailable: 'ListenBrainz couldn’t be reached. Try again in a few minutes.',
+};
+
+/**
+ * ListenBrainz: a verified username, no token kept. ListenBrainz gathers listens from its own
+ * Spotify connection and from scrobblers (YouTube Music through Pano Scrobbler or Web Scrobbler);
+ * Runout reads that public history. Shown only while the server has it switched on.
+ */
+function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: ListenbrainzSource; onChanged(): void }) {
+  const { api, fmt, timeZone } = useAppData();
+  const [token, setToken] = useState('');
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const inputId = 'listenbrainz-token';
+  const linked = listenbrainz.state === 'connected' || listenbrainz.state === 'needs_reauth';
+  const at = (iso: string | null | undefined) => (iso ? fmt.dateTime(iso, timeZone) : 'Never');
+
+  async function run(name: string, action: () => Promise<unknown>) {
+    setPending(name);
+    setError(null);
+    try {
+      await action();
+      setToken('');
+      setConfirming(false);
+      onChanged();
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : null;
+      setError((code && LISTENBRAINZ_ERRORS[code]) ?? 'That didn’t work. Check your connection and try again.');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className={styles.panel} aria-labelledby="source-listenbrainz" id="listenbrainz">
+      <span id="source-listenbrainz" className={styles.panelTitle}>ListenBrainz</span>
+      <span>
+        ListenBrainz keeps a listening history gathered from the services and scrobblers you connect to it, such as its own Spotify
+        connection or a YouTube Music scrobbler. Runout imports that history into your own archive.
+      </span>
+      <dl className={styles.facts}>
+        <dt>Status</dt>
+        <dd>{STATE_TEXT[listenbrainz.state]}</dd>
+        {linked && listenbrainz.account && (
+          <>
+            <dt>Account</dt>
+            <dd>{listenbrainz.account.displayName}</dd>
+            <dt>Connected</dt>
+            <dd>{at(listenbrainz.connectedAt)}</dd>
+            <dt>Last import</dt>
+            <dd>{listenbrainz.lastSuccessAt ? `${at(listenbrainz.lastSuccessAt)}, ${fmt.count(listenbrainz.playsAdded ?? 0)} plays added in all` : 'Not yet'}</dd>
+          </>
+        )}
+      </dl>
+      {!linked && (
+        <>
+          <span className={styles.note}>
+            Your ListenBrainz listening history is public. Connecting tells Runout which account is yours: Runout checks the token once
+            with ListenBrainz and does not keep it. The token is on listenbrainz.org → Settings.
+          </span>
+          <label className={styles.fieldLabel} htmlFor={inputId}>
+            ListenBrainz user token
+            <input id={inputId} className={styles.select} type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
+          </label>
+          <div className={styles.actions}>
+            <button type="button" className={stateStyles.primary} disabled={!!pending || token.trim() === ''} onClick={() => run('connect', () => api.sources.connectListenbrainz(token.trim()))}>
+              {pending === 'connect' ? 'Checking with ListenBrainz' : listenbrainz.state === 'disconnected' ? 'Connect ListenBrainz again' : 'Connect ListenBrainz'}
+            </button>
+          </div>
+        </>
+      )}
+      {linked && !confirming && (
+        <div className={styles.actions}>
+          <button type="button" className={stateStyles.secondary} disabled={!!pending} onClick={() => setConfirming(true)}>Disconnect ListenBrainz</button>
+        </div>
+      )}
+      {confirming && (
+        <div className={styles.confirm} role="group" aria-label="Disconnect ListenBrainz">
+          <span>Runout stops importing from ListenBrainz. Plays already stored stay, and connecting again continues where it left off.</span>
+          <div className={styles.actions}>
+            <button type="button" className={styles.danger} disabled={!!pending} onClick={() => run('disconnect', api.sources.disconnectListenbrainz)}>
+              {pending === 'disconnect' ? 'Disconnecting' : 'Disconnect'}
+            </button>
+            <button type="button" className={stateStyles.secondary} disabled={!!pending} onClick={() => setConfirming(false)}>Keep connected</button>
+          </div>
+        </div>
+      )}
+      {error && <p className={styles.error} role="alert">{error}</p>}
     </section>
   );
 }
