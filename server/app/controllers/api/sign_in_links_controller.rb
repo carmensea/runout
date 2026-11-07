@@ -5,7 +5,12 @@ module Api
     before_action :require_passkeys_enabled
     rate_limit to: 10, within: 1.minute, with: -> { redirect_to "/overview?auth_error=rate_limited" }
 
+    # Link previews fetch what people paste into a chat; they get the front page, not a session.
+    PREVIEW_FETCHERS = /Discordbot|Slackbot|Twitterbot|facebookexternalhit|WhatsApp|TelegramBot|LinkedInBot|Googlebot|bingbot|Applebot|SkypeUriPreview/i
+
     def show
+      return redirect_to("/overview") if request.user_agent.to_s.match?(PREVIEW_FETCHERS)
+
       link = SignInLink.redeem!(params[:token]) or return redirect_to("/overview?auth_error=link_invalid")
       Rails.logger.warn("Operator #{link.kind} link used for user #{link.user_id}")
       start_session_for(link.user)

@@ -38,12 +38,12 @@ namespace :auth do
     user
   end
 
-  desc "Revoke a person's unredeemed invitation links (nothing else changes). Arguments: user UUID, display name"
+  desc "Revoke a person's open invitation links (nothing else changes). Arguments: user UUID, display name"
   task :revoke_invitation, [ :user_id, :display_name ] => :environment do |_t, args|
     user = find_account!(args)
-    revoked = SignInLink.where(user: user, kind: "invitation", used_at: nil).where("expires_at > ?", Time.current).update_all(expires_at: Time.current)
+    revoked = SignInLink.where(user: user, kind: "invitation").where("expires_at > ?", Time.current).update_all(expires_at: Time.current)
     Rails.logger.warn("Invitation links revoked for user #{user.id}: #{revoked}")
-    puts "Revoked #{revoked} unredeemed invitation link#{'s' unless revoked == 1} for #{user.display_name} (#{user.id})."
+    puts "Revoked #{revoked} open invitation link#{'s' unless revoked == 1} for #{user.display_name} (#{user.id})."
     unfinished = user.webauthn_credentials.active.none? && user.identities.none? && user.scrobbles.none? && user.listening_sources.none?
     puts(unfinished ? "The account is empty (no passkey, identity, source or play). To remove it: bin/rails \"auth:remove_account[#{user.id},#{user.display_name},DELETE #{user.id}]\"" : "The account is in use and stays.")
   end

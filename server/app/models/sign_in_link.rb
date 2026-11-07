@@ -1,4 +1,4 @@
-# A single-use, expiring sign-in link the operator issues (bin/rails auth:recovery_link,
+# An expiring sign-in link the operator issues, single use for recovery (bin/rails auth:recovery_link,
 # auth:invite_link). Only the token's SHA-256 digest is stored.
 class SignInLink < ApplicationRecord
   TTL = 15.minutes          # recovery: handed over at once, in an emergency
@@ -16,14 +16,25 @@ class SignInLink < ApplicationRecord
     token
   end
 
-  # The link, now used, when it was valid; nil otherwise. An invitation is scoped to enrolment:
-  # once its account has an active passkey it is dead even if it was never opened.
+  # The link when it was valid; nil otherwise. A recovery link works once. An invitation is
+  # scoped to enrolment: it opens for whoever has it until its account has an active passkey or
+  # it expires, and `used_at` keeps the first opening.
+  # shortcut: invitations were single use, but chat apps fetch links for previews and spent
+  # them before the invited person could click (Discordbot, 2026-11-07); single use returns when
+  # the redeem happens on a POST from the welcome page rather than on the GET.
   def self.redeem!(token)
     return nil if token.blank?
 
     row = find_by(token_digest: Session.digest(token))
     return nil unless row && row.expires_at > Time.current
-    return nil if row.kind == "invitation" && row.user.webauthn_credentials.active.exists?
+
+    if row.kind == "invitation"
+      return nil if row.user.webauthn_credentials.active.exists?
+
+      where(id: row.id, used_at: nil).update_all(used_at: Time.current)
+      return row
+    end
+
     return nil unless where(id: row.id, used_at: nil).update_all(used_at: Time.current) == 1
 
     row
