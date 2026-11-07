@@ -5,8 +5,8 @@ module Metadata
   # never queued: nothing is matched by name.
   module Artwork
     PROVIDER = "coverartarchive".freeze
-    REFRESH = 180.days
-    NEGATIVE = 180.days
+    REFRESH = 2.years   # a found cover is asked about again only this often: front covers rarely change
+    NEGATIVE = 180.days # a missing one is asked about again sooner: covers get uploaded
     FAILED_RETRY = 7.days
     MAX_ATTEMPTS = 5
 

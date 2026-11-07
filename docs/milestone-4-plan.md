@@ -370,7 +370,10 @@ test checks the JSON types.
   - played releases, most played first, at the end of their merge chains;
   - albums without a release ID are never queued;
   - the same flag, negative caching (180 days), backoff and seven-day give-up, and a
-    `metadata_fetches` row per lookup;
+    `metadata_fetches` row per lookup; a found cover is checked again only after two years
+    (2026-11-07: front covers rarely change, and a refresh wave is spread like the fetches were);
+  - `enrich:status` reports, for artwork, what is eligible, queued and not yet queued, done, due
+    now, due for refresh within a month, and the week's new covers, refreshes and fetch problems;
   - `MetadataEnrichJob` runs artists and artwork in each batch;
   - `enrich:plan_artwork` and `enrich:run_artwork`, with progress in `enrich:status`.
 - **Approved hosts only**, checked three times:

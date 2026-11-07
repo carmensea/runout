@@ -26,12 +26,25 @@ module Metadata
       }
     end
 
-    def artwork
+    # Artwork: what is eligible, queued, done and still to do, and what the last week brought.
+    # `due_now` is the next run's work; `refresh_due_30d` is how many finished covers come up for
+    # their periodic check within a month, so a refresh wave can be seen coming.
+    def artwork(now: Time.current)
       targets = MetadataTarget.where(provider: Artwork::PROVIDER)
-      found = MetadataArtwork.where(provider: Artwork::PROVIDER).where.not(found_on: nil)
-      { queued: targets.count, with_cover: found.count, on_release: found.where(found_on: "release").count,
+      arts = MetadataArtwork.where(provider: Artwork::PROVIDER)
+      found = arts.where.not(found_on: nil)
+      eligible = Artwork.played_releases.size
+      queued = targets.count
+      { eligible: eligible, queued: queued, not_queued: [ eligible - queued, 0 ].max,
+        with_cover: found.count, on_release: found.where(found_on: "release").count,
         on_release_group: found.where(found_on: "release_group").count, without_cover: targets.where(status: "not_found").count,
-        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count }
+        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count,
+        due_now: targets.where(next_attempt_at: ..now).count,
+        refresh_due_30d: targets.where(status: "ok", next_attempt_at: now..(now + 30.days)).count,
+        new_covers_7d: found.where(created_at: (now - 7.days)..).count,
+        refreshed_7d: arts.where(fetched_at: (now - 7.days)..).where("fetched_at > created_at + interval '1 day'").count,
+        fetch_problems_7d: MetadataFetch.where(provider: Artwork::PROVIDER, outcome: %w[error rate_limited], requested_at: (now - 7.days)..).count,
+        last_fetch_at: arts.maximum(:fetched_at) }
     end
   end
 end
