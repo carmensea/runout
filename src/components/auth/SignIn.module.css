@@ -14,6 +14,38 @@
   max-width: none;
 }
 
+/* The ways in, side by side where they fit and stacked where they don't; the passkey first. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.left .actions {
+  justify-content: flex-start;
+}
+
+/* Labels stay on one line and never outgrow the button. */
+.choices .button {
+  height: auto;
+  min-height: 36px;
+  padding: 8px 14px;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.caption {
+  margin: 0;
+  text-align: center;
+}
+
+.left .caption {
+  text-align: left;
+}
+
 .or {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -54,17 +86,37 @@
   text-decoration: underline;
 }
 
+.left .toggle {
+  align-self: flex-start;
+}
+
 .toggle:hover {
   color: var(--ac);
 }
 
+/* Problems sit right above the controls they concern. */
 .error {
   margin: 0;
+  width: 100%;
   color: var(--err);
   font-size: 13px;
+  text-align: center;
+}
+
+.left .error {
+  text-align: left;
 }
 
 @media (max-width: 767px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .choices .button {
+    min-height: 44px;
+  }
+
   .input {
     height: 44px;
   }
