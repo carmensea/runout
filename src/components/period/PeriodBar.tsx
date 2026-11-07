@@ -1,27 +1,62 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useDismiss } from '../../hooks/useDismiss';
 import {
-  BAR_KINDS, canStep, defaultComparison, periodLabel, periodOfKind, stepPeriod, type Period, type PeriodKind,
-} from '../../lib/period';
-import { usePeriod } from '../../state/PeriodContext';
-import { Icon } from '../ui/Icon';
-import { SegmentedControl } from '../ui/SegmentedControl';
-import { SearchField } from '../search/SearchField';
-import { AccountMenu } from '../shell/AccountMenu';
-import { PeriodPicker } from './PeriodPicker';
-import styles from './PeriodBar.module.css';
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { useDismiss } from "../../hooks/useDismiss";
+import {
+  BAR_KINDS,
+  canStep,
+  defaultComparison,
+  periodApplies,
+  periodLabel,
+  periodOfKind,
+  stepPeriod,
+  type Period,
+  type PeriodKind,
+} from "../../lib/period";
+import { useLocation } from "react-router-dom";
+import { usePeriod } from "../../state/PeriodContext";
+import { Icon } from "../ui/Icon";
+import { SegmentedControl } from "../ui/SegmentedControl";
+import { SearchField } from "../search/SearchField";
+import { AccountMenu } from "../shell/AccountMenu";
+import { PeriodPicker } from "./PeriodPicker";
+import styles from "./PeriodBar.module.css";
 
 /** Sticky period toolbar shared by every screen, plus the global banner slot below it. */
 export function PeriodBar({ banner }: { banner?: ReactNode }) {
   const { current, compare, today, setCurrent, setCompare } = usePeriod();
-  const narrow = useMediaQuery('(max-width: 1023px)');
-  const [pickerFor, setPickerFor] = useState<'current' | 'compare' | null>(null);
+  const { pathname } = useLocation();
+  const narrow = useMediaQuery("(max-width: 1023px)");
+  const [pickerFor, setPickerFor] = useState<"current" | "compare" | null>(
+    null,
+  );
+
+  // Where the period changes nothing on the page, the bar keeps only search and the account.
+  if (!periodApplies(pathname)) {
+    return (
+      <div className={styles.bar}>
+        <div className={styles.toolbar}>
+          <div className={styles.spacer} />
+          <SearchField className={styles.search} />
+          <AccountMenu />
+        </div>
+        {banner}
+      </div>
+    );
+  }
 
   const selectKind = (kind: PeriodKind) => {
     if (kind === current.kind) return;
     setCurrent(periodOfKind(kind, current, today));
-    if (kind === 'custom') setPickerFor('current');
+    if (kind === "custom") setPickerFor("current");
   };
 
   return (
@@ -38,18 +73,18 @@ export function PeriodBar({ banner }: { banner?: ReactNode }) {
         <Stepper
           period={current}
           today={today}
-          label={narrow ? 'Choose period and type' : 'Choose period'}
+          label={narrow ? "Choose period and type" : "Choose period"}
           showKinds={narrow}
-          open={pickerFor === 'current'}
-          onOpenChange={(o) => setPickerFor(o ? 'current' : null)}
+          open={pickerFor === "current"}
+          onOpenChange={(o) => setPickerFor(o ? "current" : null)}
           onChange={setCurrent}
         />
         <CompareControl
           current={current}
           compare={compare}
           today={today}
-          open={pickerFor === 'compare'}
-          onOpenChange={(o) => setPickerFor(o ? 'compare' : null)}
+          open={pickerFor === "compare"}
+          onOpenChange={(o) => setPickerFor(o ? "compare" : null)}
           onChange={setCompare}
         />
         <div className={styles.spacer} />
@@ -71,7 +106,15 @@ interface StepperProps {
   onChange(p: Period): void;
 }
 
-function Stepper({ period, today, label, showKinds, open, onOpenChange, onChange }: StepperProps) {
+function Stepper({
+  period,
+  today,
+  label,
+  showKinds,
+  open,
+  onOpenChange,
+  onChange,
+}: StepperProps) {
   const id = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -82,14 +125,14 @@ function Stepper({ period, today, label, showKinds, open, onOpenChange, onChange
   const refs = useMemo(() => [wrapRef], []);
   useDismiss(open, close, refs);
 
-  const isAll = period.kind === 'all';
+  const isAll = period.kind === "all";
   return (
     <div ref={wrapRef} className={styles.stepper}>
       <button
         type="button"
         className={styles.step}
         aria-label="Previous period"
-        title={isAll ? 'All time has no previous period' : undefined}
+        title={isAll ? "All time has no previous period" : undefined}
         disabled={!canStep(period, -1, today)}
         onClick={() => onChange(stepPeriod(period, -1, today))}
       >
@@ -112,14 +155,22 @@ function Stepper({ period, today, label, showKinds, open, onOpenChange, onChange
         type="button"
         className={styles.step}
         aria-label="Next period"
-        title={isAll ? 'All time has no next period' : undefined}
+        title={isAll ? "All time has no next period" : undefined}
         disabled={!canStep(period, 1, today)}
         onClick={() => onChange(stepPeriod(period, 1, today))}
       >
         <Icon name="chevron_right" />
       </button>
       {open && (
-        <PeriodPicker id={id} label={label} value={period} today={today} showKinds={showKinds} onSelect={onChange} onDone={close} />
+        <PeriodPicker
+          id={id}
+          label={label}
+          value={period}
+          today={today}
+          showKinds={showKinds}
+          onSelect={onChange}
+          onDone={close}
+        />
       )}
     </div>
   );
@@ -134,7 +185,14 @@ interface CompareProps {
   onChange(p: Period | null): void;
 }
 
-function CompareControl({ current, compare, today, open, onOpenChange, onChange }: CompareProps) {
+function CompareControl({
+  current,
+  compare,
+  today,
+  open,
+  onOpenChange,
+  onChange,
+}: CompareProps) {
   const id = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -156,7 +214,7 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
   }, [compare]);
 
   if (!compare) {
-    const unavailable = current.kind === 'all';
+    const unavailable = current.kind === "all";
     return (
       <button
         ref={compareButtonRef}
@@ -164,7 +222,11 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
         className={styles.compareButton}
         aria-pressed="false"
         disabled={unavailable}
-        title={unavailable ? 'Choose a year, month or range to compare' : 'Compare with the previous period'}
+        title={
+          unavailable
+            ? "Choose a year, month or range to compare"
+            : "Compare with the previous period"
+        }
         onClick={() => onChange(defaultComparison(current, today))}
       >
         <Icon name="compare_arrows" />
@@ -178,7 +240,7 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
     onChange(null);
   };
   const onChipKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !open) {
+    if (e.key === "Escape" && !open) {
       e.preventDefault();
       clear();
     }
@@ -186,7 +248,9 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
 
   return (
     <div ref={wrapRef} className={styles.chip} onKeyDown={onChipKey}>
-      <span className={styles.vs} aria-hidden="true">vs</span>
+      <span className={styles.vs} aria-hidden="true">
+        vs
+      </span>
       <button
         ref={triggerRef}
         type="button"
@@ -200,18 +264,37 @@ function CompareControl({ current, compare, today, open, onOpenChange, onChange 
         <span className={styles.swatch} />
         <span>{periodLabel(compare, today)}</span>
       </button>
-      <button type="button" className={styles.clear} aria-label="Clear comparison" onClick={clear}>
+      <button
+        type="button"
+        className={styles.clear}
+        aria-label="Clear comparison"
+        onClick={clear}
+      >
         <Icon name="close" size={16} />
       </button>
       {open && (
-        <PeriodPicker id={id} label="Choose comparison period" value={compare} today={today} showKinds={false} onSelect={onChange} onDone={close} />
+        <PeriodPicker
+          id={id}
+          label="Choose comparison period"
+          value={compare}
+          today={today}
+          showKinds={false}
+          onSelect={onChange}
+          onDone={close}
+        />
       )}
     </div>
   );
 }
 
 /** Banner row under the toolbar (specimen notice, import progress, failures). */
-export function BarBanner({ tag, children }: { tag: string; children: ReactNode }) {
+export function BarBanner({
+  tag,
+  children,
+}: {
+  tag: string;
+  children: ReactNode;
+}) {
   return (
     <div className={styles.banner} role="status">
       <span className={styles.bannerTag}>{tag}</span>
