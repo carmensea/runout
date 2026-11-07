@@ -28,6 +28,16 @@ namespace :enrich do
     puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ") + format(" elapsed=%.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
   end
 
+  desc "Artwork from ListenBrainz's mapping for albums without a release id: rewrite every ListenBrainz user's candidates, then check and fetch LIMIT=25"
+  task infer_artwork: :environment do
+    User.where(id: ListeningObservation.where(provider: "listenbrainz").select(:user_id).distinct).find_each do |user|
+      plan = Metadata::InferredArtwork.plan!(user)
+      puts "#{user.id}: " + plan.to_h.map { |k, v| "#{k}=#{v}" }.join(" ")
+    end
+    summary = Metadata::InferredArtwork::Enricher.new.run!(limit: ENV.fetch("LIMIT", "25").to_i)
+    puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ")
+  end
+
   desc "Enrichment progress"
   task status: :environment do
     Metadata::Progress.report.each { |k, v| puts format("%-28s %s", k, v.inspect) }
