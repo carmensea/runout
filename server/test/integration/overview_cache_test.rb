@@ -72,6 +72,20 @@ class OverviewCacheTest < ActionDispatch::IntegrationTest
     assert_equal 0, computed { get "/api/overview" }
   end
 
+  test "covers for albums this user never played, and another account's plays, change nothing here" do
+    get "/api/overview"
+    MetadataArtwork.create!(provider: "coverartarchive", release_id: "22222222-2222-4222-8222-222222222222", found_on: "release", image_id: "2",
+                            thumbnail_250: "https://archive.org/2-250.jpg", source_url: "https://coverartarchive.org/release/x", fetched_at: Time.current)
+    other = User.create!(display_name: "other", reporting_timezone: "Europe/London")
+    scrobble(other, at: Time.utc(2020, 1, 1, 12), variant: variant(track: "Else", artist: "Other", album: "Theirs"))
+    Catalogue::Matcher.new.match!(NameVariant.find_by!(track_name: "Else"))
+    assert_equal 0, computed { get "/api/overview" }, "an enrichment tick elsewhere and someone else's listening leave the cache useful"
+
+    Album.find_by!(title: "Album").update!(mbid: "22222222-2222-4222-8222-222222222222")
+    assert_equal 1, computed { get "/api/overview" }, "once this user's album resolves to that release, the cover is theirs"
+    assert_equal "https://archive.org/2-250.jpg", response.parsed_body["top"]["albums"].first["imageUrl"]
+  end
+
   test "another account never gets this one's answer, and a changed timezone is a new answer" do
     get "/api/overview"
     first = response.parsed_body
