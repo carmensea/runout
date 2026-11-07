@@ -5,8 +5,9 @@ module Metadata
   # never queued: nothing is matched by name.
   module Artwork
     PROVIDER = "coverartarchive".freeze
-    REFRESH = 180.days
-    NEGATIVE = 180.days
+    REFRESH = 2.years          # a found cover is asked about again only this often: front covers rarely change
+    REFRESH_SPREAD = 60.days   # ... each at its own moment within this, so a batch never comes due as one wave
+    NEGATIVE = 180.days        # a missing one is asked about again sooner: covers get uploaded
     FAILED_RETRY = 7.days
     MAX_ATTEMPTS = 5
 
@@ -85,7 +86,7 @@ module Metadata
                                 http_status: 200, outcome: found_on ? "ok" : "not_found", requested_at: now,
                                 changed_values: { found_on: found_on, release_group_id: group }.compact)
           target.update!(status: found_on ? "ok" : "not_found", attempts: 0, last_attempt_at: now, last_success_at: now, last_error: nil,
-                         next_attempt_at: now + (found_on ? REFRESH : NEGATIVE))
+                         next_attempt_at: now + (found_on ? REFRESH + rand(0..REFRESH_SPREAD.to_i).seconds : NEGATIVE))
         end
         found_on ? :found : :none
       end
