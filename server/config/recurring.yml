@@ -47,6 +47,12 @@ production:
     class: ListenbrainzPollJob
     queue: default
     schedule: <%= ENV.fetch("LISTENBRAINZ_POLL_SCHEDULE", "every 10 minutes") %>
+  # Artwork from ListenBrainz's mapping for albums without a release id (Metadata::InferredArtwork):
+  # every ListenBrainz user's candidates, then a batch of 25. Does nothing while the flag is off.
+  inferred_artwork:
+    class: InferredArtworkJob
+    queue: default
+    schedule: every hour at minute 40
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
@@ -84,3 +90,9 @@ development:
     class: ListenbrainzPollJob
     queue: default
     schedule: <%= ENV.fetch("LISTENBRAINZ_POLL_SCHEDULE", "every 10 minutes") %>
+  # Artwork from ListenBrainz's mapping for albums without a release id (Metadata::InferredArtwork):
+  # every ListenBrainz user's candidates, then a batch of 25. Does nothing while the flag is off.
+  inferred_artwork:
+    class: InferredArtworkJob
+    queue: default
+    schedule: every hour at minute 40

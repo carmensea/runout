@@ -15,10 +15,13 @@ namespace :enrich do
     puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ") + format(" elapsed=%.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
   end
 
-  desc "Queue played releases for artwork, most played first: LIMIT=50 (all when unset)"
+  desc "Queue played releases for artwork, most played first: LIMIT=1000 (the most at once; already queued releases keep their state)"
   task plan_artwork: :environment do
-    limit = ENV["LIMIT"].presence&.to_i
-    puts "Queued: #{Metadata::Artwork.plan!(limit: limit)} releases in all#{" (the #{limit} most played requested)" if limit}."
+    limit = ENV.fetch("LIMIT", "1000").to_i
+    abort "enrich: LIMIT must be between 1 and 1000 (one bounded slice at a time)" unless limit.between?(1, 1000)
+    before = MetadataTarget.where(provider: Metadata::Artwork::PROVIDER).count
+    total = Metadata::Artwork.plan!(limit: limit)
+    puts "Queued: #{total} releases in all (the #{limit} most played requested; #{total - before} new, #{before} already queued and left as they were)."
   end
 
   desc "Fetch due artwork now, in this process: LIMIT=50"
@@ -26,6 +29,16 @@ namespace :enrich do
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     summary = Metadata::Artwork::Enricher.new.run!(limit: ENV.fetch("LIMIT", "50").to_i)
     puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ") + format(" elapsed=%.1fs", Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+  end
+
+  desc "Artwork from ListenBrainz's mapping for albums without a release id: rewrite every ListenBrainz user's candidates, then check and fetch LIMIT=25"
+  task infer_artwork: :environment do
+    User.where(id: ListeningObservation.where(provider: "listenbrainz").select(:user_id).distinct).find_each do |user|
+      plan = Metadata::InferredArtwork.plan!(user)
+      puts "#{user.id}: " + plan.to_h.map { |k, v| "#{k}=#{v}" }.join(" ")
+    end
+    summary = Metadata::InferredArtwork::Enricher.new.run!(limit: ENV.fetch("LIMIT", "25").to_i)
+    puts summary.to_h.map { |k, v| "#{k}=#{v}" }.join(" ")
   end
 
   desc "Enrichment progress"

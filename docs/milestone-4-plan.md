@@ -370,10 +370,15 @@ test checks the JSON types.
   - played releases, most played first, at the end of their merge chains;
   - albums without a release ID are never queued;
   - the same flag, negative caching (180 days), backoff and seven-day give-up, and a
-    `metadata_fetches` row per lookup; a found cover is checked again only after two years
-    (2026-11-07: front covers rarely change, and a refresh wave is spread like the fetches were);
-  - `enrich:status` reports, for artwork, what is eligible, queued and not yet queued, done, due
-    now, due for refresh within a month, and the week's new covers, refreshes and fetch problems;
+    `metadata_fetches` row per lookup; a found cover is checked again only after two years, each
+    release at its own moment within the two months after that (2026-11-07: front covers rarely
+    change, and no batch comes due again as one wave);
+  - `enrich:plan_artwork` queues at most 1,000 releases at a time (`LIMIT`, default and ceiling)
+    and leaves already queued releases exactly as they are, so a wider slice never refetches;
+  - `enrich:status` reports, for artwork, what is eligible, queued and not yet queued, done (and
+    where the cover was found), without a cover, waiting, in backoff, given up, due now, due for
+    refresh within a month, the week's new covers, refreshes and fetch problems, and the per-user
+    inferred covers;
   - `MetadataEnrichJob` runs artists and artwork in each batch;
   - `enrich:plan_artwork` and `enrich:run_artwork`, with progress in `enrich:status`.
 - **Approved hosts only**, checked three times:
@@ -404,3 +409,32 @@ test checks the JSON types.
   *Midnights (3am Edition)*, a top-three album here) are name-matched only and keep the placeholder.
 - **Real Overview:** all time 2.54–2.62 s, from 2.47 s; a year 0.75 s.
 - **Top 10 albums of all time:** 9 with covers; the tenth has no release ID.
+
+## 14. Inferred artwork from ListenBrainz's mapping (2026-11-07)
+
+Plays that arrive through ListenBrainz (or Spotify) carry no MusicBrainz ids, so their albums are
+name-only and stay outside Stage 4's pipeline, which keys covers by release id. ListenBrainz does
+attach its own `mbid_mapping` to each listen; Runout keeps it on the observation as ListenBrainz's
+opinion and never writes it into the catalogue (§8 of the ListenBrainz plan). This stage uses that
+opinion for artwork only, per user, with the catalogue untouched.
+
+- **`inferred_artworks`**: one row per user and Overview key (an album's, or a track's when the
+  track has no album name): the release id every one of that user's ListenBrainz observations for
+  that key mapped to, how many observations, MusicBrainz's title and artist credit for the release,
+  and the outcome (`ok`, `none`, `mismatch`, `pending`, `failed`). Deleted with the user.
+- **Consensus, then compatibility** (`Metadata::InferredArtwork`): a key whose observations map to
+  more than one release is a conflict and gets nothing; later disagreement withdraws a cover. For a
+  candidate, MusicBrainz's record of the release must credit the same artist (normalised equality)
+  and, for an album, carry the same title; otherwise `mismatch`, and nothing is fetched.
+- **The cover** is the release's row in `metadata_artworks`, fetched through the same
+  `CoverArt::Client` (one request a second, approved hosts, release then release group, negative
+  result kept) and reused when already on file. The `metadata_fetches` row notes `via:
+  listenbrainz_mapping`.
+- **Display**: the Overview takes a cover on file for the catalogue release first, then this user's
+  inferred cover for the album, then, for a track with no album, the track's own. Another user
+  playing the same name-only album sees nothing from it: inferences never leave the account whose
+  listens produced them. `albumsWithoutArtwork` counts both kinds. Artists keep their initials.
+- **Schedule**: `InferredArtworkJob` hourly (candidates rewritten for every ListenBrainz user, then
+  25 checked), `enrich:infer_artwork` by hand; both only with `METADATA_ENRICHMENT_ENABLED`.
+- **Cost**: one MusicBrainz request per candidate plus the archive's lookups for a release not yet
+  on file; a few hundred bytes per row.

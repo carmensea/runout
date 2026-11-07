@@ -26,25 +26,32 @@ module Metadata
       }
     end
 
-    # Artwork: what is eligible, queued, done and still to do, and what the last week brought.
-    # `due_now` is the next run's work; `refresh_due_30d` is how many finished covers come up for
-    # their periodic check within a month, so a refresh wave can be seen coming.
+    # Artwork: what is eligible, queued, done and still to do, and what the last week brought. Every
+    # queued release is in exactly one of `with_cover`, `without_cover` (none in the archive, asked
+    # again after NEGATIVE), `waiting` (queued, not yet tried), `in_backoff` (tried, archive busy or
+    # unreachable, retried on its own schedule) or `failed` (five tries in a row lost, retried after a
+    # week). `due_now` is the next run's work; `refresh_due_30d` is how many finished covers come up
+    # for their periodic check within a month, so a refresh wave can be seen coming. `inferred`
+    # counts the per-user covers from ListenBrainz's mapping (Metadata::InferredArtwork), which have
+    # no target.
     def artwork(now: Time.current)
       targets = MetadataTarget.where(provider: Artwork::PROVIDER)
       arts = MetadataArtwork.where(provider: Artwork::PROVIDER)
       found = arts.where.not(found_on: nil)
       eligible = Artwork.played_releases.size
       queued = targets.count
+      pending = targets.where(status: "pending")
       { eligible: eligible, queued: queued, not_queued: [ eligible - queued, 0 ].max,
-        with_cover: found.count, on_release: found.where(found_on: "release").count,
+        with_cover: targets.where(status: "ok").count, on_release: found.where(found_on: "release").count,
         on_release_group: found.where(found_on: "release_group").count, without_cover: targets.where(status: "not_found").count,
-        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count,
+        waiting: pending.where(attempts: 0).count, in_backoff: pending.where("attempts > 0").count, failed: targets.where(status: "failed").count,
         due_now: targets.where(next_attempt_at: ..now).count,
         refresh_due_30d: targets.where(status: "ok", next_attempt_at: now..(now + 30.days)).count,
         new_covers_7d: found.where(created_at: (now - 7.days)..).count,
         refreshed_7d: arts.where(fetched_at: (now - 7.days)..).where("fetched_at > created_at + interval '1 day'").count,
         fetch_problems_7d: MetadataFetch.where(provider: Artwork::PROVIDER, outcome: %w[error rate_limited], requested_at: (now - 7.days)..).count,
-        last_fetch_at: arts.maximum(:fetched_at) }
+        last_fetch_at: arts.maximum(:fetched_at),
+        inferred: ::InferredArtwork.group(:status).count }
     end
   end
 end

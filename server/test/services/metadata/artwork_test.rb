@@ -88,18 +88,26 @@ class Metadata::ArtworkTest < ActiveSupport::TestCase
     assert_equal [ RELEASE, nil, "release", "42" ], [ art.release_id, art.release_group_id, art.found_on, art.image_id ]
     assert_equal "https://42.archive.org/250.jpg", art.thumbnail_250
     assert_equal "#{CoverArt::Client::BASE}/release/#{RELEASE}", art.source_url
-    assert_equal [ "ok", @now + Metadata::Artwork::REFRESH ], MetadataTarget.sole.then { |t| [ t.status, t.next_attempt_at ] }
+    assert_equal "ok", MetadataTarget.sole.status
+    assert_includes (@now + Metadata::Artwork::REFRESH)..(@now + Metadata::Artwork::REFRESH + Metadata::Artwork::REFRESH_SPREAD), MetadataTarget.sole.next_attempt_at,
+                    "asked about again in two years, at its own moment within the spread"
     assert_equal [ "ok" ], MetadataFetch.pluck(:outcome)
     assert_equal [ "#{CoverArt::Client::BASE}/release/#{RELEASE}" ], @requested, "no MusicBrainz request when the release has a cover"
     assert_equal before, history_fingerprint
 
     # The report: one eligible release, queued, covered this week; nothing due, nothing refreshing.
     report = Metadata::Progress.artwork(now: @now + 1.hour)
-    assert_equal({ eligible: 1, queued: 1, not_queued: 0, with_cover: 1, on_release: 1, on_release_group: 0, without_cover: 0, failed: 0,
-                   remaining: 0, due_now: 0, refresh_due_30d: 0, new_covers_7d: 1, refreshed_7d: 0, fetch_problems_7d: 0 },
+    assert_equal({ eligible: 1, queued: 1, not_queued: 0, with_cover: 1, on_release: 1, on_release_group: 0, without_cover: 0, waiting: 0,
+                   in_backoff: 0, failed: 0, due_now: 0, refresh_due_30d: 0, new_covers_7d: 1, refreshed_7d: 0, fetch_problems_7d: 0, inferred: {} },
                  report.except(:last_fetch_at))
     assert_equal @now, report[:last_fetch_at]
-    assert_equal 1, Metadata::Progress.artwork(now: @now + Metadata::Artwork::REFRESH - 29.days)[:refresh_due_30d], "the refresh is visible a month ahead"
+    assert_equal 1, Metadata::Progress.artwork(now: MetadataTarget.sole.next_attempt_at - 29.days)[:refresh_due_30d], "the refresh is visible a month ahead"
+
+    # Planning again, with a wider limit, leaves the finished release exactly as it was: no refetch.
+    settled = MetadataTarget.sole.attributes.slice("status", "next_attempt_at", "attempts")
+    Metadata::Artwork.plan!(limit: 1000, now: @now + 7.days)
+    assert_equal settled, MetadataTarget.sole.reload.attributes.slice("status", "next_attempt_at", "attempts")
+    assert_equal 0, enricher.run!.processed, "nothing due"
   end
 
   test "a played release that was never queued shows up as outstanding work" do
@@ -107,7 +115,21 @@ class Metadata::ArtworkTest < ActiveSupport::TestCase
     played("Second", mbid: OTHER)
     Metadata::Artwork.plan!(limit: 1, now: @now)
     report = Metadata::Progress.artwork(now: @now)
-    assert_equal [ 2, 1, 1, 1 ], report.values_at(:eligible, :queued, :not_queued, :due_now)
+    assert_equal [ 2, 1, 1, 1, 1, 0 ], report.values_at(:eligible, :queued, :not_queued, :due_now, :waiting, :in_backoff)
+  end
+
+  test "the report tells a release in backoff from one waiting, one without a cover and one given up" do
+    played("First", mbid: RELEASE)
+    played("Second", mbid: OTHER)
+    Metadata::Artwork.plan!(now: @now)
+    @covers["release/#{RELEASE}"] = [ 503, "" ]
+    @releases[RELEASE] = [ 503, "" ]
+    @releases[OTHER] = [ 200, { id: OTHER, "release-group": { id: GROUP } }.to_json ]
+    enricher.run!
+    report = Metadata::Progress.artwork(now: @now)
+    assert_equal [ 0, 1, 1, 0, 0 ], report.values_at(:waiting, :in_backoff, :without_cover, :failed, :due_now)
+    MetadataTarget.find_by(provider_id: RELEASE).update!(status: "failed", attempts: 0)
+    assert_equal [ 0, 0, 1, 1 ], Metadata::Progress.artwork(now: @now).values_at(:waiting, :in_backoff, :without_cover, :failed)
   end
 
   test "without a cover of its own, the release group's is used, found through MusicBrainz, and both IDs are kept apart" do
@@ -120,7 +142,7 @@ class Metadata::ArtworkTest < ActiveSupport::TestCase
     art = MetadataArtwork.sole
     assert_equal [ RELEASE, GROUP, "release_group", "77" ], [ art.release_id, art.release_group_id, art.found_on, art.image_id ]
     assert_equal "#{CoverArt::Client::BASE}/release-group/#{GROUP}", art.source_url
-    assert_equal [ "#{CoverArt::Client::BASE}/release/#{RELEASE}", "#{MusicBrainz::Client::BASE}/release/#{RELEASE}?inc=release-groups&fmt=json",
+    assert_equal [ "#{CoverArt::Client::BASE}/release/#{RELEASE}", "#{MusicBrainz::Client::BASE}/release/#{RELEASE}?inc=artist-credits+release-groups&fmt=json",
                    "#{CoverArt::Client::BASE}/release-group/#{GROUP}" ], @requested
   end
 
