@@ -58,19 +58,20 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
 
   return (
     <div className={`${styles.choices} ${align === 'left' ? styles.left : ''}`}>
-      <div className={stateStyles.actions}>
-        <button type="button" className={stateStyles.primary} disabled={busy !== null || !supported} onClick={() => run('passkey', () => api.auth.signInWithPasskey())}>
+      {!supported && <p className={styles.error}>This browser can’t use passkeys here. Use a recovery code or Last.fm.</p>}
+      {error && <p className={styles.error} role="alert">{error}</p>}
+      <div className={styles.actions}>
+        <button type="button" className={`${stateStyles.primary} ${styles.button}`} disabled={busy !== null || !supported} onClick={() => run('passkey', () => api.auth.signInWithPasskey())}>
           {busy === 'passkey' ? 'Waiting for your passkey' : 'Sign in with a passkey'}
         </button>
         {lastfmUrl && (
           // A full page navigation: the server redirects to Last.fm.
-          <a href={lastfmUrl} className={stateStyles.secondary}>Sign in with Last.fm</a>
-        )}
-        {lastfmUrl && (
-          <span className="caption">Last.fm sign-in is for the archive’s owner. Invited people sign in with a passkey.</span>
+          <a href={lastfmUrl} className={`${stateStyles.secondary} ${styles.button}`}>Sign in with Last.fm</a>
         )}
       </div>
-      {!supported && <p className={styles.error}>This browser can’t use passkeys here. Use a recovery code or Last.fm.</p>}
+      {lastfmUrl && (
+        <p className={`caption ${styles.caption}`}>Last.fm sign-in is for the archive’s owner. Invited people sign in with a passkey.</p>
+      )}
       {showCode ? (
         <form className={styles.code} onSubmit={submitCode}>
           <input
@@ -82,14 +83,13 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button type="submit" className={stateStyles.secondary} disabled={busy !== null || !code.trim()}>
+          <button type="submit" className={`${stateStyles.secondary} ${styles.button}`} disabled={busy !== null || !code.trim()}>
             {busy === 'code' ? 'Checking' : 'Use code'}
           </button>
         </form>
       ) : (
         <button type="button" className={styles.toggle} onClick={() => setShowCode(true)}>Use a recovery code instead</button>
       )}
-      {error && <p className={styles.error} role="alert">{error}</p>}
     </div>
   );
 }
