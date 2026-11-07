@@ -11,7 +11,7 @@ import { serializePeriod, type Period } from '../../lib/period';
 import type { HistoryApi, RunoutApi } from '../api';
 import { noAuthApi, noSourcesApi } from '../api';
 import { addDays, daysBetween } from '../../lib/dates';
-import type { ActivityBucket, CalendarDays, GenreBreakdown, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, TopEntry } from '../types';
+import type { ActivityBucket, CalendarDays, GenreBreakdown, HistoryCalendar, ImportStatus, OnThisDay, OverviewData, PlaysPage, TopEntry, Memory} from '../types';
 
 function rng(seed: number) {
   let s = seed;
@@ -317,6 +317,17 @@ export const specimenApi: RunoutApi = {
     throw new Error('Specimen mode has no account to delete.');
   },
   history: specimenHistory,
+  getSong: async (key) => ({
+    id: key, name: 'Song title 01', artist: { id: 'a1', name: 'Artist 01' }, artworkUrl: null,
+    plays: { total: 0, firstPlayedAt: '2014-03-15T20:00:00Z', lastPlayedAt: '2026-01-01T09:00:00Z', byYear: [2014, 2015, 2016, 2019, 2024, 2026].map((year) => ({ year, plays: 0 })) },
+    memories: specimenMemories(key),
+  }),
+  memories: {
+    list: async () => ({ memories: [...specimenMemories('t1'), ...specimenMemories('t2')] }),
+    create: async (song, input) => ({ ...(specimenMemories(song)[0] as Memory), id: 99, ...input }),
+    update: async (id, input) => ({ ...(specimenMemories('t1')[0] as Memory), id, ...input }),
+    remove: async () => {},
+  },
   sources: {
     ...noSourcesApi,
     // A connected ListenBrainz account with a few imports, for reviewing the Sources panel's layout.
@@ -337,3 +348,12 @@ export const specimenApi: RunoutApi = {
   },
   auth: noAuthApi,
 };
+
+/** Placeholder memories for layout review: shapes, not anyone's words. */
+function specimenMemories(song: string): Memory[] {
+  const base = { id: song, name: song === 't2' ? 'Song title 02' : 'Song title 01', artist: { id: 'a1', name: song === 't2' ? 'Artist 02' : 'Artist 01' }, artworkUrl: null };
+  return [
+    { id: song === 't2' ? 3 : 1, song: base, body: 'Placeholder memory text, long enough to wrap onto a second and third line so the measure and the line height can be judged in this theme.', rememberedOn: null, rememberedLabel: 'a season, YYYY', createdAt: 'YYYY-MM-DDT00:00:00Z', updatedAt: 'YYYY-MM-DDT00:00:00Z' },
+    { id: song === 't2' ? 4 : 2, song: base, body: 'A shorter placeholder memory.', rememberedOn: 'YYYY-MM-DD', rememberedLabel: null, createdAt: 'YYYY-MM-DDT00:00:00Z', updatedAt: 'YYYY-MM-DDT01:00:00Z' },
+  ];
+}

@@ -601,3 +601,43 @@ export interface ListeningReviewItem {
     artist: string; track: string; album: string | null;
   }>;
 }
+
+/* ---- Music diary: memories about songs (GET /api/tracks/:key, /api/memories) ---- */
+
+/** A song as the diary addresses it: the Overview's track key, its name and artist, and a cover when one is on file. */
+export interface MemorySong {
+  id: string;
+  name: string;
+  artist: { id: string; name: string };
+  artworkUrl: string | null;
+}
+
+/**
+ * One memory, private to its author. `rememberedOn` and `rememberedLabel` say what time the memory
+ * is about (either, both or neither); `createdAt` is when it was written, `updatedAt` the last edit.
+ */
+export interface Memory {
+  id: number;
+  song: MemorySong;
+  body: string;
+  rememberedOn: string | null;
+  rememberedLabel: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryInput {
+  body: string;
+  rememberedOn: string | null;
+  rememberedLabel: string | null;
+}
+
+/** One song with the signed-in person's own listening and memories. */
+export interface SongDetail extends MemorySong {
+  plays: { total: number; firstPlayedAt: string | null; lastPlayedAt: string | null; byYear: Array<{ year: number; plays: number }> };
+  memories: Memory[];
+}
+
+export interface MemoriesResponse {
+  memories: Memory[];
+}

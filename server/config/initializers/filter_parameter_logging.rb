@@ -6,5 +6,7 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   :sk, :api_sig, :api_key, :session_key, :credentials, :state, :code,
-  :access_token, :refresh_token
+  :access_token, :refresh_token,
+  # Music diary: a person's own words never reach the log.
+  :body, :rememberedLabel, :remembered_label
 ]

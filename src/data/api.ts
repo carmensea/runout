@@ -1,8 +1,7 @@
 import { serializePeriod, type Period } from '../lib/period';
 import { createPasskey, getPasskey } from '../lib/webauthn';
 import type {
-  BrowserSession, CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, LovedLibrary, OnThisDay, OverviewData, Passkey, PlaysPage,
-  ReviewDecisionName, ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SessionInfo, SyncHealth,
+  BrowserSession, CalendarDays, ConnectionState, GenreDetail, HistoryCalendar, ImportStatus, LovedLibrary, OnThisDay, OverviewData, Passkey, PlaysPage, ReviewDecisionName, ListeningReviewItem, ListeningSources, ReviewDecisionResult, ReviewItem, ReviewQueue, SearchResults, SessionInfo, SyncHealth, Memory, MemoryInput, MemoriesResponse, SongDetail,
 } from './types';
 
 /**
@@ -22,6 +21,10 @@ export interface RunoutApi {
   getGenre(slug: string, period: Period, signal?: AbortSignal): Promise<GenreDetail>;
   /** Loved songs with their listening (GET /api/loved-tracks). */
   getLovedTracks(signal?: AbortSignal): Promise<LovedLibrary>;
+  /** One song with the signed-in person's listening and memories (GET /api/tracks/:key). */
+  getSong(key: string, signal?: AbortSignal): Promise<SongDetail>;
+  /** The music diary: memories about songs, private to their author. */
+  memories: MemoriesApi;
   /** Where to send the browser to sign in with Last.fm, or null when no server is configured. */
   signInUrl(): string | null;
   signOut(): Promise<void>;
@@ -36,6 +39,14 @@ export interface RunoutApi {
   sources: SourcesApi;
   /** Runout's own sign-in: passkeys, recovery codes, other browsers (Settings, signed-out screen). */
   auth: AuthApi;
+}
+
+export interface MemoriesApi {
+  /** Every memory of the signed-in person, newest written first; `q` matches the text, the label, the song or its artist. */
+  list(q: string, signal?: AbortSignal): Promise<MemoriesResponse>;
+  create(song: string, input: MemoryInput): Promise<Memory>;
+  update(id: number, input: MemoryInput): Promise<Memory>;
+  remove(id: number): Promise<void>;
 }
 
 export interface AuthApi {
@@ -235,6 +246,21 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     getOnThisDay: (date, signal) => get<OnThisDay>('/on-this-day', { date }, signal),
     getGenre: (slug, period, signal) => get<GenreDetail>(`/genres/${encodeURIComponent(slug)}`, { period: serializePeriod(period) }, signal),
     getLovedTracks: (signal) => get<LovedLibrary>('/loved-tracks', {}, signal),
+    getSong: (key, signal) => get<SongDetail>(`/tracks/${encodeURIComponent(key)}`, {}, signal),
+    memories: {
+      list: (q, signal) => get<MemoriesResponse>('/memories', q ? { q } : {}, signal),
+      create: (song, input) => post<Memory>('/memories', { song, ...input }),
+      update: async (id, input) => {
+        const res = await fetch(`${root}/memories/${id}`, { method: 'PATCH', credentials: 'include', headers: WRITE_HEADERS, body: JSON.stringify(input) });
+        const data = (await res.json().catch(() => null)) as (Memory & { error?: string }) | null;
+        if (!res.ok) throw new ApiError(res.status, `Request to /memories/${id} failed with HTTP ${res.status}.`, data?.error ?? null, data);
+        return data as Memory;
+      },
+      remove: async (id) => {
+        const res = await fetch(`${root}/memories/${id}`, { method: 'DELETE', credentials: 'include', headers: WRITE_HEADERS });
+        if (!res.ok) throw new ApiError(res.status, `Request to /memories/${id} failed with HTTP ${res.status}.`, null, null);
+      },
+    },
     signInUrl: () => {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       return `${root}/auth/lastfm${tz ? `?${new URLSearchParams({ tz })}` : ''}`;
@@ -343,6 +369,8 @@ export const disconnectedApi: RunoutApi = {
   getOnThisDay: notConnected,
   getGenre: notConnected,
   getLovedTracks: notConnected,
+  getSong: notConnected,
+  memories: { list: notConnected, create: notConnected, update: notConnected, remove: notConnected },
   signInUrl: () => null,
   signOut: async () => {},
   setTheme: async () => {},

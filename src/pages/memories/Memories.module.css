@@ -1,0 +1,257 @@
+/* Music diary: a song's page and the Memories page. Tokens only; reading-first measure. */
+
+.songHead {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.songHeadText {
+  min-width: 0;
+}
+
+.songArtist {
+  margin: 4px 0 0;
+  color: var(--fg2);
+  font-size: 15px;
+}
+
+.measure {
+  max-width: 68ch;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory {
+  padding: 16px 0;
+  border-top: 1px solid var(--ln2);
+}
+
+.memory:last-child {
+  border-bottom: 1px solid var(--ln2);
+}
+
+.memoryWhen {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
+.memoryBody {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.memoryFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--mu);
+}
+
+.memoryFoot .song {
+  color: var(--fg2);
+}
+
+.memoryFoot a {
+  color: var(--fg2);
+}
+
+.textButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg2);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.textButton:hover {
+  color: var(--ac);
+}
+
+.textButton:disabled {
+  color: var(--mu);
+  text-decoration: none;
+}
+
+/* The editor: a plain textarea that grows, the memory's own date or label, save and cancel. */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--ln2);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 7lh;
+  padding: 12px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus,
+.input:focus {
+  border-color: var(--fg);
+  outline: none;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--fg2);
+}
+
+.input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mu);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.error {
+  margin: 0;
+  color: var(--err);
+  font-size: 13px;
+}
+
+.empty {
+  margin: 0;
+  color: var(--fg2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Memories page: songs that carry memories. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.search {
+  flex: 1 1 240px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--ln);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.songRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--ln2);
+}
+
+.songRow:last-child {
+  border-bottom: 1px solid var(--ln2);
+}
+
+.songRowArt {
+  grid-row: span 3;
+}
+
+.songRowTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.songRowTitle a {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.songRowTitle a:hover {
+  text-decoration: underline;
+}
+
+.songRowCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.songRowPreview {
+  margin: 0;
+  color: var(--fg2);
+  font-size: 14px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .songHead {
+    gap: 14px;
+  }
+
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .textarea {
+    font-size: 16px;
+  }
+}
