@@ -53,8 +53,10 @@ module Memories
                  byYear: rows.map { |year, n, _, _| { year: year, plays: n } } } }
     end
 
-    # Covers for songs, by root track id: the album the user played each song from most, its
-    # catalogue release's cover if on file, else the user's inferred cover for it.
+    # Covers for songs, by root track id, in the Overview's order of trust: the catalogue release's
+    # cover for the album the user played the song from most, then the user's own inferred cover for
+    # that album, then, for a song played with no album name, the user's inferred cover for the song
+    # itself. Only this user's plays and inferences count.
     def artwork(user, track_ids)
       return {} if track_ids.empty?
 
@@ -62,15 +64,17 @@ module Memories
       ActiveRecord::Base.connection.select_rows(ActiveRecord::Base.sanitize_sql_array([ <<~SQL, { user: user.id, keys: keys } ])).to_h { |key, url| [ key.delete_prefix("t").to_i, CoverArt::Client.approved(url) ] }.compact
         WITH #{Analytics::Identity.ctes("SELECT DISTINCT name_variant_id FROM scrobbles WHERE user_id = :user AND removed_at IS NULL")},
              played AS (SELECT k.track_key, k.album_key, count(*) AS n FROM keyed k JOIN scrobbles s ON s.name_variant_id = k.id AND s.user_id = :user AND s.removed_at IS NULL
-                         WHERE k.track_key IN (:keys) AND k.album_key IS NOT NULL GROUP BY 1, 2),
-             best AS (SELECT DISTINCT ON (track_key) track_key, album_key FROM played ORDER BY track_key, n DESC, album_key)
-        SELECT best.track_key, COALESCE(art.thumbnail_250, art.thumbnail_500, inf.url)
+                         WHERE k.track_key IN (:keys) GROUP BY 1, 2),
+             best AS (SELECT DISTINCT ON (track_key) track_key, album_key FROM played ORDER BY track_key, (album_key IS NULL), n DESC, album_key),
+             inferred AS (SELECT ia.subject_key, COALESCE(a2.thumbnail_250, a2.thumbnail_500) AS url FROM inferred_artworks ia
+                            JOIN metadata_artworks a2 ON a2.provider = 'coverartarchive' AND a2.release_id = ia.release_id AND a2.found_on IS NOT NULL
+                           WHERE ia.user_id = :user AND ia.status = 'ok')
+        SELECT best.track_key, COALESCE(art.thumbnail_250, art.thumbnail_500, by_album.url, by_track.url)
           FROM best
           LEFT JOIN albums al ON best.album_key = 'l' || al.id
           LEFT JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
-          LEFT JOIN (SELECT ia.subject_key, COALESCE(a2.thumbnail_250, a2.thumbnail_500) AS url FROM inferred_artworks ia
-                       JOIN metadata_artworks a2 ON a2.provider = 'coverartarchive' AND a2.release_id = ia.release_id AND a2.found_on IS NOT NULL
-                      WHERE ia.user_id = :user AND ia.status = 'ok') inf ON inf.subject_key = best.album_key
+          LEFT JOIN inferred by_album ON by_album.subject_key = best.album_key
+          LEFT JOIN inferred by_track ON by_track.subject_key = best.track_key
       SQL
     end
   end

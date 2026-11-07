@@ -174,6 +174,40 @@ class MemoriesTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "a song's cover follows the Overview's order of trust, and a song played with no album takes this person's inferred cover" do
+    release = "11111111-1111-4111-8111-111111111111"
+    other_release = "22222222-2222-4222-8222-222222222222"
+    cover = ->(id, image) { MetadataArtwork.create!(provider: "coverartarchive", release_id: id, found_on: "release", image_id: image, thumbnail_250: "https://archive.org/#{image}-250.jpg", source_url: "https://coverartarchive.org/release/#{id}", fetched_at: Time.current) }
+    cover.call(release, "verified")
+    cover.call(other_release, "inferred")
+
+    # An album-less listen (a scrobbler that sent no album), as ListenBrainz's mapping later inferred.
+    loose = play!(@user, track: "Loose Song", artist: "The Lanterns", album: "", at: Time.utc(2022, 2, 2))
+    InferredArtwork.create!(user: @user, subject_key: loose, release_id: other_release, status: "ok", observations: 1)
+    get "/api/tracks/#{loose}"
+    assert_equal "https://archive.org/inferred-250.jpg", json["artworkUrl"], "the song's own inferred cover"
+    write(loose, "Heard only through the scrobbler.")
+    get "/api/memories"
+    assert_equal "https://archive.org/inferred-250.jpg", json["memories"].first["song"]["artworkUrl"]
+
+    # The same song for another account: no inference of theirs, no cover.
+    other = User.create!(display_name: "other", reporting_timezone: "Europe/London")
+    scrobble(other, at: Time.utc(2022, 3, 3), variant: NameVariant.find_by!(track_name: "Loose Song"))
+    _, token = Session.start!(user: other, ip_address: "127.0.0.1", user_agent: "test")
+    delete "/api/session", headers: same_origin_headers
+    cookies[Authentication::COOKIE_NAME] = token
+    get "/api/tracks/#{loose}"
+    assert_nil json["artworkUrl"]
+
+    # Back as the first person: a verified release cover on the played album outranks an inferred one.
+    delete "/api/session", headers: same_origin_headers
+    sign_in_via_lastfm(username: "listener")
+    Album.find_by!(title: "Night Ferry").update!(mbid: release)
+    InferredArtwork.create!(user: @user, subject_key: "l#{Album.find_by!(title: 'Night Ferry').id}", release_id: other_release, status: "ok", observations: 2)
+    get "/api/tracks/#{@song}"
+    assert_equal "https://archive.org/verified-250.jpg", json["artworkUrl"]
+  end
+
   test "deleting the account removes its memories and nothing of the catalogue" do
     write(@song, "Gone with the account.")
     tracks = Track.count

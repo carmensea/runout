@@ -416,6 +416,13 @@ unchanged where the model mattered:
   (`Catalogue::Roots`), so a later merge moves them, a correction that re-links a variant leaves
   them with the recording they were written about, and nothing is copied or lost. A song the
   catalogue could not place (`m<hash>`) cannot carry a memory yet; the API says `song_not_identified`.
+  **Known limitation: a merge later reversed.** A memory written while two recordings were merged is
+  stored against the merged-into track, because that is where the chain ended. If that merge is ever
+  undone (the catalogue has no operation for this today; it would mean clearing `merged_into_id` by
+  hand), the memory stays with the track it was stored against, which may not be the recording the
+  person was listening to. Nothing is lost: the row still exists under their account and can be
+  reattached by updating `memories.track_id`. The fix, if reversal is ever built, is to record the
+  variant or the exact track the person wrote from, so a memory can follow a split.
 - **Privacy as in §4.2:** every query starts from `Current.user.memories`; a foreign id is 404;
   `body` and `rememberedLabel` are filtered from logs; no text leaves the server; the Overview cache
   never sees memories (they are not part of its answer); account deletion cascades; the encrypted
