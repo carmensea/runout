@@ -150,10 +150,12 @@ module Analytics
                (SELECT count(*) FROM by_track), (SELECT count(*) FROM by_track WHERE n = 1),
                (SELECT count(DISTINCT l) FROM ov)
       SQL
-      covered = rows(<<~SQL).first.first
+      covered = rows(<<~SQL, user: @user.id).first.first
         SELECT count(DISTINCT ov.l) FROM ov JOIN ov_keys k ON k.id = ov.v
-          JOIN albums al ON k.album_key = 'l' || al.id
-          JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+          LEFT JOIN albums al ON k.album_key = 'l' || al.id
+          LEFT JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+          LEFT JOIN (#{INFERRED_SQL}) inf ON inf.subject_key = k.album_key
+         WHERE art.id IS NOT NULL OR inf.url IS NOT NULL
       SQL
       { scrobbles: total.to_i, firstScrobbleDate: first_lt&.to_date&.iso8601, uniqueArtists: artists, artistsPlayedOverTen: over_ten,
         uniqueTracks: tracks, tracksPlayedOnce: once, uniqueAlbums: albums, albumsWithoutArtwork: albums - covered }
@@ -266,16 +268,30 @@ module Analytics
       end
     end
 
+    # This user's covers inferred from ListenBrainz's mapping (Metadata::InferredArtwork), by
+    # Overview key: never another user's, and only where the inference held up.
+    INFERRED_SQL = <<~SQL.squish.freeze
+      SELECT ia.subject_key, COALESCE(art.thumbnail_250, art.thumbnail_500) AS url
+        FROM inferred_artworks ia
+        JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = ia.release_id AND art.found_on IS NOT NULL
+       WHERE ia.user_id = :user AND ia.status = 'ok'
+    SQL
+
     # Front covers from the Cover Art Archive (docs/milestone-4-plan.md §10.4), by album or track id:
-    # an album's own, a track's that of the album it was most played from. Only catalogue albums
-    # (release IDs), never matched by name; only URLs on approved hosts. Artists have none yet.
+    # an album's own, a track's that of the album it was most played from. A cover on file for the
+    # catalogue release (release IDs only, never matched by name) comes first; otherwise this user's
+    # inferred cover for the album, or, for a track with no album, for the track itself. Only URLs
+    # on approved hosts. Artists have none yet.
     def artwork(kind, ids)
-      rows(<<~SQL, ids: ids).to_h { |id, url| [ id, CoverArt::Client.approved(url) ] }.compact
-        SELECT p.id, COALESCE(art.thumbnail_250, art.thumbnail_500)
-          FROM (SELECT #{kind} AS id, mode() WITHIN GROUP (ORDER BY l) AS l FROM ov WHERE #{kind} IN (:ids) AND l IS NOT NULL GROUP BY 1) p
-          JOIN (SELECT DISTINCT l, album_key FROM ov_keys WHERE l IS NOT NULL) k ON k.l = p.l
-          JOIN albums al ON k.album_key = 'l' || al.id
-          JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+      rows(<<~SQL, ids: ids, user: @user.id).to_h { |id, url| [ id, CoverArt::Client.approved(url) ] }.compact
+        SELECT p.id, COALESCE(art.thumbnail_250, art.thumbnail_500, by_album.url, by_track.url)
+          FROM (SELECT #{kind} AS id, mode() WITHIN GROUP (ORDER BY l) AS l FROM ov WHERE #{kind} IN (:ids) GROUP BY 1) p
+          LEFT JOIN (SELECT DISTINCT l, album_key FROM ov_keys WHERE l IS NOT NULL) k ON k.l = p.l
+          LEFT JOIN albums al ON k.album_key = 'l' || al.id
+          LEFT JOIN metadata_artworks art ON art.provider = 'coverartarchive' AND art.release_id = al.mbid AND art.found_on IS NOT NULL
+          LEFT JOIN (#{INFERRED_SQL}) by_album ON by_album.subject_key = k.album_key
+          LEFT JOIN (SELECT DISTINCT t, track_key FROM ov_keys) kt ON #{kind == :t ? 'kt.t = p.id' : 'FALSE'}
+          LEFT JOIN (#{INFERRED_SQL}) by_track ON by_track.subject_key = kt.track_key
       SQL
     end
 

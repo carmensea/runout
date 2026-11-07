@@ -31,7 +31,7 @@ module Metadata
       found = MetadataArtwork.where(provider: Artwork::PROVIDER).where.not(found_on: nil)
       { queued: targets.count, with_cover: found.count, on_release: found.where(found_on: "release").count,
         on_release_group: found.where(found_on: "release_group").count, without_cover: targets.where(status: "not_found").count,
-        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count }
+        failed: targets.where(status: "failed").count, remaining: targets.where(status: "pending").count, inferred: ::InferredArtwork.group(:status).count }
     end
   end
 end

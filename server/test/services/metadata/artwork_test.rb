@@ -104,7 +104,7 @@ class Metadata::ArtworkTest < ActiveSupport::TestCase
     art = MetadataArtwork.sole
     assert_equal [ RELEASE, GROUP, "release_group", "77" ], [ art.release_id, art.release_group_id, art.found_on, art.image_id ]
     assert_equal "#{CoverArt::Client::BASE}/release-group/#{GROUP}", art.source_url
-    assert_equal [ "#{CoverArt::Client::BASE}/release/#{RELEASE}", "#{MusicBrainz::Client::BASE}/release/#{RELEASE}?inc=release-groups&fmt=json",
+    assert_equal [ "#{CoverArt::Client::BASE}/release/#{RELEASE}", "#{MusicBrainz::Client::BASE}/release/#{RELEASE}?inc=artist-credits+release-groups&fmt=json",
                    "#{CoverArt::Client::BASE}/release-group/#{GROUP}" ], @requested
   end
 
