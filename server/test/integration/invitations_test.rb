@@ -47,9 +47,12 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     get "/api/overview"
     assert_response :conflict, "an empty archive, nobody else's"
 
-    # Used once: a second opening is refused, in this browser or another.
+    # Not spent by being opened: another browser (a phone after a laptop, a person after a link
+    # preview) opens it again until a passkey exists.
+    delete "/api/session", headers: same_origin_headers
     get link
-    assert_redirected_to "/overview?auth_error=link_invalid"
+    assert_redirected_to "/welcome"
+    assert_predicate session_cookie, :present?
 
     # Enrolment through the normal passkey flow; the first passkey brings the codes.
     client = WebAuthn::FakeClient.new(ORIGIN)
@@ -61,9 +64,11 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     get "/api/session"
     assert_equal({ "passkeys" => 1, "recoveryCodes" => 10, "lastfm" => false }, json["methods"])
 
-    # A fresh invitation for an enrolled account is dead: the link is scoped to enrolment.
+    # Enrolled: the opened link and a fresh invitation are both dead, the link is scoped to enrolment.
     fresh = SignInLink.issue!(dana, kind: "invitation")
     delete "/api/session", headers: same_origin_headers
+    get link
+    assert_redirected_to "/overview?auth_error=link_invalid"
     get "/api/auth/link/#{fresh}"
     assert_redirected_to "/overview?auth_error=link_invalid"
     assert_nil SignInLink.find_by(token_digest: Session.digest(fresh)).used_at
@@ -126,16 +131,29 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     assert_equal 1, Session.where(user: owner).count, "the owner's browser session is untouched"
   end
 
-  test "an unredeemed invitation is revoked by id and name without touching anything else" do
+  test "a chat app's link preview neither signs in nor spends the invitation" do
+    link = invite!
+    get link, headers: { "User-Agent" => "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)" }
+    assert_redirected_to "/overview"
+    assert_predicate session_cookie, :blank?
+    assert_nil SignInLink.sole.used_at
+    get link
+    assert_redirected_to "/welcome"
+  end
+
+  test "an open invitation, even one already opened, is revoked by id and name without touching anything else" do
     link = invite!
     dana = User.sole
+    get link
+    assert_redirected_to "/welcome"
+    delete "/api/session", headers: same_origin_headers
     task = Rake::Task["auth:revoke_invitation"]
     assert_raises(SystemExit) { capture_io { task.invoke(dana.id, "someone else") } }
     task.reenable
     assert_raises(SystemExit) { capture_io { task.invoke(SecureRandom.uuid, "Dana") } }
     task.reenable
     out, = capture_io { task.invoke(dana.id, "Dana") }
-    assert_match(/Revoked 1 unredeemed invitation link/, out)
+    assert_match(/Revoked 1 open invitation link/, out)
     assert_match(/auth:remove_account\[#{dana.id},Dana,DELETE #{dana.id}\]/, out)
     assert User.exists?(dana.id)
     get link
