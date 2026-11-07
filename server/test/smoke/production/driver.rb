@@ -150,8 +150,11 @@ preview = req(:get, URI(link).path, headers: { "User-Agent" => "Mozilla/5.0 (com
 check("a chat app's link preview gets the front page and no session", preview["location"].to_s.end_with?("/overview") && !$jar.key?("__Host-runout_session"), preview["location"])
 response = req(:get, URI(link).path)
 check("the invitation signs in and lands on /welcome", response["location"].to_s.end_with?("/welcome") && $jar.key?("__Host-runout_session"), response["location"])
+first_browser = $jar.dup
 $jar = {}
 check("an opened invitation opens again from another browser until a passkey exists", req(:get, URI(link).path)["location"].to_s.end_with?("/welcome") && $jar.key?("__Host-runout_session"))
+req(:delete, "/api/session", headers: SAME_ORIGIN) # that other browser signs out again
+$jar = first_browser
 session = JSON.parse(req(:get, "/api/session").body)
 check("the invited account has no passkey, no codes, no Last.fm", session["methods"] == { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, session.to_json)
 check("the invited account's connection is its own, without Last.fm", JSON.parse(req(:get, "/api/connection").body).values_at("status", "displayName") == [ "none", "Dana" ])
