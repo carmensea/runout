@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -709,6 +709,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
     t.datetime "created_at", null: false
     t.string "source", default: "lastfm", null: false
     t.index ["name_variant_id"], name: "index_scrobbles_on_name_variant_id"
+    t.index ["user_id", "removed_at"], name: "index_scrobbles_on_user_id_and_removed_at", where: "(removed_at IS NOT NULL)"
     t.index ["user_id", "played_at", "seq"], name: "index_scrobbles_identity", unique: true
     t.check_constraint "seq >= 0", name: "scrobbles_seq_non_negative"
     t.check_constraint "source::text = ANY (ARRAY['lastfm'::text, 'spotify'::text, 'listenbrainz'::text])", name: "scrobbles_source"
