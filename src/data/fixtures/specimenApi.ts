@@ -317,6 +317,23 @@ export const specimenApi: RunoutApi = {
     throw new Error('Specimen mode has no account to delete.');
   },
   history: specimenHistory,
-  sources: noSourcesApi,
+  sources: {
+    ...noSourcesApi,
+    // A connected ListenBrainz account with a few imports, for reviewing the Sources panel's layout.
+    status: async () => ({
+      lastfm: { role: 'archive', connected: true, username: 'specimen' },
+      spotify: { configured: true, ingestionEnabled: false, state: 'not_connected', account: null },
+      listenbrainz: {
+        enabled: true, pollSchedule: 'every 10 minutes', state: 'connected', account: { id: 'specimen_listener', displayName: 'specimen_listener' },
+        connectedAt: '2026-11-07T04:07:00Z', lastPollAt: '2026-11-07T04:30:00Z', lastSuccessAt: '2026-11-07T04:30:00Z', lastNewPlayAt: '2026-11-07T04:10:00Z',
+        playsAdded: 13, newestPlayAt: '2026-11-06T03:53:00Z', coveredFrom: '2026-10-08T04:10:00Z', backfill: null,
+        recentPolls: [
+          { startedAt: '2026-11-07T04:30:00Z', trigger: 'schedule', outcome: 'ok', items: 13, added: 0, linked: 0, held: 0, error: null },
+          { startedAt: '2026-11-07T04:20:00Z', trigger: 'schedule', outcome: 'ok', items: 13, added: 0, linked: 0, held: 0, error: null },
+          { startedAt: '2026-11-07T04:10:00Z', trigger: 'schedule', outcome: 'ok', items: 13, added: 13, linked: 0, held: 0, error: null },
+        ],
+      },
+    }),
+  },
   auth: noAuthApi,
 };

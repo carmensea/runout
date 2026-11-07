@@ -226,7 +226,7 @@ function SpotifyPanel({ spotify, onChanged }: { spotify: SpotifySource; onChange
           <summary>Recent checks</summary>
           <ul className={styles.list}>
             {spotify.recentPolls!.map((p) => (
-              <li key={p.startedAt} className={styles.row}>
+              <li key={p.startedAt} className={`${styles.row} ${styles.stacked}`}>
                 <span className={styles.rowTitle}>{at(p.startedAt)} · {POLL_OUTCOMES[p.outcome]}{p.trigger === 'manual' ? ' (Sync now)' : ''}</span>
                 <span className={styles.rowBody}>
                   {p.outcome === 'ok'
@@ -413,13 +413,13 @@ function ListenbrainzPanel({ listenbrainz, onChanged }: { listenbrainz: Listenbr
       )}
       {error && <p className={styles.error} role="alert">{error}</p>}
 
-      <ListenbrainzHelp />
+      <ListenbrainzHelp connected={active} />
       {linked && (listenbrainz.recentPolls?.length ?? 0) > 0 && (
         <details className={styles.technical}>
           <summary>Recent imports</summary>
           <ul className={styles.list}>
             {listenbrainz.recentPolls!.map((p) => (
-              <li key={p.startedAt} className={styles.row}>
+              <li key={p.startedAt} className={`${styles.row} ${styles.stacked}`}>
                 <span className={styles.rowTitle}>{at(p.startedAt)} · {LB_OUTCOMES[p.outcome] ?? p.outcome}{p.trigger === 'backfill' ? ' (full history)' : p.trigger === 'manual' ? ' (asked for)' : ''}</span>
                 <span className={styles.rowBody}>
                   {p.outcome === 'ok'

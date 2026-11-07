@@ -55,44 +55,50 @@ export function ListenbrainzConnectForm({ state, onConnected }: { state: Listenb
   );
 }
 
-/** How plays reach ListenBrainz in the first place: its Spotify connection, or a scrobbler for YouTube Music. */
-export function ListenbrainzHelp() {
+/**
+ * How plays reach ListenBrainz in the first place: its Spotify connection, or a scrobbler for
+ * YouTube Music. Once the account is connected the list is about adding a player, and what Runout
+ * keeps is already on the panel above.
+ */
+export function ListenbrainzHelp({ connected = false }: { connected?: boolean }) {
   return (
     <details className={styles.technical}>
-      <summary>Getting your plays into ListenBrainz</summary>
-      <ul className={styles.list}>
-        <li className={styles.row}>
-          <span className={styles.rowTitle}>Spotify</span>
-          <span className={styles.rowBody}>
+      <summary>{connected ? 'Adding a player that reports to ListenBrainz' : 'Getting your plays into ListenBrainz'}</summary>
+      <dl className={styles.help}>
+        <div className={styles.helpItem}>
+          <dt>Spotify</dt>
+          <dd>
             On listenbrainz.org, open Settings → Music services, connect Spotify and choose to record your listens. ListenBrainz then
             keeps every play Spotify reports to it, and Runout imports them from there. Not yet checked: Runout hasn’t tried this
             route with a real account, so connecting Spotify directly in Runout is the one to rely on for now. Both at once is fine:
             the same play is counted once.
-          </span>
-        </li>
-        <li className={styles.row}>
-          <span className={styles.rowTitle}>YouTube Music on Android</span>
-          <span className={styles.rowBody}>
+          </dd>
+        </div>
+        <div className={styles.helpItem}>
+          <dt>YouTube Music on Android</dt>
+          <dd>
             Install Pano Scrobbler from Google Play. In its settings, add ListenBrainz as a scrobbling service and paste the same user
             token. Pano then reports what you play in the YouTube Music app. This is a route Runout has checked: plays reported this
             way reach ListenBrainz with the track, the artist and the time.
-          </span>
-        </li>
-        <li className={styles.row}>
-          <span className={styles.rowTitle}>YouTube Music in a browser</span>
-          <span className={styles.rowBody}>
+          </dd>
+        </div>
+        <div className={styles.helpItem}>
+          <dt>YouTube Music in a browser</dt>
+          <dd>
             Install the Web Scrobbler extension for Chrome, Firefox or Edge. In its options, under Accounts, add ListenBrainz with the
             same user token. It reports what you play on music.youtube.com. Checked by Runout the same way.
-          </span>
-        </li>
-        <li className={styles.row}>
-          <span className={styles.rowTitle}>What Runout keeps</span>
-          <span className={styles.rowBody}>
-            Runout reads your ListenBrainz history every few minutes and stores each play once, in your own archive. ListenBrainz’s
-            copy stays public there; Runout’s is private to your account.
-          </span>
-        </li>
-      </ul>
+          </dd>
+        </div>
+        {!connected && (
+          <div className={styles.helpItem}>
+            <dt>What Runout keeps</dt>
+            <dd>
+              Runout reads your ListenBrainz history every few minutes and stores each play once, in your own archive. ListenBrainz’s
+              copy stays public there; Runout’s is private to your account.
+            </dd>
+          </div>
+        )}
+      </dl>
     </details>
   );
 }

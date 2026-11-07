@@ -310,7 +310,12 @@ describe('Settings: ListenBrainz', () => {
     expect(panel).toHaveTextContent('42 added in all');
     expect(panel).toHaveTextContent('Not imported yet: only the last 30 days so far');
     expect(within(panel).queryByLabelText('ListenBrainz user token')).not.toBeInTheDocument();
-    await user.click(within(panel).getByText('Getting your plays into ListenBrainz'));
+    // Connected: the help is about adding a player, each route a heading with its own text, and
+    // what Runout keeps is already on the panel.
+    const help = within(panel).getByText('Adding a player that reports to ListenBrainz').closest('details')!;
+    await user.click(within(help).getByText('Adding a player that reports to ListenBrainz'));
+    expect(within(help).getAllByRole('term').map((t) => t.textContent)).toEqual(['Spotify', 'YouTube Music on Android', 'YouTube Music in a browser']);
+    expect(within(help).getAllByRole('definition')).toHaveLength(3);
     expect(panel).toHaveTextContent('Pano Scrobbler');
     expect(panel).toHaveTextContent('Web Scrobbler');
     expect(panel).toHaveTextContent('Not yet checked');
@@ -320,6 +325,16 @@ describe('Settings: ListenBrainz', () => {
     await waitFor(() => expect(panel).toHaveTextContent('Importing: 0 plays read of about 12,000'));
     expect(within(panel).getByRole('button', { name: 'Continue the full import' })).toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent('Reading ListenBrainz now');
+  });
+
+  it('explains how plays reach ListenBrainz before an account is connected, one heading per route', async () => {
+    const user = userEvent.setup();
+    renderApp({ ...connectedApi(), sources: fakeSourcesApi(makeSources()) }, '/settings#sources');
+    const panel = await screen.findByRole('region', { name: 'ListenBrainz' });
+    const help = within(panel).getByText('Getting your plays into ListenBrainz').closest('details')!;
+    await user.click(within(help).getByText('Getting your plays into ListenBrainz'));
+    expect(within(help).getAllByRole('term').map((t) => t.textContent)).toEqual(['Spotify', 'YouTube Music on Android', 'YouTube Music in a browser', 'What Runout keeps']);
+    expect(within(help).getAllByRole('definition')).toHaveLength(4);
   });
 
   it('lets a renamed or vanished account be connected again with a new token', async () => {

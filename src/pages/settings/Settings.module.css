@@ -247,6 +247,45 @@ button:disabled {
   gap: 4px;
 }
 
+/* A row without a swatch or an action: the title line above its text, full width. */
+.stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stacked .rowBody {
+  grid-column: 1;
+}
+
+/* Help entries: a heading beside its text on wide screens, above it on phones. */
+.help {
+  margin: 8px 0 0;
+  border-top: 1px solid var(--ln2);
+}
+
+.helpItem {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ln2);
+}
+
+.helpItem dt {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.helpItem dd {
+  margin: 0;
+  color: var(--fg2);
+}
+
+@media (max-width: 767px) {
+  .helpItem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .tag {
   font-family: var(--font-mono);
   font-size: 11px;
