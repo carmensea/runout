@@ -25,13 +25,20 @@ class User < ApplicationRecord
   # Must match THEMES in src/theme/theme.ts.
   THEMES = %w[original moss cotton-candy midnight-candy verdant].freeze
 
+  # Features an account can see before everyone does (docs/milestone-5-plan.md §4.5 "Rollout").
+  # Granted by hand: bin/rails features:grant[user_id,display_name,feature].
+  FEATURES = %w[memories].freeze
+
   validates :display_name, presence: true
+  validates :features, inclusion: { in: FEATURES }
   validates :theme, inclusion: { in: THEMES }, allow_nil: true
   validates :reporting_timezone, inclusion: { in: ->(_) { User.timezones } }
 
   def self.timezones
     @timezones ||= TZInfo::Timezone.all_identifiers.to_set
   end
+
+  def feature?(name) = features.include?(name.to_s)
 
   def self.timezone_or_default(name)
     timezones.include?(name.to_s) ? name.to_s : "UTC"

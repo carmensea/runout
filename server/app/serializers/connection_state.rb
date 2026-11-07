@@ -10,7 +10,7 @@ module ConnectionState
   def for(user)
     return { status: "signed_out" } if user.nil?
 
-    account = { displayName: user.display_name, timezone: user.reporting_timezone, theme: user.theme }
+    account = { displayName: user.display_name, timezone: user.reporting_timezone, theme: user.theme, features: user.features }
     identity = user.lastfm_identity
     connection = user.lastfm_connection
     return account.merge(status: "none") if identity.nil? || identity.revoked_at || connection.nil?

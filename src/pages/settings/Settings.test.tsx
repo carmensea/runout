@@ -93,7 +93,7 @@ describe('Settings: import', () => {
 describe('Settings: history without Last.fm', () => {
   it('shows what is stored and no Last.fm controls', async () => {
     const history = fakeHistoryApi({ importStatus: async () => makeImportStatus({ stored: { plays: 2, firstPlayedAt: '2026-01-02T03:00:00Z', lastPlayedAt: '2026-01-02T04:00:00Z', sources: { spotify: 2 } } }) });
-    const connection = { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London' };
+    const connection = { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London', features: [] };
     renderApp(api(history, connection), '/settings#history');
     const panel = await screen.findByRole('region', { name: 'Stored plays' });
     expect(panel).toHaveTextContent('Spotify 2');
@@ -103,7 +103,7 @@ describe('Settings: history without Last.fm', () => {
 
   it('says so when nothing is stored yet', async () => {
     const history = fakeHistoryApi({ importStatus: async () => makeImportStatus({ stored: { plays: 0, firstPlayedAt: null, lastPlayedAt: null, sources: {} } }) });
-    renderApp(api(history, { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London' }), '/settings#history');
+    renderApp(api(history, { status: 'none' as const, displayName: 'bob', timezone: 'Europe/London', features: [] }), '/settings#history');
     expect(await screen.findByText(/Nothing is stored yet/)).toBeInTheDocument();
   });
 });
@@ -114,7 +114,7 @@ describe('Settings: deletion notice', () => {
     let signedIn = true;
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => (signedIn ? { status: 'none', displayName: 'Dana', timezone: 'Europe/London' } : { status: 'signed_out' }),
+      getConnection: async () => (signedIn ? { status: 'none', displayName: 'Dana', timezone: 'Europe/London', features: [] } : { status: 'signed_out' }),
       deleteAccount: async () => {
         signedIn = false;
         return { revokeAccessUrl: null, spotifyAppsUrl: 'https://www.spotify.com/account/apps/' };
@@ -359,7 +359,7 @@ describe('Settings: ListenBrainz', () => {
 describe('Settings: tabs', () => {
   it('opens the tab the hash names, keeps it when the period is written, and puts the chosen tab in the hash', async () => {
     const user = userEvent.setup();
-    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
+    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [], lastSyncedAt: '2026-10-29T09:00:00Z' };
     renderApp(api(fakeHistoryApi(), { ...base, attention: 3 }), '/settings#lastfm');
     expect(await screen.findByRole('tab', { name: 'Account', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Account' })).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe('Settings: tabs', () => {
 
 describe('Banner and Overview', () => {
   it('shows the attention count and links to review; nothing when there is nothing to do', async () => {
-    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' };
+    const base = { status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [], lastSyncedAt: '2026-10-29T09:00:00Z' };
     const { unmount } = renderApp(api(fakeHistoryApi(), { ...base, attention: 3 }));
     expect(await screen.findByText(/3 items in your history need your attention/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review in Settings' })).toHaveAttribute('href', expect.stringContaining('/settings#review'));

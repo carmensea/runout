@@ -25,7 +25,7 @@ class LastfmSignInTest < ActionDispatch::IntegrationTest
     assert_match(/runout_session=.*samesite=lax/i, set_cookie)
 
     get "/api/connection"
-    assert_equal({ "status" => "connected", "displayName" => "listener", "username" => "listener", "timezone" => "Europe/London", "theme" => nil }, response.parsed_body)
+    assert_equal({ "status" => "connected", "displayName" => "listener", "username" => "listener", "timezone" => "Europe/London", "theme" => nil, "features" => [] }, response.parsed_body)
   end
 
   test "a callback with the wrong state is rejected and signs nobody in" do

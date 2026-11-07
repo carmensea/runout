@@ -431,6 +431,12 @@ unchanged where the model mattered:
   memories, "Add a memory") and `/memories` (06 in the nav; songs with memories, or a journal in
   time order; search over words, songs and artists). Search results, the Overview's top tracks and
   the Time Machine's play log open the song page.
+- **Rollout behind a per-account flag.** `users.features` lists the features an account can see
+  before everyone does; `memories` is the first. Without it the Memories page, the song pages and
+  the play-log links are absent and the API answers 404, as if the routes did not exist. The
+  connection payload carries `features`, the navigation numbers close up around hidden items.
+  Granted by hand: `bin/rails features:grant[user_id,display_name,memories]`, `features:revoke`,
+  `features:list`. Nobody has it until the owner grants it.
 - **Not built, by decision:** sharing of any kind, tags, moods, AI text, playlists from memories.
 
 ## 5. Phase 4 (paper only): friends and shared journals, offline

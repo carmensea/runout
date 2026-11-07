@@ -7,17 +7,18 @@
 /**
  * `attention`: review items and problems that need the owner (never background work or automatic
  * retries). `syncPaused`: the owner paused automatic synchronisation. `theme`: the account's chosen
- * theme (src/theme/theme.ts), null until one is chosen.
+ * theme (src/theme/theme.ts), null until one is chosen. `features`: names of the features this
+ * account can see before everyone does (src/app/navigation.ts), empty by default.
  */
 export type ConnectionState =
   | { status: 'signed_out' }
   /** Signed in without a Last.fm connection; the archive still opens on stored plays. */
-  | { status: 'none'; displayName: string; timezone: string; theme?: string | null }
+  | { status: 'none'; displayName: string; timezone: string; theme?: string | null; features: string[] }
   /** Signed in with Last.fm; listening history has not been imported. */
-  | { status: 'connected'; displayName: string; username: string; timezone: string; theme?: string | null }
-  | { status: 'importing'; displayName: string; username: string; timezone: string; theme?: string | null; progress: number; attention?: number }
-  | { status: 'synced'; displayName: string; username: string; timezone: string; theme?: string | null; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
-  | { status: 'failed'; displayName: string; username: string; timezone: string; theme?: string | null; lastSyncedAt: string | null; message: string; attention?: number };
+  | { status: 'connected'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[] }
+  | { status: 'importing'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; progress: number; attention?: number }
+  | { status: 'synced'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
+  | { status: 'failed'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; lastSyncedAt: string | null; message: string; attention?: number };
 
 /** Any signed-in account. */
 export type SignedInState = Exclude<ConnectionState, { status: 'signed_out' }>;

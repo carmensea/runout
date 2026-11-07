@@ -5,6 +5,7 @@ module Api
   # here, as long as the catalogue has it.
   class TracksController < ApplicationController
     require_authentication
+    require_feature :memories
 
     def show
       track = Memories::Songs.resolve(params[:key]) or return head(:not_found)

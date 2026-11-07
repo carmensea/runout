@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_000005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -804,6 +804,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000004) do
     t.datetime "updated_at", null: false
     t.string "webauthn_handle"
     t.string "theme"
+    t.string "features", default: [], null: false, array: true
     t.index ["webauthn_handle"], name: "index_users_on_webauthn_handle", unique: true
   end
 

@@ -10,6 +10,7 @@ class MemoriesTest < ActionDispatch::IntegrationTest
   setup do
     sign_in_via_lastfm(username: "listener")
     @user = User.sole
+    @user.update!(features: [ "memories" ])
     @song = play!(@user, track: "Harbour Lights", artist: "The Lanterns", album: "Night Ferry", at: Time.utc(2014, 3, 15, 20))
     play!(@user, track: "Harbour Lights", artist: "The Lanterns", album: "Night Ferry", at: Time.utc(2019, 7, 1, 9))
   end
@@ -129,7 +130,7 @@ class MemoriesTest < ActionDispatch::IntegrationTest
   test "another account sees, searches, edits and deletes none of this one's memories, even about the same song" do
     write(@song, "Mine, about the ferry.")
     mine = json["id"]
-    other = User.create!(display_name: "other", reporting_timezone: "Europe/London")
+    other = User.create!(display_name: "other", reporting_timezone: "Europe/London", features: [ "memories" ])
     _, token = Session.start!(user: other, ip_address: "127.0.0.1", user_agent: "test")
     delete "/api/session", headers: same_origin_headers
     cookies[Authentication::COOKIE_NAME] = token
@@ -191,7 +192,7 @@ class MemoriesTest < ActionDispatch::IntegrationTest
     assert_equal "https://archive.org/inferred-250.jpg", json["memories"].first["song"]["artworkUrl"]
 
     # The same song for another account: no inference of theirs, no cover.
-    other = User.create!(display_name: "other", reporting_timezone: "Europe/London")
+    other = User.create!(display_name: "other", reporting_timezone: "Europe/London", features: [ "memories" ])
     scrobble(other, at: Time.utc(2022, 3, 3), variant: NameVariant.find_by!(track_name: "Loose Song"))
     _, token = Session.start!(user: other, ip_address: "127.0.0.1", user_agent: "test")
     delete "/api/session", headers: same_origin_headers
@@ -206,6 +207,22 @@ class MemoriesTest < ActionDispatch::IntegrationTest
     InferredArtwork.create!(user: @user, subject_key: "l#{Album.find_by!(title: 'Night Ferry').id}", release_id: other_release, status: "ok", observations: 2)
     get "/api/tracks/#{@song}"
     assert_equal "https://archive.org/verified-250.jpg", json["artworkUrl"]
+  end
+
+  test "without the memories feature the routes do not exist and the connection payload says so" do
+    get "/api/connection"
+    assert_equal [ "memories" ], json["features"]
+    @user.update!(features: [])
+    get "/api/connection"
+    assert_equal [], json["features"]
+    get "/api/memories"
+    assert_response :not_found
+    get "/api/tracks/#{@song}"
+    assert_response :not_found
+    post "/api/memories", params: { song: @song, body: "Not yet." }, as: :json, headers: same_origin_headers
+    assert_response :not_found
+    assert_equal 0, Memory.count
+    assert_raises(ActiveRecord::RecordInvalid) { @user.update!(features: [ "everything" ]) }
   end
 
   test "deleting the account removes its memories and nothing of the catalogue" do

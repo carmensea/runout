@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useNav } from './useNav';
 import { AppShell } from '../components/shell/AppShell';
 import { GenrePage } from '../pages/genres/GenrePage';
 import { LovedPage } from '../pages/loved/LovedPage';
@@ -13,6 +14,10 @@ import { LovedProvider } from '../state/LovedContext';
 import { PeriodProvider } from '../state/PeriodContext';
 
 export function App() {
+  const nav = useNav();
+  // Pages behind a flag exist only for accounts that have it; while the account is unknown they
+  // render, and the API answers for it.
+  const memories = nav.loading || nav.has('memories');
   return (
     <PeriodProvider>
       <LovedProvider>
@@ -27,10 +32,10 @@ export function App() {
           <Route path="/artists/:artistId" element={<PendingScreen eyebrow="03 / Artists" title="Artist" description="Listening history for one artist: monthly scrobbles, rotation periods and first scrobble." />} />
           <Route path="/albums/:albumId" element={<PendingScreen eyebrow="03 / Artists" title="Album" description="Listening history for one album." />} />
           <Route path="/tracks" element={<PendingScreen eyebrow="04 / Tracks" title="Tracks" description="Every track in your history, ranked for the selected period." />} />
-          <Route path="/tracks/:trackId" element={<TrackPage />} />
-          <Route path="/memories" element={<MemoriesPage />} />
-          <Route path="/lyrics" element={<PendingScreen eyebrow="07 / Lyrics" title="Lyrics" planned description="Lyrics search across songs in your own history, with excerpts only where a licensed provider allows them." />} />
-          <Route path="/mood" element={<PendingScreen eyebrow="08 / Mood" title="Mood" planned description="How the music you played shifts over time, from fixed and visible tag lists. It describes the music, not you." />} />
+          {memories && <Route path="/tracks/:trackId" element={<TrackPage />} />}
+          {memories && <Route path="/memories" element={<MemoriesPage />} />}
+          <Route path="/lyrics" element={<PendingScreen eyebrow={nav.eyebrow('lyrics')} title="Lyrics" planned description="Lyrics search across songs in your own history, with excerpts only where a licensed provider allows them." />} />
+          <Route path="/mood" element={<PendingScreen eyebrow={nav.eyebrow('mood')} title="Mood" planned description="How the music you played shifts over time, from fixed and visible tag lists. It describes the music, not you." />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/welcome" element={<OnboardingPage />} />
           <Route path="/connect" element={<PendingScreen eyebrow="Onboarding" title="Connect a listening source" description="Connect Spotify, or Last.fm for the archive's owner, and Runout records what it reports." />} />
