@@ -112,6 +112,22 @@ asking. Ruby is 3.4.7 via chruby (`source /usr/local/share/chruby/chruby.sh && c
 does not start by itself after a reboot. Homebrew's `postgresql@14` cluster belongs to other projects:
 never start it on port 5432, use it, or modify it for Runout.
 
+## Repositories (public history, private fallback)
+
+Since 2026-11-06 `origin` is the public repository `carmensea/runout`, whose history was rewritten to the
+GitHub noreply identity. Everything pushed there is public.
+
+- **Commit as** `nemrac <20374946+carmensea@users.noreply.github.com>`, set repo-locally in the primary
+  checkout and inherited by its worktrees. Never commit with a personal address; check
+  `git var GIT_AUTHOR_IDENT` when in doubt.
+- **The pre-publication checkout** `~/projects/runout-private` (with its worktrees under
+  `~/projects/runout-worktrees/`) keeps the original history with the personal email. It is a read-only
+  fallback whose `origin` is the private copy: never push, fetch into, merge, rebase or cherry-pick its
+  commits into the public repository. Work that exists only there is carried over as a patch
+  (`git diff` there, `git apply` here) and committed afresh.
+- **Equivalent branches have different hashes** in the two repositories; compare trees
+  (`git diff <old> <new>`), not commits.
+
 ## Working trees (one per task, one per session)
 
 Two Claude sessions must never share a working tree: on 2026-11-05 a checkout in one moved the
