@@ -144,11 +144,14 @@ SAME_ORIGIN = { "Origin" => "https://#{HOST}", "X-Requested-With" => "XMLHttpReq
 owner_jar = $jar.dup
 invite = docker("exec", APP, "bin/rails", "auth:invite_link[Dana,America/Los_Angeles]")
 link = invite[%r{https://#{HOST}/api/auth/link/[A-Za-z0-9_-]{43}}]
-check("the invitation task prints a single-use link", !link.nil?, invite.lines.first.to_s.strip[0, 120])
+check("the invitation task prints a link", !link.nil?, invite.lines.first.to_s.strip[0, 120])
 $jar = {}
+preview = req(:get, URI(link).path, headers: { "User-Agent" => "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)" })
+check("a chat app's link preview gets the front page and no session", preview["location"].to_s.end_with?("/overview") && !$jar.key?("__Host-runout_session"), preview["location"])
 response = req(:get, URI(link).path)
 check("the invitation signs in and lands on /welcome", response["location"].to_s.end_with?("/welcome") && $jar.key?("__Host-runout_session"), response["location"])
-check("a used invitation is refused", req(:get, URI(link).path)["location"].to_s.include?("link_invalid"))
+$jar = {}
+check("an opened invitation opens again from another browser until a passkey exists", req(:get, URI(link).path)["location"].to_s.end_with?("/welcome") && $jar.key?("__Host-runout_session"))
 session = JSON.parse(req(:get, "/api/session").body)
 check("the invited account has no passkey, no codes, no Last.fm", session["methods"] == { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, session.to_json)
 check("the invited account's connection is its own, without Last.fm", JSON.parse(req(:get, "/api/connection").body).values_at("status", "displayName") == [ "none", "Dana" ])
