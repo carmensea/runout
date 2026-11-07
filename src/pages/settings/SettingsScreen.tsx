@@ -71,7 +71,7 @@ export function SettingsScreen() {
 
   return (
     <main id="main" className={settings.main}>
-      <div className="eyebrow">08 / Settings</div>
+      <div className="eyebrow">09 / Settings</div>
       <h1 className={settings.title}>Settings</h1>
       {!signedIn && !deleted && (
         <p className={settings.lede}>Sign in to see your listening history and manage it here.</p>

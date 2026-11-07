@@ -54,6 +54,9 @@ Rails.application.routes.draw do
     resource :on_this_day, only: :show, path: "on-this-day"
     get "genres/:slug", to: "genres#show", as: :genre, constraints: { slug: /[a-z0-9-]+/ }
     get "loved-tracks", to: "loved_tracks#index", as: :loved_tracks
+    # Music diary (docs/milestone-5-plan.md §4): one song with the user's memories, and the memories themselves.
+    get "tracks/:key", to: "tracks#show", as: :track, constraints: { key: /t\d+|m[0-9a-f]{32}/ }
+    resources :memories, only: %i[index create update destroy], constraints: { id: /\d+/ }
   end
 
   # The React app's routes. Unknown API paths and missing asset files stay real 404s.

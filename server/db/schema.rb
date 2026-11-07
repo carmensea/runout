@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -468,6 +468,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000003) do
     t.check_constraint "level::text = ANY (ARRAY['artist'::character varying, 'album'::character varying, 'track'::character varying]::text[])", name: "mbid_disputes_level"
   end
 
+  create_table "memories", force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.bigint "track_id", null: false
+    t.text "body", null: false
+    t.date "remembered_on"
+    t.string "remembered_label"
+    t.string "visibility", default: "private", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["track_id"], name: "index_memories_on_track_id"
+    t.index ["user_id", "created_at"], name: "index_memories_on_user_id_and_created_at"
+    t.index ["user_id", "remembered_on"], name: "index_memories_on_user_id_and_remembered_on"
+    t.index ["user_id"], name: "index_memories_on_user_id"
+    t.check_constraint "length(body) >= 1 AND length(body) <= 20000", name: "memories_body_length"
+    t.check_constraint "visibility::text = 'private'::text", name: "memories_visibility"
+  end
+
   create_table "metadata_artists", force: :cascade do |t|
     t.string "provider", null: false
     t.text "provider_id", null: false
@@ -709,8 +726,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000003) do
     t.datetime "created_at", null: false
     t.string "source", default: "lastfm", null: false
     t.index ["name_variant_id"], name: "index_scrobbles_on_name_variant_id"
-    t.index ["user_id", "removed_at"], name: "index_scrobbles_on_user_id_and_removed_at", where: "(removed_at IS NOT NULL)"
     t.index ["user_id", "played_at", "seq"], name: "index_scrobbles_identity", unique: true
+    t.index ["user_id", "removed_at"], name: "index_scrobbles_on_user_id_and_removed_at", where: "(removed_at IS NOT NULL)"
     t.check_constraint "seq >= 0", name: "scrobbles_seq_non_negative"
     t.check_constraint "source::text = ANY (ARRAY['lastfm'::text, 'spotify'::text, 'listenbrainz'::text])", name: "scrobbles_source"
   end
@@ -838,6 +855,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000003) do
   add_foreign_key "loved_tracks", "name_variants"
   add_foreign_key "loved_tracks", "users", on_delete: :cascade
   add_foreign_key "mbid_disputes", "import_windows", column: "first_import_window_id", on_delete: :nullify
+  add_foreign_key "memories", "tracks", on_delete: :restrict
+  add_foreign_key "memories", "users", on_delete: :cascade
   add_foreign_key "name_variants", "albums"
   add_foreign_key "name_variants", "artists"
   add_foreign_key "name_variants", "tracks"

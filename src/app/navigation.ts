@@ -13,7 +13,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'artists', number: '03', label: 'Artists', path: '/artists', group: 'listening' },
   { id: 'tracks', number: '04', label: 'Tracks', path: '/tracks', group: 'listening' },
   { id: 'loved', number: '05', label: 'Loved', path: '/loved', group: 'listening' },
-  { id: 'lyrics', number: '06', label: 'Lyrics', path: '/lyrics', group: 'planned' },
-  { id: 'mood', number: '07', label: 'Mood', path: '/mood', group: 'planned' },
-  { id: 'settings', number: '08', label: 'Settings', path: '/settings', group: 'settings' },
+  { id: 'memories', number: '06', label: 'Memories', path: '/memories', group: 'listening' },
+  { id: 'lyrics', number: '07', label: 'Lyrics', path: '/lyrics', group: 'planned' },
+  { id: 'mood', number: '08', label: 'Mood', path: '/mood', group: 'planned' },
+  { id: 'settings', number: '09', label: 'Settings', path: '/settings', group: 'settings' },
 ];

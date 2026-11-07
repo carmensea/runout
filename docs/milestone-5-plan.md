@@ -401,6 +401,38 @@ diary_entry_links      id, entry_id, play_at (timestamptz, null), play_seq (smal
 - Connected songs: on an entry, the other songs it links; on a song, the entries and the songs that
   share them.
 
+### 4.5 Built (2026-11-07): Memories, the first version
+
+Phase 3 shipped as **Memories**, narrower than §4.1 where the first version could be simpler and
+unchanged where the model mattered:
+
+- **One memory, one song.** `memories` (user_id, track_id, body, remembered_on, remembered_label,
+  visibility = `private` by database check, timestamps). Plain text, no Markdown yet; the
+  subjects table and the play link of §4.1 are not built, and can be added without touching
+  these rows.
+- **Identity through the merge chain.** A memory is written against the catalogue track at the end
+  of its merge chain at the time of writing (`Memories::Songs.resolve`). Reading goes the other
+  way: a song's memories are those attached to any track whose chain now ends at it
+  (`Catalogue::Roots`), so a later merge moves them, a correction that re-links a variant leaves
+  them with the recording they were written about, and nothing is copied or lost. A song the
+  catalogue could not place (`m<hash>`) cannot carry a memory yet; the API says `song_not_identified`.
+  **Known limitation: a merge later reversed.** A memory written while two recordings were merged is
+  stored against the merged-into track, because that is where the chain ended. If that merge is ever
+  undone (the catalogue has no operation for this today; it would mean clearing `merged_into_id` by
+  hand), the memory stays with the track it was stored against, which may not be the recording the
+  person was listening to. Nothing is lost: the row still exists under their account and can be
+  reattached by updating `memories.track_id`. The fix, if reversal is ever built, is to record the
+  variant or the exact track the person wrote from, so a memory can follow a split.
+- **Privacy as in §4.2:** every query starts from `Current.user.memories`; a foreign id is 404;
+  `body` and `rememberedLabel` are filtered from logs; no text leaves the server; the Overview cache
+  never sees memories (they are not part of its answer); account deletion cascades; the encrypted
+  backup carries the table like any other and the restore check compares it with the rest.
+- **Pages:** `/tracks/:key` (the song: cover, listening in all, first and last, by year, the
+  memories, "Add a memory") and `/memories` (06 in the nav; songs with memories, or a journal in
+  time order; search over words, songs and artists). Search results, the Overview's top tracks and
+  the Time Machine's play log open the song page.
+- **Not built, by decision:** sharing of any kind, tags, moods, AI text, playlists from memories.
+
 ## 5. Phase 4 (paper only): friends and shared journals, offline
 
 **Friends model, to build only with its authorization and tests:**

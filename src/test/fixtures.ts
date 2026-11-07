@@ -1,8 +1,12 @@
 /** Test-only data. Small, obviously synthetic values used to exercise rendering paths. */
-import type { AuthApi, HistoryApi, RunoutApi, SourcesApi } from '../data/api';
-import { NotConnectedError, noAuthApi, noHistoryApi, noSourcesApi } from '../data/api';
 import type {
-  ArtistKindKey, BrowserSession, Passkey, SessionInfo, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, LovedLibrary, LovedTrack, OverviewData, ReviewQueue, SpotifySource, SyncHealth,
+  AuthApi, HistoryApi, RunoutApi, SourcesApi,
+} from '../data/api';
+import {
+  NotConnectedError, noAuthApi, noHistoryApi, noSourcesApi, type MemoriesApi,
+} from '../data/api';
+import type {
+  ArtistKindKey, BrowserSession, Passkey, SessionInfo, GenreDetail, ImportStatus, ListeningReviewItem, ListeningSources, LovedLibrary, LovedTrack, OverviewData, ReviewQueue, SpotifySource, SyncHealth, Memory, SongDetail,
 } from '../data/types';
 import { serializePeriod } from '../lib/period';
 
@@ -117,6 +121,8 @@ export function connectedApi(overview: (period: string) => OverviewData = () => 
     getOnThisDay: async (date) => ({ date, leapDay: false, years: [] }),
     getGenre: async (slug) => makeGenreDetail(slug),
     getLovedTracks: async () => makeLovedLibrary([]),
+    getSong: async (key) => makeSong(key),
+    memories: fakeMemoriesApi(),
     signInUrl: () => '/api/auth/lastfm',
     signOut: async () => {},
     setTheme: async () => {},
@@ -236,6 +242,23 @@ export const notConnectedApi: RunoutApi = {
   getLovedTracks: async () => {
     throw new NotConnectedError();
   },
+  getSong: async () => {
+    throw new NotConnectedError();
+  },
+  memories: {
+    list: async () => {
+      throw new NotConnectedError();
+    },
+    create: async () => {
+      throw new NotConnectedError();
+    },
+    update: async () => {
+      throw new NotConnectedError();
+    },
+    remove: async () => {
+      throw new NotConnectedError();
+    },
+  },
   getOverview: async () => {
     throw new NotConnectedError();
   },
@@ -326,6 +349,57 @@ export function fakeAuthApi(initial: { session?: SessionInfo | null; passkeys?: 
     revokeSession: async (id) => {
       calls.push(`revokeSession:${id}`);
       sessions = sessions.filter((s) => s.id !== id);
+    },
+  };
+}
+
+/* ---- Music diary ---- */
+
+export function makeSong(id = 't1', overrides: Partial<SongDetail> = {}): SongDetail {
+  return {
+    id, name: 'Harbour Lights', artist: { id: 'a1', name: 'The Lanterns' }, artworkUrl: null,
+    plays: { total: 2, firstPlayedAt: '2014-03-15T20:00:00Z', lastPlayedAt: '2019-07-01T09:00:00Z', byYear: [{ year: 2014, plays: 1 }, { year: 2019, plays: 1 }] },
+    memories: [], ...overrides,
+  };
+}
+
+export function makeMemory(id: number, overrides: Partial<Memory> = {}): Memory {
+  return {
+    id, song: { id: 't1', name: 'Harbour Lights', artist: { id: 'a1', name: 'The Lanterns' }, artworkUrl: null },
+    body: 'The ferry crossing the first winter I lived by the water.', rememberedOn: '2014-03-15', rememberedLabel: null,
+    createdAt: '2026-11-07T12:00:00Z', updatedAt: '2026-11-07T12:00:00Z', ...overrides,
+  };
+}
+
+/** An in-memory diary: lists, creates, edits and deletes, and records every call. */
+export function fakeMemoriesApi(initial: Memory[] = []): MemoriesApi & { calls: string[]; all(): Memory[] } {
+  let memories = [...initial];
+  let nextId = Math.max(0, ...initial.map((m) => m.id)) + 1;
+  const calls: string[] = [];
+  return {
+    calls,
+    all: () => memories,
+    list: async (q) => {
+      calls.push(`list:${q}`);
+      const needle = q.toLowerCase();
+      const hits = needle ? memories.filter((m) => [m.body, m.rememberedLabel ?? '', m.song.name, m.song.artist.name].some((t) => t.toLowerCase().includes(needle))) : memories;
+      return { memories: [...hits].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
+    },
+    create: async (song, input) => {
+      calls.push(`create:${song}`);
+      const created = makeMemory(nextId++, { ...input, song: { ...makeMemory(0).song, id: song }, createdAt: '2026-11-08T09:00:00Z', updatedAt: '2026-11-08T09:00:00Z' });
+      memories = [...memories, created];
+      return created;
+    },
+    update: async (id, input) => {
+      calls.push(`update:${id}`);
+      const updated = { ...memories.find((m) => m.id === id)!, ...input, updatedAt: '2026-11-09T09:00:00Z' };
+      memories = memories.map((m) => (m.id === id ? updated : m));
+      return updated;
+    },
+    remove: async (id) => {
+      calls.push(`remove:${id}`);
+      memories = memories.filter((m) => m.id !== id);
     },
   };
 }

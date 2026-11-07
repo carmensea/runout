@@ -119,11 +119,14 @@ export function PlayLog({ focus, label, dayCounts, countsPerPage = false }: Prop
 
 function PlayRow({ play, sameSecond }: { play: Play; sameSecond: boolean }) {
   const { isLoved } = useLoved();
+  const { withPeriod } = usePeriod();
+  // A catalogue song opens its page (history and memories); a song the catalogue couldn't place has none yet.
+  const songHref = play.track.id.startsWith('t') ? withPeriod(`/tracks/${encodeURIComponent(play.track.id)}`) : null;
   return (
     <li className={styles.play}>
       <time className={`mono ${styles.playTime}`} dateTime={play.playedAt}>{play.time}</time>
       <span className={styles.playWhat}>
-        <span className={styles.playTrack}>{play.track.name}{isLoved(play.track.id) && <Heart />}</span>
+        <span className={styles.playTrack}>{songHref ? <Link to={songHref} className={styles.playLink}>{play.track.name}</Link> : play.track.name}{isLoved(play.track.id) && <Heart />}</span>
         <span className={styles.playArtist}>{play.artist.name}</span>
       </span>
       <span className={styles.playAlbum}>{play.album?.name ?? ''}</span>

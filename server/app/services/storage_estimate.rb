@@ -14,7 +14,7 @@ module StorageEstimate
        AND NOT EXISTS (SELECT 1 FROM reconciliation_disputes) AND NOT EXISTS (SELECT 1 FROM review_decisions) AND NOT EXISTS (SELECT 1 FROM loved_tracks)
   SQL
   TRUNCATE_SQL = <<~SQL.freeze
-    TRUNCATE loved_tracks, listening_observations, catalogue_inferences, mbid_disputes, review_decisions, reconciliation_disputes, scrobble_removals, scrobble_corrections, scrobbles, import_window_rows, import_window_fetches,
+    TRUNCATE memories, loved_tracks, listening_observations, catalogue_inferences, mbid_disputes, review_decisions, reconciliation_disputes, scrobble_removals, scrobble_corrections, scrobbles, import_window_rows, import_window_fetches,
              import_windows, import_runs, catalogue_reviews, artist_aliases, name_variants, tracks, albums, artists
   SQL
 

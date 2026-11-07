@@ -20,6 +20,7 @@ class User < ApplicationRecord
   has_many :listening_sources, dependent: nil # deleted with the user by the database
   has_many :listening_observations, dependent: nil
   has_many :loved_tracks, dependent: nil # deleted with the user by the database
+  has_many :memories, dependent: nil # deleted with the user by the database
 
   # Must match THEMES in src/theme/theme.ts.
   THEMES = %w[original moss cotton-candy midnight-candy verdant].freeze
