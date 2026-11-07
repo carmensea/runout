@@ -122,7 +122,8 @@ GitHub noreply identity. Everything pushed there is public.
   `git var GIT_AUTHOR_IDENT` when in doubt.
 - **The pre-publication checkout** `~/projects/runout-private` (with its worktrees under
   `~/projects/runout-worktrees/`) keeps the original history with the personal email. It is a read-only
-  fallback whose `origin` is the private copy: never push, fetch into, merge, rebase or cherry-pick its
+  fallback whose `origin` is the private `carmensea/runout-private`: never push, fetch into, merge, rebase or
+  cherry-pick its
   commits into the public repository. Work that exists only there is carried over as a patch
   (`git diff` there, `git apply` here) and committed afresh.
 - **Equivalent branches have different hashes** in the two repositories; compare trees
