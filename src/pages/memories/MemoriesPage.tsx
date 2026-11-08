@@ -17,8 +17,10 @@ type View = 'songs' | 'journal';
 
 /**
  * Memories (GET /api/memories): everything the signed-in person has written about songs, by song
- * or as a journal in time order, with a search over their words, the songs and the artists. Opening
- * a song shows its whole history and every memory about it. Private: nobody else's ever appears.
+ * or as a journal in time order, with a search over their words, the songs and the artists. The same
+ * search also finds songs in the person's own history that have no memory yet, so the first one can
+ * be written from here. Opening a song shows its whole history and every memory about it. Private:
+ * nobody else's ever appears.
  */
 export function MemoriesPage() {
   const { api, fmt } = useAppData();
@@ -27,6 +29,8 @@ export function MemoriesPage() {
   const [view, setView] = useState<View>('songs');
   const q = useDeferredValue(query.trim());
   const loaded = useAsync(`memories:${q}`, (signal) => api.memories.list(q, signal));
+  // Songs from the person's history matching the search (GET /api/search, two characters or more).
+  const found = useAsync(q.length >= 2 ? `memories-search:${q}` : null, (signal) => api.search(q, signal));
   // Edits made here, valid for the data they were made against; a new search or reload starts afresh.
   const [edits, setEdits] = useState<{ base: Memory[]; list: Memory[] } | null>(null);
   const data = loaded.status === 'success' ? loaded.data : null;
@@ -54,6 +58,12 @@ export function MemoriesPage() {
       .flatMap((group) => (group[0] ? [{ latest: group[0], count: group.length }] : []))
       .sort((a, b) => b.latest.createdAt.localeCompare(a.latest.createdAt));
   }, [list]);
+  // History songs the search found that carry no memory yet; a song the catalogue could not place has no page.
+  const unwritten = useMemo(() => {
+    if (q.length < 2 || found.status !== 'success') return [];
+    const written = new Set(list.map((m) => m.song.id));
+    return found.data.tracks.filter((t) => t.id.startsWith('t') && !written.has(t.id));
+  }, [q, found, list]);
   const journal = useMemo(() => [...list].sort((a, b) => (b.rememberedOn ?? b.createdAt.slice(0, 10)).localeCompare(a.rememberedOn ?? a.createdAt.slice(0, 10)) || b.createdAt.localeCompare(a.createdAt)), [list]);
 
   return (
@@ -84,7 +94,7 @@ export function MemoriesPage() {
       )}
       {data && list.length === 0 && (
         <p className={styles.empty}>
-          {q ? 'Nothing matches that.' : 'No memories yet. Open a song from the Overview, Search or the Time Machine and write what it means to you.'}
+          {q ? (unwritten.length > 0 ? 'No memories match that yet.' : 'Nothing matches that.') : 'No memories yet. Search a song above, or open one from the Overview or the Time Machine, and write what it means to you.'}
         </p>
       )}
       {list.length > 0 && view === 'songs' && (
@@ -112,6 +122,23 @@ export function MemoriesPage() {
             {journal.map((m) => <MemoryItem key={m.id} memory={m} fmt={fmt} showSong songHref={songHref} onUpdate={update} onDelete={remove} />)}
           </ul>
         </div>
+      )}
+      {unwritten.length > 0 && (
+        <section className={styles.unwritten} aria-labelledby="memories-unwritten">
+          <h2 id="memories-unwritten" className={styles.unwrittenHead}>Songs in your history</h2>
+          <p className={styles.unwrittenHint}>No memory yet. Open one to write the first.</p>
+          <ul className={styles.list} aria-label="Songs in your history">
+            {unwritten.map((t) => (
+              <li key={t.id} className={styles.songRow}>
+                <span className={styles.songRowArt}><Artwork src={null} name={t.name} size={56} /></span>
+                <div className={styles.songRowTitle}>
+                  <Link to={songHref(t.id)}>{t.name}</Link>
+                  <span className={styles.songArtist} style={{ margin: 0 }}>{t.artist}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );

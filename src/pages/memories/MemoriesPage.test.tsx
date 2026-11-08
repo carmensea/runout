@@ -61,6 +61,25 @@ describe('Memories page', () => {
     expect(await screen.findByText('Nothing matches that.')).toBeInTheDocument();
   });
 
+  it('finds songs in the history that have no memory yet, and opens one to write the first', async () => {
+    const user = userEvent.setup();
+    const search: RunoutApi['search'] = async (query) => ({
+      artists: [], albums: [],
+      tracks: query.toLowerCase().includes('lantern')
+        ? [{ id: 't1', name: 'Harbour Lights', artist: 'The Lanterns' }, { id: 't7', name: 'Slow River', artist: 'The Lanterns' }, { id: 'm0123', name: 'Unplaced Song', artist: 'The Lanterns' }]
+        : [],
+    });
+    renderApp(api({ search }), '/memories');
+    await screen.findByRole('heading', { name: 'Memories' });
+    await user.type(screen.getByRole('searchbox', { name: 'Search memories' }), 'lanterns');
+    const songs = await screen.findByRole('list', { name: 'Songs in your history' });
+    // Harbour Lights already carries memories, so it is listed above, not here; the unplaced song has no page.
+    expect(within(songs).getAllByRole('listitem').map((e) => e.textContent)).toEqual([expect.stringContaining('Slow River')]);
+    expect(within(songs).queryByText('Harbour Lights')).toBeNull();
+    await user.click(within(songs).getByRole('link', { name: 'Slow River' }));
+    expect(location.current).toMatch(/^\/tracks\/t7/);
+  });
+
   it('explains how to start when nothing is written yet', async () => {
     renderApp(api({ memories: fakeMemoriesApi([]) }), '/memories');
     expect(await screen.findByText(/No memories yet/)).toBeInTheDocument();
