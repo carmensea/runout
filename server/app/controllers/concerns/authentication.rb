@@ -38,9 +38,9 @@ module Authentication
   end
 
   # Rotates the session on sign-in so a pre-existing cookie can never be promoted (fixation).
-  def start_session_for(user)
+  def start_session_for(user, operator: false)
     Session.find_by_token(cookies[COOKIE_NAME])&.destroy
-    session, token = Session.start!(user: user, ip_address: request.remote_ip, user_agent: request.user_agent)
+    session, token = Session.start!(user: user, ip_address: request.remote_ip, user_agent: request.user_agent, operator: operator)
     write_session_cookie(token, session.expires_at)
     Current.session = session
   end

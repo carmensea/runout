@@ -239,7 +239,8 @@ function SessionsPanel({ sessions, onChanged }: { sessions: ReturnType<typeof us
           {sessions.data.map((s) => (
             <li key={s.id} className={styles.row} style={{ gridTemplateColumns: '1fr auto' }}>
               <div className={styles.rowBody} style={{ gridColumn: 1 }}>
-                <span className={styles.rowTitle}>{s.current ? 'This browser' : describeAgent(s.userAgent)}</span>
+                <span className={styles.rowTitle}>{s.current ? 'This browser' : describeAgent(s.userAgent)}{s.operator ? ' · Operator sign-in' : ''}</span>
+                {s.operator && <span className={styles.note}>Runout’s operator, signed in to see what you see. It reads your memories as placeholder words and can write none. Sign it out any time.</span>}
                 <span className={styles.note}>Last seen {fmt.dateTime(s.lastSeenAt, timeZone)}{s.ipAddress ? ` from ${s.ipAddress}` : ''}. Signed in {fmt.dateTime(s.createdAt, timeZone)}.</span>
               </div>
               {s.current ? (

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_000005) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -741,6 +741,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000005) do
     t.string "user_agent"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "operator", default: false, null: false
     t.index ["expires_at"], name: "index_sessions_on_expires_at"
     t.index ["token_digest"], name: "index_sessions_on_token_digest", unique: true
     t.index ["user_id"], name: "index_sessions_on_user_id"
@@ -756,7 +757,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000005) do
     t.string "kind", default: "recovery", null: false
     t.index ["token_digest"], name: "index_sign_in_links_on_token_digest", unique: true
     t.index ["user_id"], name: "index_sign_in_links_on_user_id"
-    t.check_constraint "kind::text = ANY (ARRAY['recovery'::text, 'invitation'::text])", name: "sign_in_links_kind"
+    t.check_constraint "kind::text = ANY (ARRAY['recovery'::text, 'invitation'::text, 'operator'::text])", name: "sign_in_links_kind"
   end
 
   create_table "tag_genre_mappings", force: :cascade do |t|

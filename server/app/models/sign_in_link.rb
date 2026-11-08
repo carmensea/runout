@@ -1,9 +1,11 @@
-# An expiring sign-in link the operator issues, single use for recovery (bin/rails auth:recovery_link,
-# auth:invite_link). Only the token's SHA-256 digest is stored.
+# An expiring sign-in link the operator issues: single use for recovery (bin/rails auth:recovery_link)
+# and for the operator's own sign-in-as (auth:sign_in_as, kind "operator", which opens an operator
+# session), reusable until enrolment for an invitation (auth:invite_link). Only the token's SHA-256
+# digest is stored.
 class SignInLink < ApplicationRecord
   TTL = 15.minutes          # recovery: handed over at once, in an emergency
   INVITATION_TTL = 24.hours # invitation: opened when the invited person gets to it
-  KINDS = %w[recovery invitation].freeze
+  KINDS = %w[recovery invitation operator].freeze
 
   belongs_to :user
 

@@ -13,7 +13,7 @@ module Api
 
       link = SignInLink.redeem!(params[:token]) or return redirect_to("/overview?auth_error=link_invalid")
       Rails.logger.warn("Operator #{link.kind} link used for user #{link.user_id}")
-      start_session_for(link.user)
+      start_session_for(link.user, operator: link.kind == "operator")
       # An invited person lands on the onboarding page: passkey, recovery codes, a source.
       redirect_to(link.kind == "invitation" ? "/welcome" : "/overview")
     end

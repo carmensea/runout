@@ -10,7 +10,9 @@ module Api
     def show
       track = Memories::Songs.resolve(params[:key]) or return head(:not_found)
       memories = Memories::Songs.memories_for(Current.user, track)
-      render json: Memories::Songs.detail(Current.user, track).merge(memories: memories.map { |m| Memories::Serializer.memory(m, root: track) })
+      operator = Current.session.operator?
+      detail = Memories::Songs.detail(Current.user, track).merge(memories: memories.map { |m| Memories::Serializer.memory(m, root: track, redact: operator) })
+      render json: operator ? detail.merge(readOnly: true) : detail
     end
   end
 end

@@ -11,7 +11,9 @@ class Session < ApplicationRecord
 
   scope :unexpired, -> { where("expires_at > ? AND created_at > ?", Time.current, ABSOLUTE_LIFETIME.ago) }
 
-  def self.start!(user:, ip_address:, user_agent:)
+  # `operator`: opened through the operator's sign-in-as link; sees memories as placeholder words
+  # and cannot write them (Memories::Placeholder).
+  def self.start!(user:, ip_address:, user_agent:, operator: false)
     token = SecureRandom.urlsafe_base64(32)
     now = Time.current
     session = create!(
@@ -20,7 +22,8 @@ class Session < ApplicationRecord
       expires_at: now + LIFETIME,
       last_seen_at: now,
       ip_address: ip_address,
-      user_agent: user_agent.to_s.first(255)
+      user_agent: user_agent.to_s.first(255),
+      operator: operator
     )
     [ session, token ]
   end

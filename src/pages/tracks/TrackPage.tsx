@@ -119,16 +119,17 @@ export function TrackPage() {
         eyebrow="02 / Memories"
         title="What this song means to you"
         description="Your own words, private to you. A memory can be about a time long before the first play recorded here."
-        actions={!writing && <button type="button" className={stateStyles.primary} onClick={() => setWriting(true)}>Add a memory</button>}
+        actions={!writing && !s.readOnly && <button type="button" className={stateStyles.primary} onClick={() => setWriting(true)}>Add a memory</button>}
       >
         <div className={styles.measure}>
+          {s.readOnly && <p className={styles.empty} role="note">Operator view: the words are placeholders of the same shape, and nothing can be written or changed here.</p>}
           {writing && <MemoryEditor onSave={create} onCancel={() => setWriting(false)} />}
           {list.length === 0 && !writing && (
             <p className={styles.empty}>Nothing written yet. When this song brings back a person, a place or a time, write it down here and it stays with the song.</p>
           )}
           {list.length > 0 && (
             <ul className={styles.list} aria-label="Your memories of this song">
-              {list.map((m) => <MemoryItem key={m.id} memory={m} fmt={fmt} songHref={songHref} onUpdate={update} onDelete={remove} />)}
+              {list.map((m) => <MemoryItem key={m.id} memory={m} fmt={fmt} readOnly={s.readOnly} songHref={songHref} onUpdate={update} onDelete={remove} />)}
             </ul>
           )}
         </div>

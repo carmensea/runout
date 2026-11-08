@@ -2,14 +2,16 @@ module Api
   # The music diary (docs/milestone-5-plan.md §4): a user's memories about songs. Every action
   # starts from the signed-in user's own memories; another user's id is 404, never 403, so nothing
   # confirms a memory exists. Memory text is never logged (filter_parameters) and never leaves the
-  # server for any other service. No sharing exists: every memory is private.
+  # server for any other service. No sharing exists: every memory is private. An operator session
+  # (auth:sign_in_as) reads the words as placeholders and may write nothing.
   class MemoriesController < ApplicationController
     require_authentication
     require_feature :memories
+    before_action(only: %i[create update destroy]) { render(json: { error: "operator_session" }, status: :forbidden) if Current.session.operator? }
 
     # GET /api/memories?q=
     def index
-      render json: Memories::Journal.call(Current.user, q: params[:q])
+      render json: Memories::Journal.call(Current.user, q: params[:q], redact: Current.session.operator?)
     end
 
     # POST /api/memories { song: "t123", body, rememberedOn, rememberedLabel }

@@ -46,6 +46,8 @@ export interface BrowserSession {
   lastSeenAt: string;
   ipAddress: string | null;
   userAgent: string | null;
+  /** Opened by the operator's sign-in-as link, to see what you see; it reads memories as placeholder words. */
+  operator?: boolean;
 }
 
 export interface ActivityBucket {
@@ -637,8 +639,12 @@ export interface MemoryInput {
 export interface SongDetail extends MemorySong {
   plays: { total: number; firstPlayedAt: string | null; lastPlayedAt: string | null; byYear: Array<{ year: number; plays: number }> };
   memories: Memory[];
+  /** An operator session: the words are placeholders and nothing can be written. */
+  readOnly?: boolean;
 }
 
 export interface MemoriesResponse {
   memories: Memory[];
+  /** An operator session: the words are placeholders and nothing can be written. */
+  readOnly?: boolean;
 }

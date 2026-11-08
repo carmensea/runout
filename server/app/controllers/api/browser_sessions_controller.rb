@@ -7,7 +7,7 @@ module Api
     def index
       sessions = Current.user.sessions.unexpired.order(last_seen_at: :desc).map do |s|
         { id: s.id, current: s.id == Current.session.id, createdAt: s.created_at.iso8601, lastSeenAt: s.last_seen_at.iso8601,
-          ipAddress: s.ip_address, userAgent: s.user_agent }
+          ipAddress: s.ip_address, userAgent: s.user_agent, operator: s.operator }
       end
       render json: { sessions: sessions }
     end

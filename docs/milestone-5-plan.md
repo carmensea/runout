@@ -431,6 +431,12 @@ unchanged where the model mattered:
   memories, "Add a memory") and `/memories` (06 in the nav; songs with memories, or a journal in
   time order; search over words, songs and artists). Search results, the Overview's top tracks and
   the Time Machine's play log open the song page.
+- **The operator never reads the words.** A session opened through `auth:sign_in_as` (an operator
+  session, `sessions.operator`) gets every memory with its text and label replaced by placeholder
+  words of the same shape (`Memories::Placeholder`), cannot create, edit or delete memories (403),
+  and its search looks only at songs and artists. Dates stay, so the page reads as the person's
+  does. The person sees the session in Settings → Account → Sessions as "Operator sign-in". The
+  owner asked for this on 2026-11-08: the song with a memory may be seen, the diary itself not.
 - **Rollout behind a per-account flag.** `users.features` lists the features an account can see
   before everyone does; `memories` is the first. Without it the Memories page, the song pages and
   the play-log links are absent and the API answers 404, as if the routes did not exist. The
