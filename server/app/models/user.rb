@@ -29,7 +29,9 @@ class User < ApplicationRecord
   # Granted by hand: bin/rails features:grant[user_id,display_name,feature].
   FEATURES = %w[memories].freeze
 
-  validates :display_name, presence: true
+  NAME_MAX = 80
+
+  validates :display_name, presence: true, length: { maximum: NAME_MAX }
   validates :features, inclusion: { in: FEATURES }
   validates :theme, inclusion: { in: THEMES }, allow_nil: true
   validates :reporting_timezone, inclusion: { in: ->(_) { User.timezones } }

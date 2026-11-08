@@ -147,6 +147,15 @@ export function SettingsScreen() {
         </div>
       )}
       {signedIn && (
+        <DisplayName
+          name={signedIn.displayName}
+          onSaved={() => {
+            connection.retry();
+            auth.retry();
+          }}
+        />
+      )}
+      {signedIn && (
         <div className={settings.panel} id="lastfm">
           <span>
             Signed in as <strong style={{ color: 'var(--fg)', fontWeight: 600 }}>{signedIn.displayName}</strong>.
@@ -176,6 +185,42 @@ export function SettingsScreen() {
       <p className={settings.note} style={{ marginTop: 32 }}>Preferences, metadata coverage and data export arrive in later versions.</p>
       <Link to={withPeriod('/overview')} className={styles.back}>Back to Overview</Link>
     </main>
+  );
+}
+
+/** The name the account is addressed by, and what deletion asks to be typed. */
+function DisplayName({ name, onSaved }: { name: string; onSaved(): void }) {
+  const { api } = useAppData();
+  const inputId = useId();
+  const [typed, setTyped] = useState(name);
+  const [state, setState] = useState<'idle' | 'busy' | 'saved' | 'error'>('idle');
+  const next = typed.trim();
+  const changed = next !== '' && next.length <= 80 && next !== name;
+
+  async function save() {
+    setState('busy');
+    try {
+      await api.setDisplayName(next);
+      setState('saved');
+      onSaved();
+    } catch {
+      setState('error');
+    }
+  }
+
+  return (
+    <form className={settings.panel} id="name" onSubmit={(e) => { e.preventDefault(); if (changed) void save(); }}>
+      <label className={styles.field} htmlFor={inputId}>
+        Your name
+        <input id={inputId} className={styles.input} value={typed} maxLength={80} autoComplete="nickname" onChange={(e) => { setTyped(e.target.value); setState('idle'); }} />
+      </label>
+      <span className={settings.note}>How Runout addresses you. It is not your Last.fm or Spotify name, and nobody else sees it.</span>
+      <div className={stateStyles.actions}>
+        <button type="submit" className={stateStyles.secondary} disabled={!changed || state === 'busy'}>{state === 'busy' ? 'Saving' : 'Save name'}</button>
+        {state === 'saved' && <span role="status">Saved.</span>}
+      </div>
+      {state === 'error' && <p role="alert" style={{ color: 'var(--err)', margin: 0 }}>Your name was not saved. Try again.</p>}
+    </form>
   );
 }
 
