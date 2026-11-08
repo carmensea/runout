@@ -42,6 +42,9 @@ export function SettingsScreen() {
   const hash = location.hash.slice(1);
   const tab: Tab = HASH_TAB[hash] ?? (isTab(hash) ? hash : 'sources');
   const openTab = (id: Tab) => navigate({ search: location.search, hash: `#${id}` }, { replace: true });
+  // An operator session: the server refuses every change, so the controls are disabled here too.
+  const { operator } = useAppData();
+  const readOnly = operator !== null;
 
   useEffect(() => {
     document.title = 'Settings · Runout';
@@ -93,6 +96,8 @@ export function SettingsScreen() {
         />
       )}
       <div id="settings-panel" role={signedIn ? 'tabpanel' : undefined} aria-labelledby={signedIn ? `settings-tab-${tab}` : undefined} className={signedIn ? settings.tabpanel : undefined}>
+      {readOnly && <p className={settings.note} role="note">Operator view: these settings are shown as the person sees them and cannot be changed from here.</p>}
+      <fieldset disabled={readOnly} className={settings.plainGroup}>
       {signedIn && tab === 'sources' && (
         <section className={settings.section} id="sources" aria-labelledby="sources-title">
           <h2 id="sources-title" className={settings.h2}>Listening sources</h2>
@@ -118,7 +123,7 @@ export function SettingsScreen() {
         <AppearancePanel />
       </section>
       )}
-      {signedIn && authOn && tab === 'account' && (
+      {signedIn && authOn && tab === 'account' && !readOnly && (
         <section className={settings.section} id="sign-in" aria-labelledby="sign-in-title">
           <h2 id="sign-in-title" className={settings.h2}>Sign-in</h2>
           <SignInSection />
@@ -146,7 +151,7 @@ export function SettingsScreen() {
           <span className={settings.note}>Backups made before today keep a copy until they age out: daily ones for 30 days, monthly ones for 12 months.</span>
         </div>
       )}
-      {signedIn && (
+      {signedIn && !readOnly && (
         <DisplayName
           name={signedIn.displayName}
           onSaved={() => {
@@ -170,7 +175,7 @@ export function SettingsScreen() {
           {state === 'error' && <p role="alert" style={{ color: 'var(--err)', margin: 0 }}>Sign-out failed. Try again.</p>}
         </div>
       )}
-      {signedIn && (
+      {signedIn && !readOnly && (
         <DeleteAccount
           name={signedIn.displayName}
           onDeleted={(result) => {
@@ -181,6 +186,7 @@ export function SettingsScreen() {
       )}
       </section>
       )}
+      </fieldset>
       </div>
       <p className={settings.note} style={{ marginTop: 32 }}>Preferences, metadata coverage and data export arrive in later versions.</p>
       <Link to={withPeriod('/overview')} className={styles.back}>Back to Overview</Link>

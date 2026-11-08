@@ -10,15 +10,18 @@
  * theme (src/theme/theme.ts), null until one is chosen. `features`: names of the features this
  * account can see before everyone does (src/app/navigation.ts), empty by default.
  */
+/** The signed-in session is the operator's read-only look at this account (auth:sign_in_as), ending at `expiresAt`. */
+export interface OperatorView { expiresAt: string }
+
 export type ConnectionState =
   | { status: 'signed_out' }
   /** Signed in without a Last.fm connection; the archive still opens on stored plays. */
-  | { status: 'none'; displayName: string; timezone: string; theme?: string | null; features: string[] }
+  | { status: 'none'; displayName: string; timezone: string; theme?: string | null; features: string[]; operator?: OperatorView }
   /** Signed in with Last.fm; listening history has not been imported. */
-  | { status: 'connected'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[] }
-  | { status: 'importing'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; progress: number; attention?: number }
-  | { status: 'synced'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
-  | { status: 'failed'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; lastSyncedAt: string | null; message: string; attention?: number };
+  | { status: 'connected'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; operator?: OperatorView }
+  | { status: 'importing'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; operator?: OperatorView; progress: number; attention?: number }
+  | { status: 'synced'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; operator?: OperatorView; lastSyncedAt: string; syncPaused?: boolean; attention?: number }
+  | { status: 'failed'; displayName: string; username: string; timezone: string; theme?: string | null; features: string[]; operator?: OperatorView; lastSyncedAt: string | null; message: string; attention?: number };
 
 /** Any signed-in account. */
 export type SignedInState = Exclude<ConnectionState, { status: 'signed_out' }>;

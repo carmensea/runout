@@ -5,8 +5,13 @@ module Authentication
 
   COOKIE_NAME = Rails.env.production? ? "__Host-runout_session" : "runout_session"
 
+  # Routes an operator session may not reach at all, GET included: they open, change or hand over a
+  # way into the account (Last.fm and Spotify OAuth, passkey and recovery sign-in, sign-in links).
+  OPERATOR_BLOCKED_CONTROLLERS = %w[api/lastfm_auth api/spotify_auth api/passkey_auth api/recovery_auth api/sign_in_links].freeze
+
   included do
     before_action :resume_session
+    before_action :enforce_operator_session
   end
 
   class_methods do
@@ -31,6 +36,17 @@ module Authentication
       # Expired, revoked or tampered: drop the stale cookie.
       cookies.delete(COOKIE_NAME, path: "/")
     end
+  end
+
+  # An operator session (auth:sign_in_as) sees the account as the person does and changes nothing:
+  # every write is 403, as is every route that could open another way in. The one write allowed
+  # is ending itself (DELETE /api/session). The server decides; the frontend only hides controls.
+  def enforce_operator_session
+    return unless Current.session&.operator?
+    return if (request.get? || request.head?) && !OPERATOR_BLOCKED_CONTROLLERS.include?(controller_path)
+    return if controller_path == "api/sessions" && action_name == "destroy"
+
+    render json: { error: "operator_session" }, status: :forbidden
   end
 
   def require_authenticated_user

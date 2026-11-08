@@ -4,7 +4,7 @@ module Api
   # "not signed in" and "no Last.fm account connected" are the same state.
   class ConnectionsController < ApplicationController
     def show
-      render json: ConnectionState.for(Current.user)
+      render json: ConnectionState.for(Current.user, session: Current.session)
     end
   end
 end
