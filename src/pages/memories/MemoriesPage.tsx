@@ -29,8 +29,12 @@ export function MemoriesPage() {
   const [view, setView] = useState<View>('songs');
   const q = useDeferredValue(query.trim());
   const loaded = useAsync(`memories:${q}`, (signal) => api.memories.list(q, signal));
-  // Songs from the person's history matching the search (GET /api/search, two characters or more).
+  // Songs from the person's history whose title matches the search (GET /api/search, which matches
+  // song titles, not artists; two characters or more). A null key never resolves, so the states
+  // below count only when a search is really running.
   const found = useAsync(q.length >= 2 ? `memories-search:${q}` : null, (signal) => api.search(q, signal));
+  const searching = q.length >= 2 && found.status === 'loading';
+  const searchFailed = q.length >= 2 && found.status === 'error';
   // Edits made here, valid for the data they were made against; a new search or reload starts afresh.
   const [edits, setEdits] = useState<{ base: Memory[]; list: Memory[] } | null>(null);
   const data = loaded.status === 'success' ? loaded.data : null;
@@ -92,9 +96,18 @@ export function MemoriesPage() {
           <div className={stateStyles.actions}><button type="button" className={stateStyles.secondary} onClick={loaded.retry}>Try again</button></div>
         </MessageState>
       )}
-      {data && list.length === 0 && (
+      {data && list.length === 0 && !q && (
+        <p className={styles.empty}>No memories yet. Search a song above, or open one from the Overview or the Time Machine, and write what it means to you.</p>
+      )}
+      {data && list.length === 0 && q && searching && <p className={styles.empty} role="status">Searching your history…</p>}
+      {data && list.length === 0 && q && searchFailed && (
+        <MessageState icon="error" tone="error" message="No memories match that, and your history could not be searched." detail={found.status === 'error' ? found.error.message : undefined}>
+          <div className={stateStyles.actions}><button type="button" className={stateStyles.secondary} onClick={found.retry}>Try again</button></div>
+        </MessageState>
+      )}
+      {data && list.length === 0 && q && !searching && !searchFailed && (
         <p className={styles.empty}>
-          {q ? (unwritten.length > 0 ? 'No memories match that yet.' : 'Nothing matches that.') : 'No memories yet. Search a song above, or open one from the Overview or the Time Machine, and write what it means to you.'}
+          {unwritten.length > 0 ? 'No memories match that yet.' : 'Nothing matches that. Songs with no memory yet are found by their title.'}
         </p>
       )}
       {list.length > 0 && view === 'songs' && (
@@ -126,7 +139,7 @@ export function MemoriesPage() {
       {unwritten.length > 0 && (
         <section className={styles.unwritten} aria-labelledby="memories-unwritten">
           <h2 id="memories-unwritten" className={styles.unwrittenHead}>Songs in your history</h2>
-          <p className={styles.unwrittenHint}>No memory yet. Open one to write the first.</p>
+          <p className={styles.unwrittenHint}>Songs whose title matches, with no memory yet. Open one to write the first.</p>
           <ul className={styles.list} aria-label="Songs in your history">
             {unwritten.map((t) => (
               <li key={t.id} className={styles.songRow}>

@@ -58,26 +58,66 @@ describe('Memories page', () => {
     expect(screen.queryByText(/ferry crossing/)).not.toBeInTheDocument();
     await user.clear(screen.getByRole('searchbox', { name: 'Search memories' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search memories' }), 'nothing like this');
-    expect(await screen.findByText('Nothing matches that.')).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing matches that/)).toBeInTheDocument();
   });
 
-  it('finds songs in the history that have no memory yet, and opens one to write the first', async () => {
+  // The history search matches song titles (Analytics::Search), never artists: these fakes do the same.
+  const byTitle = (tracks: Array<{ id: string; name: string; artist: string }>): RunoutApi['search'] => async (query) => ({
+    artists: [], albums: [], tracks: tracks.filter((t) => t.name.toLowerCase().includes(query.toLowerCase())),
+  });
+  const history = [
+    { id: 't1', name: 'Harbour Lights', artist: 'The Lanterns' },
+    { id: 't7', name: 'Harbour Nights', artist: 'Slow River' },
+    { id: 'm0123', name: 'Harbour Unplaced', artist: 'Nobody' },
+  ];
+
+  it('finds songs in the history by title that have no memory yet, and opens one to write the first', async () => {
     const user = userEvent.setup();
-    const search: RunoutApi['search'] = async (query) => ({
-      artists: [], albums: [],
-      tracks: query.toLowerCase().includes('lantern')
-        ? [{ id: 't1', name: 'Harbour Lights', artist: 'The Lanterns' }, { id: 't7', name: 'Slow River', artist: 'The Lanterns' }, { id: 'm0123', name: 'Unplaced Song', artist: 'The Lanterns' }]
-        : [],
-    });
-    renderApp(api({ search }), '/memories');
+    renderApp(api({ search: byTitle(history) }), '/memories');
     await screen.findByRole('heading', { name: 'Memories' });
-    await user.type(screen.getByRole('searchbox', { name: 'Search memories' }), 'lanterns');
+    await user.type(screen.getByRole('searchbox', { name: 'Search memories' }), 'harbour');
     const songs = await screen.findByRole('list', { name: 'Songs in your history' });
     // Harbour Lights already carries memories, so it is listed above, not here; the unplaced song has no page.
-    expect(within(songs).getAllByRole('listitem').map((e) => e.textContent)).toEqual([expect.stringContaining('Slow River')]);
+    expect(within(songs).getAllByRole('listitem').map((e) => e.textContent)).toEqual([expect.stringContaining('Harbour Nights')]);
     expect(within(songs).queryByText('Harbour Lights')).toBeNull();
-    await user.click(within(songs).getByRole('link', { name: 'Slow River' }));
+    expect(screen.getByRole('list', { name: 'Songs with memories' })).toHaveTextContent('Harbour Lights');
+    await user.click(within(songs).getByRole('link', { name: 'Harbour Nights' }));
     expect(location.current).toMatch(/^\/tracks\/t7/);
+
+    // An artist's name finds nothing in the history, and the page says how songs are found.
+    renderApp(api({ search: byTitle(history) }), '/memories');
+    await user.type((await screen.findAllByRole('searchbox', { name: 'Search memories' })).at(-1)!, 'slow river');
+    expect(await screen.findByText(/Songs with no memory yet are found by their title/)).toBeInTheDocument();
+  });
+
+  it('never says nothing matches while the history search is still running, and offers a retry when it fails', async () => {
+    const user = userEvent.setup();
+    let release: ((value: Awaited<ReturnType<RunoutApi['search']>>) => void) | null = null;
+    let failed = false;
+    // Keyed by the query, since every keystroke is a request: "nights" waits until released, the
+    // first "nights!" fails, anything else answers at once.
+    const search: RunoutApi['search'] = (query) => {
+      if (query === 'nights' && release === null) return new Promise((resolve) => { release = resolve; });
+      if (query === 'nights!' && !failed) { failed = true; return Promise.reject(new Error('search unavailable')); }
+      return byTitle(history)(query.replace('!', ''));
+    };
+    renderApp(api({ search }), '/memories');
+    await screen.findByRole('heading', { name: 'Memories' });
+    const box = screen.getByRole('searchbox', { name: 'Search memories' });
+    await user.click(box);
+    await user.paste('nights');
+    expect(await screen.findByRole('status')).toHaveTextContent('Searching your history');
+    expect(screen.queryByText(/Nothing matches that/)).toBeNull();
+    release!({ artists: [], albums: [], tracks: [history[1]!] });
+    expect(await screen.findByRole('list', { name: 'Songs in your history' })).toHaveTextContent('Harbour Nights');
+    expect(screen.queryByText(/Nothing matches that/)).toBeNull();
+
+    // The next search fails: no false "nothing matches", and a retry that succeeds.
+    await user.type(box, '!');
+    expect(await screen.findByText(/your history could not be searched/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing matches that/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('list', { name: 'Songs in your history' })).toHaveTextContent('Harbour Nights');
   });
 
   it('explains how to start when nothing is written yet', async () => {
