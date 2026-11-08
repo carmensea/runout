@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNav } from '../../app/useNav';
 import { Link } from 'react-router-dom';
 import { Heart } from '../../components/ui/Heart';
 import { useAppData } from '../../data/AppDataContext';
@@ -121,7 +122,7 @@ function PlayRow({ play, sameSecond }: { play: Play; sameSecond: boolean }) {
   const { isLoved } = useLoved();
   const { withPeriod } = usePeriod();
   // A catalogue song opens its page (history and memories); a song the catalogue couldn't place has none yet.
-  const songHref = play.track.id.startsWith('t') ? withPeriod(`/tracks/${encodeURIComponent(play.track.id)}`) : null;
+  const songHref = useNav().has('memories') && play.track.id.startsWith('t') ? withPeriod(`/tracks/${encodeURIComponent(play.track.id)}`) : null;
   return (
     <li className={styles.play}>
       <time className={`mono ${styles.playTime}`} dateTime={play.playedAt}>{play.time}</time>

@@ -15,7 +15,7 @@ function supportPasskeys() {
 /** An invited account: signed in, no passkey, no codes, no Last.fm, nothing stored. */
 function invitedApi(): RunoutApi & { auth: ReturnType<typeof fakeAuthApi> } {
   const auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 0, recoveryCodes: 0, lastfm: false } }), passkeys: [] });
-  return { ...connectedApi(), getConnection: async () => ({ status: 'none', displayName: 'Dana', timezone: 'America/Los_Angeles' }), auth };
+  return { ...connectedApi(), getConnection: async () => ({ status: 'none', displayName: 'Dana', timezone: 'America/Los_Angeles', features: [] }), auth };
 }
 
 beforeEach(() => {

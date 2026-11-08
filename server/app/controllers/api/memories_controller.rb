@@ -5,6 +5,7 @@ module Api
   # server for any other service. No sharing exists: every memory is private.
   class MemoriesController < ApplicationController
     require_authentication
+    require_feature :memories
 
     # GET /api/memories?q=
     def index

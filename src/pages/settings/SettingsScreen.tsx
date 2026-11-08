@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { useNav } from '../../app/useNav';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs } from '../../components/ui/Tabs';
 import { SignIn } from '../../components/auth/SignIn';
@@ -71,7 +72,7 @@ export function SettingsScreen() {
 
   return (
     <main id="main" className={settings.main}>
-      <div className="eyebrow">09 / Settings</div>
+      <div className="eyebrow">{useNav().eyebrow('settings')}</div>
       <h1 className={settings.title}>Settings</h1>
       {!signedIn && !deleted && (
         <p className={settings.lede}>Sign in to see your listening history and manage it here.</p>

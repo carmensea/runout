@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom';
-import { NAV_ITEMS, type NavItem } from '../../app/navigation';
+import type { NavItem } from '../../app/navigation';
+import { useNav } from '../../app/useNav';
 import { useAppData } from '../../data/AppDataContext';
 import { todayIn } from '../../lib/dates';
 import { usePeriod } from '../../state/PeriodContext';
@@ -21,9 +22,10 @@ function Item({ item }: { item: NavItem }) {
 }
 
 export function Sidebar() {
-  const listening = NAV_ITEMS.filter((i) => i.group === 'listening');
-  const planned = NAV_ITEMS.filter((i) => i.group === 'planned');
-  const settings = NAV_ITEMS.filter((i) => i.group === 'settings');
+  const { items } = useNav();
+  const listening = items.filter((i) => i.group === 'listening');
+  const planned = items.filter((i) => i.group === 'planned');
+  const settings = items.filter((i) => i.group === 'settings');
 
   return (
     <nav aria-label="Primary" className={styles.nav}>

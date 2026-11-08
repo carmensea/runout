@@ -74,6 +74,15 @@ describe('Memories page', () => {
     expect(await screen.findByRole('heading', { name: 'Memories' })).toBeInTheDocument();
   });
 
+  it('does not exist for an account without the memories feature: no link, no page, numbering closes up', async () => {
+    const withoutFlag = { ...api(), getConnection: async () => ({ status: 'synced' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z', features: [] }) };
+    renderApp(withoutFlag, '/memories');
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Memories/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveTextContent('08');
+    expect(screen.getByRole('link', { name: 'Loved' })).toHaveTextContent('05');
+  });
+
   it('is reachable from the phone navigation, under More', async () => {
     const user = userEvent.setup();
     viewport.width = 375;

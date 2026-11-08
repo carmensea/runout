@@ -35,7 +35,7 @@ describe('Account menu', () => {
   it('applies the account’s theme when the connection loads', async () => {
     localStorage.setItem('runout:theme', 'moss');
     document.documentElement.dataset.theme = 'moss';
-    const api = { ...connectedApi(), getConnection: async () => ({ status: 'connected' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', theme: 'verdant' }) };
+    const api = { ...connectedApi(), getConnection: async () => ({ status: 'connected' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [], theme: 'verdant' }) };
     renderApp(api, '/overview?period=all');
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('verdant'));
   });
@@ -44,7 +44,7 @@ describe('Account menu', () => {
     localStorage.setItem('runout:theme', 'cotton-candy');
     document.documentElement.dataset.theme = 'cotton-candy';
     const setTheme = vi.fn(async () => {});
-    const api = { ...connectedApi(), setTheme, getConnection: async () => ({ status: 'connected' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', theme: null }) };
+    const api = { ...connectedApi(), setTheme, getConnection: async () => ({ status: 'connected' as const, displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [], theme: null }) };
     renderApp(api, '/overview?period=all');
     await waitFor(() => expect(setTheme).toHaveBeenCalledWith('cotton-candy'));
     expect(setTheme).toHaveBeenCalledTimes(1);

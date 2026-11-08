@@ -279,7 +279,7 @@ function specimenOnThisDay(date: string): OnThisDay {
 }
 
 export const specimenApi: RunoutApi = {
-  getConnection: async () => ({ status: 'synced', displayName: 'lastfm-username', username: 'lastfm-username', timezone: 'Europe/London', lastSyncedAt: '2026-01-01T00:00:00Z' }),
+  getConnection: async () => ({ status: 'synced', displayName: 'lastfm-username', username: 'lastfm-username', timezone: 'Europe/London', lastSyncedAt: '2026-01-01T00:00:00Z', features: ['memories'] }),
   getOverview: async (period) => buildOverview(period, 7 + serializePeriod(period).length),
   search: async () => ({
     artists: [1, 2, 3].map((i) => ({ id: `artists-${i}`, name: placeholder('Artist', i) })),

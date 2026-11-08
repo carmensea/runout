@@ -33,7 +33,7 @@ describe('Overview, authentication states', () => {
   it('shows a signed-in account without history', async () => {
     const api: RunoutApi = {
       ...connectedApi(() => makeOverview({ stats: { ...makeOverview().stats, scrobbles: 0 }, nearestWithData: [] })),
-      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [] }),
     };
     renderApp(api);
     expect(await screen.findByText('Signed in as test-user.')).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('Overview, authentication states', () => {
   it('shows plays recorded from Spotify when Last.fm was never imported', async () => {
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [] }),
     };
     renderApp(api);
     expect(await screen.findByRole('heading', { name: '01 / Listening overview' })).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('Overview, authentication states', () => {
     let signedIn = true;
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' } : { status: 'signed_out' }),
+      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [] } : { status: 'signed_out' }),
       signOut: async () => {
         signedIn = false;
       },
@@ -74,7 +74,7 @@ describe('Overview, authentication states', () => {
     const confirmations: string[] = [];
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' } : { status: 'signed_out' }),
+      getConnection: async () => (signedIn ? { status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [] } : { status: 'signed_out' }),
       deleteAccount: async (confirm) => {
         confirmations.push(confirm);
         signedIn = false;
@@ -99,7 +99,7 @@ describe('Overview, authentication states', () => {
     const user = userEvent.setup();
     const api: RunoutApi = {
       ...connectedApi(),
-      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London' }),
+      getConnection: async () => ({ status: 'connected', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', features: [] }),
       deleteAccount: async () => {
         throw new Error('network');
       },

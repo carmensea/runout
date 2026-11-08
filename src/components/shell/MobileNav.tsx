@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { NAV_ITEMS } from '../../app/navigation';
+import { useNav } from '../../app/useNav';
 import { useDismiss } from '../../hooks/useDismiss';
 import { usePeriod } from '../../state/PeriodContext';
 import { Icon } from '../ui/Icon';
@@ -18,8 +18,9 @@ export function MobileNav() {
   const refs = useMemo(() => [ref], []);
   useDismiss(moreOpen, () => setMoreOpen(false), refs);
 
-  const primary = NAV_ITEMS.filter((i) => PRIMARY.includes(i.id));
-  const more = NAV_ITEMS.filter((i) => !PRIMARY.includes(i.id));
+  const { items } = useNav();
+  const primary = items.filter((i) => PRIMARY.includes(i.id));
+  const more = items.filter((i) => !PRIMARY.includes(i.id));
   const moreActive = more.some((i) => pathname.startsWith(i.path));
 
   return (

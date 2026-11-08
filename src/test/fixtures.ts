@@ -112,7 +112,7 @@ export function makeOverview(overrides: Partial<OverviewData> = {}): OverviewDat
 
 export function connectedApi(overview: (period: string) => OverviewData = () => makeOverview()): RunoutApi {
   return {
-    getConnection: async () => ({ status: 'synced', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z' }),
+    getConnection: async () => ({ status: 'synced', displayName: 'test-user', username: 'test-user', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z', features: ['memories'] }),
     getOverview: async (p) => overview(serializePeriod(p)),
     search: async () => ({ artists: [{ id: 'a1', name: 'Test Artist A' }], albums: [], tracks: [] }),
     getCalendar: async () => ({ firstDay: null, lastDay: null, years: [], months: [], coverage: { status: 'none', missing: [] } }),

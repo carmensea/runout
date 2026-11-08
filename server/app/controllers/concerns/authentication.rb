@@ -13,6 +13,12 @@ module Authentication
     def require_authentication(**options)
       before_action :require_authenticated_user, **options
     end
+
+    # A feature behind a per-account flag (User::FEATURES) answers 404 to accounts without it, as if
+    # the routes did not exist. Declare after require_authentication.
+    def require_feature(name)
+      before_action { head :not_found unless Current.user.feature?(name) }
+    end
   end
 
   private

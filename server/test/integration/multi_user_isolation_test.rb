@@ -65,7 +65,7 @@ class MultiUserIsolationTest < ActionDispatch::IntegrationTest
     as bob_token
 
     get "/api/connection"
-    assert_equal({ "status" => "none", "displayName" => "bob", "timezone" => "America/Los_Angeles", "theme" => nil }, json)
+    assert_equal({ "status" => "none", "displayName" => "bob", "timezone" => "America/Los_Angeles", "theme" => nil, "features" => [] }, json)
     get "/api/session"
     assert_equal({ "signedIn" => true, "user" => { "displayName" => "bob", "timezone" => "America/Los_Angeles" },
                    "methods" => { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false } }, json)
