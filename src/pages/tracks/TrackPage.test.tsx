@@ -27,6 +27,15 @@ describe('Song page', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Period type' })).not.toBeInTheDocument();
   });
 
+  it('in an operator view shows the memories without a way to write, edit or delete', async () => {
+    renderApp(api({ getSong: async (key) => makeSong(key, { memories: [makeMemory(1)], readOnly: true }) }), '/tracks/t1');
+    expect(await screen.findByRole('note')).toHaveTextContent('Operator view');
+    expect(screen.getByRole('list', { name: 'Your memories of this song' })).toHaveTextContent('2014-03-15');
+    expect(screen.queryByRole('button', { name: 'Add a memory' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
   it('writes a new memory with its own date and label, then edits and deletes it', async () => {
     const user = userEvent.setup();
     const a = api();

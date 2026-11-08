@@ -2,6 +2,8 @@
 # so a database leak does not expose usable session tokens.
 class Session < ApplicationRecord
   LIFETIME = 30.days
+  # An operator session (auth:sign_in_as) ends 60 minutes after it opened, whatever happens in it.
+  OPERATOR_LIFETIME = 60.minutes
   # Sliding expiry never extends a session past this age; after it, sign in again.
   ABSOLUTE_LIFETIME = 90.days
   # Sliding expiry is refreshed at most this often, to avoid a write on every request.
@@ -11,16 +13,19 @@ class Session < ApplicationRecord
 
   scope :unexpired, -> { where("expires_at > ? AND created_at > ?", Time.current, ABSOLUTE_LIFETIME.ago) }
 
-  def self.start!(user:, ip_address:, user_agent:)
+  # `operator`: opened through the operator's sign-in-as link; sees memories as placeholder words
+  # and cannot write them (Memories::Placeholder).
+  def self.start!(user:, ip_address:, user_agent:, operator: false)
     token = SecureRandom.urlsafe_base64(32)
     now = Time.current
     session = create!(
       user: user,
       token_digest: digest(token),
-      expires_at: now + LIFETIME,
+      expires_at: now + (operator ? OPERATOR_LIFETIME : LIFETIME),
       last_seen_at: now,
       ip_address: ip_address,
-      user_agent: user_agent.to_s.first(255)
+      user_agent: user_agent.to_s.first(255),
+      operator: operator
     )
     [ session, token ]
   end
@@ -40,6 +45,9 @@ class Session < ApplicationRecord
     return false if last_seen_at > REFRESH_AFTER.ago
 
     now = Time.current
+    # An operator session is seen, never extended.
+    return update_columns(last_seen_at: now, updated_at: now) && false if operator?
+
     update_columns(last_seen_at: now, expires_at: [ now + LIFETIME, created_at + ABSOLUTE_LIFETIME ].min, updated_at: now)
     true
   end

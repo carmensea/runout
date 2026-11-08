@@ -108,6 +108,32 @@ describe('Settings: history without Last.fm', () => {
   });
 });
 
+describe('Settings: operator view', () => {
+  it('shows the operator banner everywhere and leaves no account control to use', async () => {
+    const user = userEvent.setup();
+    const signOut = vi.fn(async () => {});
+    const api: RunoutApi = {
+      ...connectedApi(),
+      signOut,
+      getConnection: async () => ({ status: 'synced', displayName: 'Listener', username: 'listener', timezone: 'Europe/London', lastSyncedAt: '2026-10-29T09:00:00Z', features: ['memories'], operator: { expiresAt: '2026-11-08T13:00:00Z' } }),
+    };
+    renderApp(api, '/settings#account');
+    const banner = await screen.findByText(/Signed in as Listener to see what they see/).then((el) => el.closest('[role="status"]') as HTMLElement);
+    expect(banner).toHaveTextContent('Operator view');
+    expect(banner).toHaveTextContent('Signed in as Listener');
+    expect(screen.queryByLabelText('Your name')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add a passkey' })).toBeNull();
+    expect(screen.getByRole('note')).toHaveTextContent('cannot be changed from here');
+    await user.click(screen.getByRole('tab', { name: 'Sources' }));
+    const panel = within(document.getElementById('settings-panel') as HTMLElement);
+    expect(panel.getAllByRole('button').length).toBeGreaterThan(0);
+    for (const b of panel.getAllByRole('button')) expect(b).toBeDisabled();
+    await user.click(within(banner).getByRole('button', { name: 'End operator session' }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Settings: name', () => {
   it('changes the name the account is addressed by, and the rest of the page follows', async () => {
     const user = userEvent.setup();

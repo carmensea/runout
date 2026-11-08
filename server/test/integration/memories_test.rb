@@ -225,6 +225,41 @@ class MemoriesTest < ActionDispatch::IntegrationTest
     assert_raises(ActiveRecord::RecordInvalid) { @user.update!(features: [ "everything" ]) }
   end
 
+  test "an operator session sees the songs but placeholder words, searches only songs, and writes nothing" do
+    write(@song, "The ferry crossing\nthe first winter by the water.", rememberedLabel: "that winter", rememberedOn: "2014-03-15")
+    id = json["id"]
+    _, token = Session.start!(user: @user, ip_address: "127.0.0.1", user_agent: "operator", operator: true)
+    delete "/api/session", headers: same_origin_headers
+    cookies[Authentication::COOKIE_NAME] = token
+
+    get "/api/tracks/#{@song}"
+    assert_response :ok
+    assert_equal true, json["readOnly"]
+    assert_equal "Harbour Lights", json["name"]
+    m = json["memories"].sole
+    assert_equal "lorem ipsum dolor\nsit amet consectetur adipiscing elit sed", m["body"], "same words and lines, none of theirs"
+    assert_equal "lorem ipsum", m["rememberedLabel"]
+    assert_equal "2014-03-15", m["rememberedOn"]
+    refute_match(/ferry|winter|water/i, response.body)
+
+    get "/api/memories"
+    assert_equal true, json["readOnly"]
+    refute_match(/ferry|winter|water/i, response.body)
+    get "/api/memories", params: { q: "ferry" }
+    assert_empty json["memories"], "the words cannot be searched"
+    get "/api/memories", params: { q: "harbour" }
+    assert_equal 1, json["memories"].size, "songs can"
+
+    write(@song, "Nothing from the operator.")
+    assert_response :forbidden
+    assert_equal "operator_session", json["error"]
+    patch_memory(id, body: "Rewritten.")
+    assert_response :forbidden
+    delete "/api/memories/#{id}", headers: same_origin_headers
+    assert_response :forbidden
+    assert_equal "The ferry crossing\nthe first winter by the water.", Memory.find(id).body
+  end
+
   test "deleting the account removes its memories and nothing of the catalogue" do
     write(@song, "Gone with the account.")
     tracks = Track.count

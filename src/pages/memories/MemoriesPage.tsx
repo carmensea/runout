@@ -90,6 +90,7 @@ export function MemoriesPage() {
         <SegmentedControl label="View" options={[{ value: 'songs', label: 'By song' }, { value: 'journal', label: 'Journal' }]} value={view} onChange={setView} />
       </div>
 
+      {data?.readOnly && <p className={styles.empty} role="note">Operator view: the words are placeholders of the same shape, the search looks only at songs and artists, and nothing can be changed.</p>}
       {loaded.status === 'loading' && !data && <LoadingState label="Loading your memories" />}
       {loaded.status === 'error' && (
         <MessageState icon="error" tone="error" message="Your memories could not be loaded." detail={loaded.error.message}>
@@ -132,7 +133,7 @@ export function MemoriesPage() {
       {list.length > 0 && view === 'journal' && (
         <div className={styles.measure}>
           <ul className={styles.list} aria-label="Memories in time order">
-            {journal.map((m) => <MemoryItem key={m.id} memory={m} fmt={fmt} showSong songHref={songHref} onUpdate={update} onDelete={remove} />)}
+            {journal.map((m) => <MemoryItem key={m.id} memory={m} fmt={fmt} showSong readOnly={data?.readOnly} songHref={songHref} onUpdate={update} onDelete={remove} />)}
           </ul>
         </div>
       )}

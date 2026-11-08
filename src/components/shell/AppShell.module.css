@@ -33,3 +33,21 @@
     padding-bottom: 72px;
   }
 }
+
+/* The operator banner's one control: ends the operator session. */
+.bannerButton {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bannerButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

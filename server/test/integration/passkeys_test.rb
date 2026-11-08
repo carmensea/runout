@@ -294,7 +294,7 @@ class PasskeysTest < ActionDispatch::IntegrationTest
     sign_in_via_lastfm(username: "listener")
     get "/api/sessions"
     assert_equal [ true, false ], json["sessions"].map { |s| s["current"] }
-    assert_equal %w[id current createdAt lastSeenAt ipAddress userAgent], json["sessions"].first.keys
+    assert_equal %w[id current createdAt lastSeenAt ipAddress userAgent operator], json["sessions"].first.keys
 
     other = json["sessions"].find { |s| !s["current"] }
     delete "/api/sessions/#{other["id"]}", headers: same_origin_headers

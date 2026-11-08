@@ -120,6 +120,17 @@ describe('Memories page', () => {
     expect(await screen.findByRole('list', { name: 'Songs in your history' })).toHaveTextContent('Harbour Nights');
   });
 
+  it('in an operator view lists the memories read-only', async () => {
+    const user = userEvent.setup();
+    const base = api();
+    renderApp({ ...base, memories: { ...base.memories, list: async (q, signal) => ({ ...(await base.memories.list(q, signal)), readOnly: true }) } }, '/memories');
+    expect(await screen.findByRole('note')).toHaveTextContent('Operator view');
+    await user.click(screen.getByRole('radio', { name: 'Journal' }));
+    expect(within(screen.getByRole('list', { name: 'Memories in time order' })).getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
   it('explains how to start when nothing is written yet', async () => {
     renderApp(api({ memories: fakeMemoriesApi([]) }), '/memories');
     expect(await screen.findByText(/No memories yet/)).toBeInTheDocument();

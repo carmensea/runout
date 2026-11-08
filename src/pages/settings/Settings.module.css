@@ -429,3 +429,12 @@ button:disabled {
     margin-bottom: 8px;
   }
 }
+
+/* A fieldset that adds nothing visually; disabled, it switches off every control inside. */
+.plainGroup {
+  display: contents;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}

@@ -10,6 +10,16 @@ namespace :auth do
     puts "Valid #{SignInLink::TTL.inspect}, single use. Sign in, then enrol a passkey and regenerate the recovery codes."
   end
 
+  desc "Sign in as a person to see what they see (troubleshooting): a single-use 15-minute link opening a read-only operator session of 60 minutes, which shows memory text as placeholder words. Arguments: user UUID, display name"
+  task :sign_in_as, [ :user_id, :display_name ] => :environment do |_t, args|
+    abort "auth: RUNOUT_PASSKEYS_ENABLED is off; the link route would answer 404" unless Passkeys.enabled?
+    user = find_account!(args)
+    token = SignInLink.issue!(user, kind: "operator")
+    Rails.logger.warn("Operator sign-in-as link issued for user #{user.id}")
+    puts "#{Rails.configuration.x.app_origin}/api/auth/link/#{token}"
+    puts "Valid #{SignInLink::TTL.inspect}, single use. Open it in a private window: it signs that window in as #{user.display_name} for #{Session::OPERATOR_LIFETIME.inspect}, read-only: nothing can be changed, connected or enrolled, and memories show as placeholder words. The session is listed in their Settings as an operator sign-in. Sign out when done."
+  end
+
   desc "Invite a person: create their account and print a single-use 24-hour link (docs/multi-user-plan.md §3). Arguments: display name, IANA timezone"
   task :invite_link, [ :display_name, :timezone ] => :environment do |_t, args|
     abort "auth: RUNOUT_PASSKEYS_ENABLED is off; the invited person could not enrol a passkey" unless Passkeys.enabled?

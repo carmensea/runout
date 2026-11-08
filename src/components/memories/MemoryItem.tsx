@@ -11,10 +11,12 @@ import { MemoryEditor } from './MemoryEditor';
  * One memory as read: when it is about, the words, when it was written and last edited, and the
  * song when the list spans songs. Edit opens the editor in place; delete asks once.
  */
-export function MemoryItem({ memory, fmt, showSong, songHref, onUpdate, onDelete }: {
+export function MemoryItem({ memory, fmt, showSong, readOnly, songHref, onUpdate, onDelete }: {
   memory: Memory;
   fmt: Formatter;
   showSong?: boolean;
+  /** An operator session: no editing, no deleting. */
+  readOnly?: boolean;
   songHref(id: string): string;
   onUpdate(id: number, input: MemoryInput): Promise<void>;
   onDelete(id: number): Promise<void>;
@@ -66,7 +68,7 @@ export function MemoryItem({ memory, fmt, showSong, songHref, onUpdate, onDelete
               {pending ? 'Deleting' : 'Delete memory'}
             </button>
           </span>
-        ) : (
+        ) : !readOnly && (
           <>
             <button type="button" className={styles.textButton} onClick={() => setEditing(true)}>Edit</button>
             <button type="button" className={styles.textButton} onClick={() => setConfirming(true)}>Delete</button>

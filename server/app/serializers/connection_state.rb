@@ -7,10 +7,13 @@
 module ConnectionState
   module_function
 
-  def for(user)
+  # `session`: the current one; an operator session (auth:sign_in_as) is reported with its end, so
+  # the frontend shows the operator banner and hides the controls the server would refuse anyway.
+  def for(user, session: nil)
     return { status: "signed_out" } if user.nil?
 
     account = { displayName: user.display_name, timezone: user.reporting_timezone, theme: user.theme, features: user.features }
+    account[:operator] = { expiresAt: session.expires_at.utc.iso8601 } if session&.operator?
     identity = user.lastfm_identity
     connection = user.lastfm_connection
     return account.merge(status: "none") if identity.nil? || identity.revoked_at || connection.nil?

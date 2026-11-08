@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { browserTimeZone } from '../lib/dates';
 import { realFormatter, specimenFormatter, type Formatter } from '../lib/format';
 import { createHttpApi, disconnectedApi, type RunoutApi } from './api';
-import type { ConnectionState, SessionInfo } from './types';
+import type { ConnectionState, OperatorView, SessionInfo } from './types';
 import { useAsync, type AsyncState } from './useAsync';
 
 interface AppData {
@@ -15,6 +15,8 @@ interface AppData {
   auth: AsyncState<SessionInfo | null> & { retry: () => void };
   /** User timezone setting once connected, otherwise the browser's. */
   timeZone: string;
+  /** Set when this session is the operator's read-only look at the account; every write is refused by the server. */
+  operator: OperatorView | null;
 }
 
 const AppDataContext = createContext<AppData | null>(null);
@@ -62,7 +64,8 @@ export function AppDataProvider({ children, api: injected }: { children: ReactNo
     const timeZone = connection.status === 'success' && connection.data.status !== 'signed_out'
       ? connection.data.timezone
       : browserTimeZone();
-    return { api, specimen, fmt: specimen ? specimenFormatter : realFormatter, connection, auth, timeZone };
+    const operator = connection.status === 'success' && connection.data.status !== 'signed_out' ? connection.data.operator ?? null : null;
+    return { api, specimen, fmt: specimen ? specimenFormatter : realFormatter, connection, auth, timeZone, operator };
   }, [api, specimen, connection, auth]);
 
   if (!value) return null;

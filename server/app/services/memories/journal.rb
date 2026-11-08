@@ -7,7 +7,10 @@ module Memories
   module Journal
     module_function
 
-    def call(user, q: nil)
+    # `redact`: an operator session. The words are placeholders, the search looks only at songs and
+    # artists (a search over the words would tell which words a memory holds), and the page is
+    # read-only.
+    def call(user, q: nil, redact: false)
       scope = user.memories.includes(track: :artist)
       memories = scope.order(created_at: :desc, id: :desc).to_a
       roots = memories.to_h { |m| [ m.id, m.track.resolved ] }
@@ -15,11 +18,14 @@ module Memories
         needle = q.to_s.strip.downcase
         memories = memories.select do |m|
           root = roots[m.id]
-          [ m.body, m.remembered_label, root.title, root.artist.resolved.name ].any? { |text| text.to_s.downcase.include?(needle) }
+          texts = [ root.title, root.artist.resolved.name ]
+          texts += [ m.body, m.remembered_label ] unless redact
+          texts.any? { |text| text.to_s.downcase.include?(needle) }
         end
       end
       covers = Songs.artwork(user, roots.values.map(&:id).uniq)
-      { memories: memories.map { |m| Serializer.memory(m, root: roots[m.id], artwork_url: covers[roots[m.id].id]) } }
+      list = memories.map { |m| Serializer.memory(m, root: roots[m.id], artwork_url: covers[roots[m.id].id], redact: redact) }
+      redact ? { memories: list, readOnly: true } : { memories: list }
     end
   end
 end

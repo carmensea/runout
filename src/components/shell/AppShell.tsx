@@ -1,4 +1,5 @@
-import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAppData } from '../../data/AppDataContext';
 import { useAccountTheme } from '../../theme/useTheme';
@@ -35,7 +36,8 @@ export function AppShell() {
 
 /** The slot under the period bar: specimen notice in development, import state otherwise. */
 function GlobalBanner() {
-  const { specimen, connection, fmt } = useAppData();
+  const { specimen, connection, fmt, operator } = useAppData();
+  if (operator) return <OperatorBanner until={operator.expiresAt} />;
   if (specimen) {
     return (
       <BarBanner tag="Specimen">
@@ -77,4 +79,34 @@ function GlobalBanner() {
     );
   }
   return null;
+}
+
+/**
+ * The operator's read-only look at an account (auth:sign_in_as): on every page, so it is never
+ * mistaken for the person's own session. The server refuses every write; this says so and offers
+ * the one write allowed, ending the session.
+ */
+function OperatorBanner({ until }: { until: string }) {
+  const { api, connection, auth, fmt, timeZone } = useAppData();
+  const navigate = useNavigate();
+  const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
+  const c = connection.status === 'success' && connection.data.status !== 'signed_out' ? connection.data : null;
+  async function end() {
+    setState('busy');
+    try {
+      await api.signOut();
+      connection.retry();
+      auth.retry();
+      navigate('/overview');
+    } catch {
+      setState('error');
+    }
+  }
+  return (
+    <BarBanner tag="Operator view">
+      Signed in as {c?.displayName ?? 'this person'} to see what they see. Read-only: nothing can be changed, and memory words are placeholders. Ends {fmt.time(until, timeZone)}.{' '}
+      <button type="button" className={styles.bannerButton} onClick={end} disabled={state === 'busy'}>{state === 'busy' ? 'Ending' : 'End operator session'}</button>
+      {state === 'error' && <> Ending it failed; try again.</>}
+    </BarBanner>
+  );
 }
