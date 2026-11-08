@@ -108,6 +108,33 @@ describe('Settings: history without Last.fm', () => {
   });
 });
 
+describe('Settings: name', () => {
+  it('changes the name the account is addressed by, and the rest of the page follows', async () => {
+    const user = userEvent.setup();
+    let name = 'Listener';
+    const saved: string[] = [];
+    const api: RunoutApi = {
+      ...connectedApi(),
+      getConnection: async () => ({ status: 'none', displayName: name, timezone: 'Europe/London', features: [] }),
+      setDisplayName: async (next) => { saved.push(next); name = next; },
+    };
+    renderApp(api, '/settings#account');
+    const field = await screen.findByLabelText('Your name');
+    expect(field).toHaveValue('Listener');
+    expect(screen.getByRole('button', { name: 'Save name' })).toBeDisabled();
+    await user.clear(field);
+    await user.type(field, '  Dana ');
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved.');
+    expect(saved).toEqual(['Dana']);
+    expect(await screen.findByText(/Signed in as/)).toHaveTextContent('Signed in as Dana.');
+    expect(screen.getByLabelText(/Type your name, Dana/)).toBeInTheDocument();
+    // Clearing the field never offers to save an empty name.
+    await user.clear(screen.getByLabelText('Your name'));
+    expect(screen.getByRole('button', { name: 'Save name' })).toBeDisabled();
+  });
+});
+
 describe('Settings: deletion notice', () => {
   it('speaks of Spotify, not Last.fm, for an account that only connected Spotify', async () => {
     const user = userEvent.setup();

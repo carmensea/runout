@@ -33,6 +33,8 @@ export interface RunoutApi {
   deleteAccount(confirmName: string): Promise<{ revokeAccessUrl: string | null; spotifyAppsUrl: string | null }>;
   /** Saves the theme on the account, so it follows the owner between browsers and sign-ins. */
   setTheme(theme: string): Promise<void>;
+  /** Changes how the account is addressed. Trimmed; empty or over 80 characters is refused. */
+  setDisplayName(name: string): Promise<void>;
   /** Listening-history import, sync and review controls (Settings). */
   history: HistoryApi;
   /** Listening sources: Last.fm as the archive, Spotify connected directly (Settings). */
@@ -236,6 +238,11 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     },
   };
 
+  async function patchAccount(body: Record<string, string>, what: string) {
+    const res = await fetch(`${root}/account`, { method: 'PATCH', credentials: 'include', headers: WRITE_HEADERS, body: JSON.stringify(body) });
+    if (!res.ok) throw new ApiError(res.status, `${what} failed with HTTP ${res.status}.`);
+  }
+
   return {
     getConnection: (signal) => get<ConnectionState>('/connection', {}, signal),
     getOverview: (period, signal) => get<OverviewData>('/overview', { period: serializePeriod(period) }, signal),
@@ -273,15 +280,8 @@ export function createHttpApi(baseUrl: string): RunoutApi {
       });
       if (!res.ok && res.status !== 401) throw new ApiError(res.status, `Sign-out failed with HTTP ${res.status}.`);
     },
-    setTheme: async (theme) => {
-      const res = await fetch(`${root}/account`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ theme }),
-      });
-      if (!res.ok) throw new ApiError(res.status, `Saving the theme failed with HTTP ${res.status}.`);
-    },
+    setTheme: (theme) => patchAccount({ theme }, 'Saving the theme'),
+    setDisplayName: (displayName) => patchAccount({ displayName }, 'Saving your name'),
     deleteAccount: async (confirmName) => {
       const res = await fetch(`${root}/account`, {
         method: 'DELETE',
@@ -374,6 +374,7 @@ export const disconnectedApi: RunoutApi = {
   signInUrl: () => null,
   signOut: async () => {},
   setTheme: async () => {},
+  setDisplayName: async () => {},
   deleteAccount: async () => {
     throw new NotConnectedError();
   },

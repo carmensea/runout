@@ -1,5 +1,5 @@
 module Api
-  # PATCH /api/account: saves account-level preferences (the theme).
+  # PATCH /api/account: saves account-level preferences (the theme, the display name).
   # DELETE /api/account: erases the signed-in user and everything stored for them
   # (identities with the encrypted Last.fm session key, sessions, connection state; listening
   # history once it exists). Foreign keys cascade, so nothing is left behind.
@@ -12,13 +12,27 @@ module Api
 
     require_authentication
 
-    # PATCH /api/account: preferences that follow the account. Only the theme so far.
+    # PATCH /api/account { theme } or { displayName }: preferences that follow the account. The
+    # display name is how the person is addressed and what they type to confirm deletion, and
+    # what the operator tasks check against the account id; it names nobody else's data.
     def update
-      theme = params[:theme]
-      return render json: { error: "unknown_theme" }, status: :unprocessable_content unless User::THEMES.include?(theme)
+      changes = {}
+      if params.key?(:theme)
+        return render json: { error: "unknown_theme" }, status: :unprocessable_content unless User::THEMES.include?(params[:theme])
 
-      Current.user.update!(theme: theme)
-      render json: { theme: theme }
+        changes[:theme] = params[:theme]
+      end
+      if params.key?(:displayName)
+        name = params[:displayName].to_s.strip
+        return render json: { error: "blank_name" }, status: :unprocessable_content if name.empty?
+        return render json: { error: "name_too_long", max: User::NAME_MAX }, status: :unprocessable_content if name.length > User::NAME_MAX
+
+        changes[:display_name] = name
+      end
+      return render json: { error: "nothing_to_save" }, status: :unprocessable_content if changes.empty?
+
+      Current.user.update!(changes)
+      render json: { theme: Current.user.theme, displayName: Current.user.display_name }
     end
 
     def destroy
