@@ -57,11 +57,15 @@ class GoogleSignInTest < ActionDispatch::IntegrationTest
     response
   end
 
+  # Rake runs a task once per process unless re-armed: before, in case another test left it spent,
+  # and after, so this one leaves it ready for the tests that follow.
   def invite!(name = "Dana")
     task = Rake::Task["auth:invite_link"]
     task.reenable
     out, = capture_io { task.invoke(name, "America/Los_Angeles") }
     out[%r{http://localhost:5173/api/auth/link/[A-Za-z0-9_-]{43}}] or flunk("no link in #{out.inspect}")
+  ensure
+    task&.reenable
   end
 
   def enrol_passkey!(client = WebAuthn::FakeClient.new(ORIGIN))
