@@ -14,7 +14,7 @@ function supportPasskeys() {
 
 /** An invited account: signed in, no passkey, no codes, no Last.fm, nothing stored. */
 function invitedApi(): RunoutApi & { auth: ReturnType<typeof fakeAuthApi> } {
-  const auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 0, recoveryCodes: 0, lastfm: false } }), passkeys: [] });
+  const auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 0, recoveryCodes: 0, lastfm: false, google: false } }), passkeys: [] });
   return { ...connectedApi(), getConnection: async () => ({ status: 'none', displayName: 'Dana', timezone: 'America/Los_Angeles', features: [] }), auth };
 }
 
@@ -24,6 +24,55 @@ beforeEach(() => {
 });
 afterEach(() => {
   delete (globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+});
+
+/** The same invited account on a server that offers Google; `linked` once they chose it. */
+function invitedWithGoogle(linked = false): RunoutApi & { auth: ReturnType<typeof fakeAuthApi> } {
+  const methods = { passkeys: 0, recoveryCodes: 0, lastfm: false, google: linked, googleEmail: linked ? 'dana@example.com' : null };
+  const session = { signedIn: true as const, user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods, providers: { google: true } };
+  return { ...invitedApi(), auth: fakeAuthApi({ session, passkeys: [] }) };
+}
+
+describe('Onboarding with Google', () => {
+  it('offers Google first and a passkey as the other choice', async () => {
+    renderApp(invitedWithGoogle(), '/welcome');
+    await screen.findByRole('heading', { name: 'Welcome to Runout, Dana.' });
+    const steps = screen.getByRole('list', { name: 'Steps' });
+    expect(within(steps).getByText('Choose how you sign in').closest('li')).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute('href', '/api/auth/google?intent=link&return=welcome');
+    expect(screen.getByText(/nothing in your Google account is read/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add a passkey' })).toBeEnabled();
+    expect(screen.getByText('Or add a passkey')).toBeInTheDocument();
+  });
+
+  it('after Google is linked goes straight to the source step, with no recovery codes to save', async () => {
+    const user = userEvent.setup();
+    renderApp(invitedWithGoogle(true), '/welcome?google=linked');
+    await screen.findByRole('heading', { name: 'Welcome to Runout, Dana.' });
+    const steps = screen.getByRole('list', { name: 'Steps' });
+    expect(within(steps).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['✓Choose how you sign in', '2Connect a music source']);
+    expect(screen.queryByText('Save your recovery codes')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Connect Spotify' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Skip for now' }));
+    await waitFor(() => expect(location.current).toMatch(/^\/overview/));
+    // Complete: no page sends them back to /welcome.
+    expect(location.current).not.toMatch(/welcome/);
+  });
+
+  it('still walks the passkey path with its recovery codes when that is the choice', async () => {
+    const user = userEvent.setup();
+    const api = invitedWithGoogle();
+    renderApp(api, '/welcome');
+    await user.type(await screen.findByRole('textbox', { name: /A name for this passkey/ }), 'Phone');
+    await user.click(screen.getByRole('button', { name: 'Add a passkey' }));
+    expect(within(await screen.findByRole('list', { name: 'Your recovery codes' })).getAllByRole('listitem')).toHaveLength(10);
+    expect(within(screen.getByRole('list', { name: 'Steps' })).getByText('Save your recovery codes').closest('li')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('says why a Google account could not be linked', async () => {
+    renderApp(invitedWithGoogle(), '/welcome?google_error=unavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent('can’t be linked to this Runout account');
+  });
 });
 
 describe('Onboarding', () => {
@@ -64,7 +113,7 @@ describe('Onboarding', () => {
   it('connects ListenBrainz on the welcome page with a token, for someone with no Spotify and no plays', async () => {
     const user = userEvent.setup();
     const api = invitedApi();
-    api.auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: false } }), passkeys: [] });
+    api.auth = fakeAuthApi({ session: makeSession({ user: { displayName: 'Dana', timezone: 'America/Los_Angeles' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: false, google: false } }), passkeys: [] });
     const sources = fakeSourcesApi();
     renderApp({ ...api, sources }, '/welcome');
     await screen.findByRole('heading', { name: 'Welcome to Runout, Dana.' });

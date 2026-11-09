@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { googleErrorMessage } from '../../lib/authErrors';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SignIn } from '../../components/auth/SignIn';
 import { LoadingState, MessageState } from '../../components/states/States';
@@ -129,7 +130,7 @@ function Body({ connection, overview, view, compact = false }: BodyProps) {
   }
   if (connection.data.status === 'signed_out') {
     const signIn = api.signInUrl();
-    const authError = authErrorMessage(params.get('auth_error'));
+    const authError = authErrorMessage(params.get('auth_error')) ?? googleErrorMessage(params.get('google_error'));
     return (
       <MessageState
         icon="lock"

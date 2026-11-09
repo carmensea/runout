@@ -5,6 +5,7 @@ import type { RunoutApi } from '../../data/api';
 import type { ConnectionState } from '../../data/types';
 import { connectedApi, fakeAuthApi, notConnectedApi } from '../../test/fixtures';
 import { location, renderApp } from '../../test/renderApp';
+import { viewport } from '../../test/setup';
 
 /** jsdom has no WebAuthn; the fake API never reaches it, so only the support check matters. */
 function supportPasskeys() {
@@ -59,6 +60,37 @@ describe('Signed out', () => {
     await user.click(button);
     await waitFor(() => expect(auth.calls).toEqual(['signInWithPasskey']));
     expect(await screen.findByText(/4,321/)).toBeInTheDocument();
+  });
+
+  it('puts Google first when the server offers it, with the passkey beside it, on a desktop and on a phone', async () => {
+    supportPasskeys();
+    for (const width of [1440, 390]) {
+      viewport.width = width;
+      const { unmount } = renderApp(signedOutApi(fakeAuthApi({ session: { signedIn: false, providers: { google: true } } })), '/overview?period=all');
+      const google = await screen.findByRole('link', { name: 'Continue with Google' });
+      expect(google).toHaveAttribute('href', '/api/auth/google?intent=sign_in&return=overview');
+      expect(screen.getByRole('button', { name: 'Sign in with a passkey' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Use a recovery code instead' })).toBeInTheDocument();
+      // Google leads: it comes before the passkey in the page.
+      expect(google.compareDocumentPosition(screen.getByRole('button', { name: 'Sign in with a passkey' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getByText(/Invited people sign in with Google or a passkey/)).toBeInTheDocument();
+      unmount();
+    }
+    viewport.width = 1440;
+  });
+
+  it('offers no Google when the server has none configured', async () => {
+    supportPasskeys();
+    renderApp(signedOutApi(fakeAuthApi({ session: { signedIn: false, providers: { google: false } } })), '/overview?period=all');
+    await screen.findByRole('button', { name: 'Sign in with a passkey' });
+    expect(screen.queryByRole('link', { name: 'Continue with Google' })).toBeNull();
+  });
+
+  it('says in plain words why Google did not sign anyone in', async () => {
+    supportPasskeys();
+    renderApp(signedOutApi(fakeAuthApi({ session: { signedIn: false, providers: { google: true } } })), '/overview?google_error=no_account');
+    expect(await screen.findByRole('alert')).toHaveTextContent('isn’t linked to a Runout account');
+    expect(screen.getByRole('alert')).toHaveTextContent('by invitation');
   });
 
   it('explains when the browser can’t use passkeys and still takes a recovery code', async () => {

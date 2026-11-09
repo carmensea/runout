@@ -15,10 +15,10 @@ export function AppShell() {
   const { auth } = useAppData();
   const { pathname } = useLocation();
   useAccountTheme();
-  // An invited account is complete only once it has a passkey (and so its recovery codes): until
+  // An invited account is complete once it has a way to sign in again, Google or a passkey: until
   // then every page is the onboarding page. Accounts with Last.fm sign-in are never sent there.
   const session = auth.status === 'success' ? auth.data : null;
-  const onboarding = session?.signedIn === true && session.methods.passkeys === 0 && !session.methods.lastfm;
+  const onboarding = session?.signedIn === true && session.methods.passkeys === 0 && !session.methods.lastfm && !session.methods.google;
   if (onboarding && pathname !== '/welcome') return <Navigate to="/welcome" replace />;
   return (
     <div className={styles.shell}>

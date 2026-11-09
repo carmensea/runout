@@ -84,6 +84,8 @@ module Runout
     # Runout's own sign-in: passkeys, recovery codes, the operator link (docs/milestone-5-plan.md §2).
     # Off unless "true" or "1": the routes answer 404 and nothing can be enrolled.
     config.x.passkeys_enabled = ENV.fetch("RUNOUT_PASSKEYS_ENABLED", "false")
+    # Google sign-in's client object; the test suite replaces it (GoogleSignIn::Config.client).
+    config.x.google_sign_in_client = nil
 
     # Ongoing synchronisation (HistoryImport::Sync, docs/milestone-2-plan.md §5.2). The recurring
     # tick (config/recurring.yml) starts whichever kind is due; these say how often each is due.

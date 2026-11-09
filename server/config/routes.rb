@@ -25,6 +25,10 @@ Rails.application.routes.draw do
     post "auth/passkey", to: "passkey_auth#create", as: :passkey_sign_in
     post "auth/recovery", to: "recovery_auth#create", as: :recovery_sign_in
     get "auth/link/:token", to: "sign_in_links#show", as: :sign_in_link
+    # Google sign-in (docs/google-sign-in.md); 404 unless the flag is on and the client configured.
+    get "auth/google", to: "google_auth#start", as: :google_sign_in
+    get "auth/google/callback", to: "google_auth#callback", as: :google_callback
+    delete "auth/google", to: "google_auth#destroy", as: :google_unlink
     get "passkeys", to: "passkeys#index", as: :passkeys
     post "passkeys/options", to: "passkeys#options", as: :passkey_options
     post "passkeys", to: "passkeys#create"

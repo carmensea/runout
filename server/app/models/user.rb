@@ -3,6 +3,7 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_one :lastfm_connection, dependent: :destroy
   has_one :lastfm_identity, -> { where(provider: Identity::LASTFM) }, class_name: "Identity"
+  has_one :google_identity, -> { where(provider: Identity::GOOGLE) }, class_name: "Identity"
   # Runout's own sign-in (docs/milestone-5-plan.md §2); deleted with the user by the database.
   has_many :webauthn_credentials, dependent: nil
   has_many :recovery_codes, dependent: nil
@@ -41,6 +42,12 @@ class User < ApplicationRecord
   end
 
   def feature?(name) = features.include?(name.to_s)
+
+  # Has a way to sign in again: a passkey, Google, or Last.fm. An invited account without one is
+  # unfinished: its invitation stays open and every page is the welcome page.
+  def sign_in_method?
+    webauthn_credentials.active.exists? || identities.active.where(provider: [ Identity::GOOGLE, Identity::LASTFM ]).exists?
+  end
 
   def self.timezone_or_default(name)
     timezones.include?(name.to_s) ? name.to_s : "UTC"

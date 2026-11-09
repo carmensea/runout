@@ -30,8 +30,14 @@ export type ConnectedState = Exclude<SignedInState, { status: 'none' }>;
 
 /** GET /api/session: Runout's own sign-in (passkeys, recovery codes) beside the Last.fm fallback. */
 export type SessionInfo =
-  | { signedIn: false }
-  | { signedIn: true; user: { displayName: string; timezone: string }; methods: { passkeys: number; recoveryCodes: number; lastfm: boolean } };
+  | { signedIn: false; providers?: SignInProviders }
+  | { signedIn: true; user: { displayName: string; timezone: string }; methods: SignInMethods; providers?: SignInProviders };
+
+/** The ways this account can sign in. `googleEmail` is the linked Google account's address, for display only. */
+export interface SignInMethods { passkeys: number; recoveryCodes: number; lastfm: boolean; google: boolean; googleEmail?: string | null }
+
+/** Outside sign-ins this server offers. Google appears only when its client is configured there. */
+export interface SignInProviders { google: boolean }
 
 export interface Passkey {
   id: number;

@@ -31,7 +31,7 @@ class SignInLink < ApplicationRecord
     return nil unless row && row.expires_at > Time.current
 
     if row.kind == "invitation"
-      return nil if row.user.webauthn_credentials.active.exists?
+      return nil if row.user.sign_in_method?
 
       where(id: row.id, used_at: nil).update_all(used_at: Time.current)
       return row

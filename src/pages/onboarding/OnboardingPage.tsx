@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import stateStyles from '../../components/states/States.module.css';
 import { useAppData } from '../../data/AppDataContext';
 import type { ListenbrainzSource } from '../../data/types';
-import { describeAuthError } from '../../lib/authErrors';
+import { describeAuthError, googleErrorMessage } from '../../lib/authErrors';
 import { passkeysSupported } from '../../lib/webauthn';
 import { usePeriod } from '../../state/PeriodContext';
 import pending from '../PendingScreen.module.css';
@@ -14,9 +14,10 @@ import styles from './Onboarding.module.css';
 type Step = 'passkey' | 'codes' | 'source';
 
 /**
- * /welcome: an invited person's first visit. Three steps, nothing else: a passkey, the recovery
- * codes, then a listening source (or none for now). Provider-independent: the account is complete
- * once the passkey and codes exist; Spotify or anything else can be connected later in Settings.
+ * /welcome: an invited person's first visit. A way to sign in again, then a listening source (or
+ * none for now), nothing else. The way in is theirs to choose: Google, when the server offers it
+ * (one click, no codes to keep), or a passkey, which comes with recovery codes to save. The
+ * account is complete once either exists; the other can be added later in Settings.
  */
 export function OnboardingPage() {
   const { api, auth, connection } = useAppData();
@@ -45,8 +46,12 @@ export function OnboardingPage() {
 
   const session = auth.status === 'success' ? auth.data : null;
   const hasPasskey = enrolled || (session?.signedIn === true && session.methods.passkeys > 0);
+  const hasGoogle = session?.signedIn === true && session.methods.google;
+  // A full page navigation: Google, then back here with the account linked.
+  const googleUrl = session?.providers?.google ? api.auth.googleUrl('link', 'welcome') : null;
+  const googleError = googleErrorMessage(new URLSearchParams(useLocation().search).get('google_error'));
   const name = connection.status === 'success' && connection.data.status !== 'signed_out' ? connection.data.displayName : null;
-  const step: Step = !hasPasskey ? 'passkey' : codes && !saved ? 'codes' : 'source';
+  const step: Step = !hasPasskey && !hasGoogle ? 'passkey' : codes && !saved ? 'codes' : 'source';
   const connectUrl = api.sources.connectSpotifyUrl();
 
   async function addPasskey() {
@@ -64,14 +69,16 @@ export function OnboardingPage() {
     }
   }
 
-  const done = (s: Step) => (s === 'passkey' ? hasPasskey : s === 'codes' ? hasPasskey && (saved || !codes) : false);
-  const steps: Array<[Step, string]> = [['passkey', 'Add a passkey'], ['codes', 'Save your recovery codes'], ['source', 'Connect a music source']];
+  const done = (s: Step) => (s === 'passkey' ? hasPasskey || hasGoogle : s === 'codes' ? hasPasskey && (saved || !codes) : false);
+  // Recovery codes belong to passkeys: someone who chose Google has none to save.
+  const all: Array<[Step, string]> = [['passkey', googleUrl || hasGoogle ? 'Choose how you sign in' : 'Add a passkey'], ['codes', 'Save your recovery codes'], ['source', 'Connect a music source']];
+  const steps = hasGoogle && !hasPasskey ? all.filter(([id]) => id !== 'codes') : all;
 
   return (
     <main id="main" className={settings.main}>
       <div className="eyebrow">Welcome</div>
       <h1 className={settings.title}>{name ? `Welcome to Runout, ${name}.` : 'Welcome to Runout.'}</h1>
-      <p className={settings.lede}>Three short steps, then your listening history starts to grow. Nothing here needs Last.fm or Spotify.</p>
+      <p className={settings.lede}>A few short steps, then your listening history starts to grow. Nothing here needs Last.fm or Spotify.</p>
       <ol className={styles.steps} aria-label="Steps">
         {steps.map(([id, label], i) => (
           <li key={id} className={`${styles.step} ${step === id ? styles.current : ''} ${done(id) ? styles.done : ''}`} aria-current={step === id ? 'step' : undefined}>
@@ -81,9 +88,19 @@ export function OnboardingPage() {
         ))}
       </ol>
 
+      {step === 'passkey' && googleUrl && (
+        <section className={settings.panel} aria-labelledby="ob-google">
+          <span id="ob-google" className={settings.panelTitle}>Continue with Google</span>
+          <span>Sign in to Runout with your Google account from now on. Google only tells Runout that it’s you: nothing in your Google account is read.</span>
+          <div className={settings.actions}>
+            <a className={stateStyles.primary} href={googleUrl}>Continue with Google</a>
+          </div>
+          {googleError && <p className={settings.error} role="alert">{googleError}</p>}
+        </section>
+      )}
       {step === 'passkey' && (
         <section className={settings.panel} aria-labelledby="ob-passkey">
-          <span id="ob-passkey" className={settings.panelTitle}>Add a passkey</span>
+          <span id="ob-passkey" className={settings.panelTitle}>{googleUrl ? 'Or add a passkey' : 'Add a passkey'}</span>
           <span>A passkey signs you in with this device’s own unlock, with no password. It works only on this address, {window.location.host}.</span>
           {supported ? (
             <>
@@ -92,7 +109,7 @@ export function OnboardingPage() {
                 <input id={inputId} className={pending.input} value={nickname} maxLength={60} autoComplete="off" onChange={(e) => setNickname(e.target.value)} />
               </label>
               <div className={settings.actions}>
-                <button type="button" className={stateStyles.primary} disabled={busy} onClick={addPasskey}>
+                <button type="button" className={googleUrl ? stateStyles.secondary : stateStyles.primary} disabled={busy} onClick={addPasskey}>
                   {busy ? 'Waiting for your device' : 'Add a passkey'}
                 </button>
               </div>

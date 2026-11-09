@@ -41,7 +41,7 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     assert_redirected_to "/welcome"
     assert_predicate session_cookie, :present?
     get "/api/session"
-    assert_equal({ "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, json["methods"])
+    assert_equal({ "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false, "google" => false, "googleEmail" => nil }, json["methods"])
     get "/api/connection"
     assert_equal "none", json["status"]
     get "/api/overview"
@@ -62,7 +62,7 @@ class InvitationsTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal 10, json["recoveryCodes"].size
     get "/api/session"
-    assert_equal({ "passkeys" => 1, "recoveryCodes" => 10, "lastfm" => false }, json["methods"])
+    assert_equal({ "passkeys" => 1, "recoveryCodes" => 10, "lastfm" => false, "google" => false, "googleEmail" => nil }, json["methods"])
 
     # Enrolled: the opened link and a fresh invitation are both dead, the link is scoped to enrolment.
     fresh = SignInLink.issue!(dana, kind: "invitation")

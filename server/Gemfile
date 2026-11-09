@@ -42,3 +42,5 @@ group :development, :test do
 end
 
 gem "webauthn", "~> 3.5"
+# Verifies Google ID tokens (signature, issuer, audience, expiry) for Google sign-in.
+gem "jwt", "~> 3.0"

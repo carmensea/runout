@@ -19,8 +19,8 @@ An operator session:
   (`Authentication#enforce_operator_session`), so no account change, name or theme, no deletion, no
   passkey or recovery code, no source connect, disconnect, pause or sync, no import, review or
   correction, no memory;
-- **reaches no way in:** the Last.fm and Spotify OAuth routes, passkey and recovery sign-in, and
-  sign-in links answer 403 even on GET, so it cannot connect a provider, enrol a credential or spend
+- **reaches no way in:** the Last.fm, Spotify and Google OAuth routes, passkey and recovery sign-in,
+  and sign-in links answer 403 even on GET, so it cannot connect a provider, enrol a credential or spend
   the person's recovery link; the person's own sessions are untouched;
 - **ends in 60 minutes** from opening (`Session::OPERATOR_LIFETIME`); activity never extends it; the
   one write allowed is ending it early (`DELETE /api/session`);

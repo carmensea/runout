@@ -334,6 +334,7 @@ DEPENDENCIES
   brakeman
   bundler-audit
   debug
+  jwt (~> 3.0)
   pg (~> 1.1)
   puma (>= 5.0)
   rails (~> 8.1.4)

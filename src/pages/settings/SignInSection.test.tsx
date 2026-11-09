@@ -23,6 +23,73 @@ afterEach(() => {
   delete (globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential;
 });
 
+/** An account on a server that offers Google. */
+function withGoogle(methods: Partial<{ passkeys: number; google: boolean; googleEmail: string | null }> = {}, passkeys = [makePasskey(1)]) {
+  const all = { passkeys: passkeys.length, recoveryCodes: 10, lastfm: false, google: false, googleEmail: null, ...methods };
+  return fakeAuthApi({ session: { signedIn: true, user: { displayName: 'Dana', timezone: 'Europe/London' }, methods: all, providers: { google: true } }, passkeys });
+}
+
+describe('Settings: Google sign-in', () => {
+  it('is absent when the server offers no Google', async () => {
+    renderApp(api(fakeAuthApi()), '/settings#account');
+    await screen.findByRole('list', { name: 'Your passkeys' });
+    expect(screen.queryByRole('link', { name: 'Link Google' })).toBeNull();
+  });
+
+  it('links Google from an account that has a passkey', async () => {
+    renderApp(api(withGoogle()), '/settings#account');
+    expect(await screen.findByRole('link', { name: 'Link Google' })).toHaveAttribute('href', '/api/auth/google?intent=link&return=settings');
+    expect(screen.getByText('Not linked.')).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: 'Your passkeys' })).toHaveTextContent('Device 1');
+  });
+
+  it('shows the linked account and unlinks it', async () => {
+    const user = userEvent.setup();
+    const auth = withGoogle({ google: true, googleEmail: 'dana@example.com' });
+    renderApp(api(auth), '/settings?google=linked#account');
+    expect(await screen.findByText(/Linked to dana@example.com/)).toHaveTextContent('You can sign in with Google from now on.');
+    await user.click(screen.getByRole('button', { name: 'Unlink Google' }));
+    await waitFor(() => expect(auth.calls).toEqual(['unlinkGoogle']));
+    expect(await screen.findByRole('link', { name: 'Link Google' })).toBeInTheDocument();
+  });
+
+  it('keeps Google when it is the only way in', async () => {
+    const user = userEvent.setup();
+    const auth = withGoogle({ google: true, googleEmail: 'dana@example.com' }, []);
+    auth.unlinkGoogle = async () => { throw new ApiError(409, 'no', 'last_method'); };
+    renderApp(api(auth), '/settings#account');
+    await user.click(await screen.findByRole('button', { name: 'Unlink Google' }));
+    expect(await screen.findByText(/only way in, so it stays linked/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unlink Google' })).toBeInTheDocument();
+  });
+
+  it('asks for a fresh sign-in before changing methods, and takes the passkey as proof', async () => {
+    const user = userEvent.setup();
+    const auth = withGoogle({ google: true, googleEmail: 'dana@example.com' });
+    let fresh = false;
+    const unlink = auth.unlinkGoogle;
+    auth.unlinkGoogle = async () => { if (!fresh) throw new ApiError(403, 'no', 'confirm_first'); return unlink(); };
+    const signIn = auth.signInWithPasskey;
+    auth.signInWithPasskey = async () => { fresh = true; await signIn(); return { signedIn: true, user: { displayName: 'Dana', timezone: 'Europe/London' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: false, google: true, googleEmail: 'dana@example.com' }, providers: { google: true } }; };
+    auth.status = async () => ({ signedIn: true, user: { displayName: 'Dana', timezone: 'Europe/London' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: false, google: !auth.calls.includes('unlinkGoogle'), googleEmail: 'dana@example.com' }, providers: { google: true } });
+    renderApp(api(auth), '/settings#account');
+    await user.click(await screen.findByRole('button', { name: 'Unlink Google' }));
+    const group = await screen.findByRole('group', { name: 'Confirm it’s you' });
+    expect(within(group).getByRole('link', { name: 'Confirm with Google' })).toHaveAttribute('href', '/api/auth/google?intent=sign_in&return=settings');
+    await user.click(within(group).getByRole('button', { name: 'Confirm with a passkey' }));
+    expect(await screen.findByText('Confirmed. Go ahead.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Unlink Google' }));
+    await waitFor(() => expect(auth.calls).toContain('unlinkGoogle'));
+    expect(await screen.findByRole('link', { name: 'Link Google' })).toBeInTheDocument();
+  });
+
+  it('shows what came back when a link was refused', async () => {
+    renderApp(api(withGoogle()), '/settings?google_error=confirm_first#account');
+    expect(await screen.findByRole('group', { name: 'Confirm it’s you' })).toBeInTheDocument();
+    expect(screen.getAllByRole('alert').some((a) => /Confirm it’s you first/.test(a.textContent ?? ''))).toBe(true);
+  });
+});
+
 describe('Settings: sign-in', () => {
   it('is absent while the server has Runout’s own sign-in switched off', async () => {
     renderApp(connectedApi(), '/settings#account');
