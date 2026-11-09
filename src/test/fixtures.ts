@@ -294,7 +294,7 @@ export const notConnectedApi: RunoutApi = {
 };
 
 export function makeSession(overrides: Partial<Extract<SessionInfo, { signedIn: true }>> = {}): SessionInfo {
-  return { signedIn: true, user: { displayName: 'test-user', timezone: 'Europe/London' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: true }, ...overrides };
+  return { signedIn: true, user: { displayName: 'test-user', timezone: 'Europe/London' }, methods: { passkeys: 1, recoveryCodes: 10, lastfm: true, google: false }, ...overrides };
 }
 
 export function makePasskey(i: number, overrides: Partial<Passkey> = {}): Passkey {
@@ -315,7 +315,7 @@ export function fakeAuthApi(initial: { session?: SessionInfo | null; passkeys?: 
   let passkeys = initial.passkeys ?? [makePasskey(1)];
   let sessions = initial.sessions ?? [makeBrowserSession(1), makeBrowserSession(2)];
   const codes = () => Array.from({ length: 10 }, (_, i) => `code${i}-abcde`);
-  const signedIn = (): SessionInfo => makeSession({ methods: { passkeys: passkeys.length, recoveryCodes: 9, lastfm: true } });
+  const signedIn = (): SessionInfo => makeSession({ methods: { passkeys: passkeys.length, recoveryCodes: 9, lastfm: true, google: false } });
   return {
     calls,
     status: async () => session,
@@ -344,13 +344,18 @@ export function fakeAuthApi(initial: { session?: SessionInfo | null; passkeys?: 
     },
     signInWithRecoveryCode: async (code) => {
       calls.push(`signInWithRecoveryCode:${code}`);
-      session = makeSession({ methods: { passkeys: 0, recoveryCodes: 9, lastfm: true } });
+      session = makeSession({ methods: { passkeys: 0, recoveryCodes: 9, lastfm: true, google: false } });
       return session;
     },
     sessions: async () => sessions,
     revokeSession: async (id) => {
       calls.push(`revokeSession:${id}`);
       sessions = sessions.filter((s) => s.id !== id);
+    },
+    googleUrl: (intent, back = 'overview') => `/api/auth/google?intent=${intent}&return=${back}`,
+    unlinkGoogle: async () => {
+      calls.push('unlinkGoogle');
+      if (session?.signedIn) session = { ...session, methods: { ...session.methods, google: false, googleEmail: null } };
     },
   };
 }

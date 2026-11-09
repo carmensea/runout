@@ -2,18 +2,20 @@ import { useId, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import stateStyles from '../../components/states/States.module.css';
 import { useAppData } from '../../data/AppDataContext';
-import type { BrowserSession, Passkey } from '../../data/types';
+import type { BrowserSession, Passkey, SignInMethods } from '../../data/types';
 import { useAsync } from '../../data/useAsync';
-import { describeAuthError as describe } from '../../lib/authErrors';
+import { describeAuthError as describe, googleErrorMessage } from '../../lib/authErrors';
+import { ApiError } from '../../data/api';
 import { passkeysSupported } from '../../lib/webauthn';
 import pending from '../PendingScreen.module.css';
 import styles from './Settings.module.css';
 
 
 /**
- * Settings → Sign-in: passkeys (add, remove), recovery codes (shown once, regenerable) and other
- * signed-in browsers. Last.fm stays available as a sign-in until the owner retires it, and its
- * connection is managed under Listening sources.
+ * Settings → Sign-in: Google (link, unlink) when the server offers it, passkeys (add, remove),
+ * recovery codes (shown once, regenerable) and other signed-in browsers. An account can have
+ * Google, passkeys or both; the last way in can't be removed. Last.fm stays available as a sign-in
+ * until the owner retires it, and its connection is managed under Listening sources.
  */
 export function SignInSection() {
   const { api, auth } = useAppData();
@@ -26,13 +28,21 @@ export function SignInSection() {
     setVersion((v) => v + 1);
     auth.retry();
   };
-  const methods = auth.status === 'success' && auth.data?.signedIn ? auth.data.methods : null;
+  // While the session reloads after an action here, keep what it last reported, so the panels
+  // below stay mounted and keep what they are showing.
+  const current = auth.status === 'success' && auth.data?.signedIn ? auth.data : null;
+  const [lastKnown, setLastKnown] = useState(current);
+  if (current && current !== lastKnown) setLastKnown(current);
+  const session = current ?? lastKnown;
+  const methods = session?.methods ?? null;
+  const googleOffered = session?.providers?.google === true;
 
   return (
     <>
       {recovered && (
         <p className={styles.error} role="alert">You signed in with a recovery code, which is now used up. Add a passkey for this device now.</p>
       )}
+      {googleOffered && methods && <GooglePanel methods={methods} onChanged={refresh} />}
       <PasskeysPanel
         passkeys={passkeys}
         onAdded={(recoveryCodes) => {
@@ -44,6 +54,87 @@ export function SignInSection() {
       <RecoveryCodesPanel remaining={methods?.recoveryCodes ?? null} codes={codes} onCodes={(c) => { setCodes(c); refresh(); }} onDismiss={() => setCodes(null)} />
       <SessionsPanel sessions={sessions} onChanged={refresh} />
     </>
+  );
+}
+
+/**
+ * Google as a way to sign in: linked or not, with the one action each state has. Linking and
+ * unlinking need a recent sign-in; when the server asks for one, the ways to give it are offered
+ * here (the passkey, or Google itself), and the action is tried again afterwards.
+ */
+function GooglePanel({ methods, onChanged }: { methods: SignInMethods; onChanged(): void }) {
+  const { api } = useAppData();
+  const params = new URLSearchParams(useLocation().search);
+  const returned = params.get('google_error');
+  const [busy, setBusy] = useState<'unlink' | 'confirm' | null>(null);
+  const [error, setError] = useState<string | null>(googleErrorMessage(returned));
+  const [confirm, setConfirm] = useState(returned === 'confirm_first');
+  const [confirmed, setConfirmed] = useState(false);
+  const linkUrl = api.auth.googleUrl('link', 'settings');
+  const reauthUrl = api.auth.googleUrl('sign_in', 'settings');
+
+  async function unlink() {
+    setBusy('unlink');
+    setError(null);
+    try {
+      await api.auth.unlinkGoogle();
+      setConfirm(false);
+      onChanged();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'confirm_first') setConfirm(true);
+      setError(describe(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function confirmWithPasskey() {
+    setBusy('confirm');
+    setError(null);
+    try {
+      await api.auth.signInWithPasskey();
+      setConfirm(false);
+      setConfirmed(true);
+      onChanged();
+    } catch (e) {
+      setError(describe(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className={styles.panel} aria-labelledby="google-title" id="google">
+      <span id="google-title" className={styles.panelTitle}>Google</span>
+      <span>Sign in to Runout with a Google account. Google only tells Runout that it’s you: nothing in the Google account is read.</span>
+      {methods.google ? (
+        <span role="status">Linked{methods.googleEmail ? ` to ${methods.googleEmail}` : ''}.{params.get('google') === 'linked' ? ' You can sign in with Google from now on.' : ''}</span>
+      ) : (
+        <span className={styles.note}>Not linked.</span>
+      )}
+      {error && <p className={styles.error} role="alert">{error}</p>}
+      {confirmed && !confirm && <span className={styles.note} role="status">Confirmed. Go ahead.</span>}
+      {confirm && (
+        <div className={styles.confirm} role="group" aria-label="Confirm it’s you">
+          <span>Changing how you sign in needs a fresh sign-in, so nobody at an open browser can do it for you.</span>
+          <div className={styles.actions}>
+            {methods.passkeys > 0 && (
+              <button type="button" className={stateStyles.secondary} disabled={busy !== null} onClick={confirmWithPasskey}>
+                {busy === 'confirm' ? 'Waiting for your passkey' : 'Confirm with a passkey'}
+              </button>
+            )}
+            {methods.google && reauthUrl && <a className={stateStyles.secondary} href={reauthUrl}>Confirm with Google</a>}
+          </div>
+        </div>
+      )}
+      <div className={styles.actions}>
+        {methods.google ? (
+          <button type="button" className={stateStyles.secondary} disabled={busy !== null} onClick={unlink}>{busy === 'unlink' ? 'Unlinking' : 'Unlink Google'}</button>
+        ) : (
+          linkUrl && <a className={stateStyles.primary} href={linkUrl}>Link Google</a>
+        )}
+      </div>
+    </section>
   );
 }
 

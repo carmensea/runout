@@ -64,7 +64,7 @@ class PilotJourneyTest < ActionDispatch::IntegrationTest
     dana = User.find_by!(display_name: "Dana")
     assert_equal "America/Los_Angeles", dana.reporting_timezone
     get "/api/session"
-    assert_equal({ "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, json["methods"])
+    assert_equal({ "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false, "google" => false, "googleEmail" => nil }, json["methods"])
     get "/api/overview"
     assert_response :conflict, "empty, and never the owner's"
 
@@ -76,7 +76,7 @@ class PilotJourneyTest < ActionDispatch::IntegrationTest
     codes = json["recoveryCodes"]
     assert_equal 10, codes.size
     get "/api/session"
-    assert_equal({ "passkeys" => 1, "recoveryCodes" => 10, "lastfm" => false }, json["methods"])
+    assert_equal({ "passkeys" => 1, "recoveryCodes" => 10, "lastfm" => false, "google" => false, "googleEmail" => nil }, json["methods"])
     get link
     assert_redirected_to "/overview?auth_error=link_invalid", "the invitation is dead once the passkey exists"
 

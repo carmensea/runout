@@ -95,6 +95,11 @@ reverted two Milestone 1 migrations and dropped real rows (a session and a Last.
   Last.fm sign-in without the owner's explicit approval; the Last.fm fallback stays at least seven
   days after the first passkey and is retired only on the owner's say-so.
 
+- **Google sign-in is off until the owner configures it** (`docs/google-sign-in.md`): it needs
+  `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and its routes answer 404 without them. Don't set them
+  in production, link a Google account to a real account, or switch them off once people rely on
+  Google, without the owner's explicit approval. Accounts are never created or matched by email address.
+
 ## Secrets
 
 - **Where secrets live.** Credentials go in `server/.env` (git-ignored). Never print, log or

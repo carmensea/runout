@@ -57,12 +57,13 @@ class PasskeysTest < ActionDispatch::IntegrationTest
 
   test "GET /api/session describes the signed-in person and their sign-in methods" do
     get "/api/session"
-    assert_equal({ "signedIn" => false }, json)
+    assert_equal({ "signedIn" => false, "providers" => { "google" => false } }, json)
 
     sign_in_via_lastfm(username: "listener")
     get "/api/session"
     assert_equal({ "signedIn" => true, "user" => { "displayName" => "listener", "timezone" => "Europe/London" },
-                   "methods" => { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => true } }, json)
+                   "methods" => { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => true, "google" => false, "googleEmail" => nil },
+                   "providers" => { "google" => false } }, json)
   end
 
   test "enrolling needs a session, a fresh challenge and user verification" do
@@ -208,7 +209,7 @@ class PasskeysTest < ActionDispatch::IntegrationTest
 
     post_json "/api/auth/recovery", { code: codes.first.upcase.tr("-", " ") }
     assert_response :ok
-    assert_equal({ "passkeys" => 0, "recoveryCodes" => 9, "lastfm" => true }, json["methods"])
+    assert_equal({ "passkeys" => 0, "recoveryCodes" => 9, "lastfm" => true, "google" => false, "googleEmail" => nil }, json["methods"])
     assert_predicate session_cookie, :present?
 
     delete "/api/session", headers: same_origin_headers

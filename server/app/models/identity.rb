@@ -4,8 +4,13 @@
 # - `registered_at` is the account's registration time, checked on every sign-in as a consistency
 #   check. It is not unique and never used to find or merge accounts.
 # - `user_id` points at Runout's own user, whose UUID never derives from Last.fm data.
+#
+# For Google (docs/google-sign-in.md): `uid` is Google's stable subject (`sub`), the only lookup key;
+# `username` is the verified address, shown to its owner in Settings and never used to find or
+# match an account; there are no credentials (no Google data is read).
 class Identity < ApplicationRecord
   LASTFM = "lastfm".freeze
+  GOOGLE = "google".freeze
 
   belongs_to :user
 

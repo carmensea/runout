@@ -22,8 +22,9 @@ function describe(e: unknown): string {
 }
 
 /**
- * The ways in: a passkey, a recovery code, and Last.fm while it remains the fallback. Shown only
- * when the server has Runout's own sign-in switched on; otherwise the Last.fm link stands alone.
+ * The ways in: Google when the server offers it (first), a passkey, a recovery code, and Last.fm
+ * while it remains the owner's fallback. Shown only when the server has Runout's own sign-in
+ * switched on; otherwise the Last.fm link stands alone.
  * After a recovery code, Settings is opened so a new passkey can be added.
  */
 export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | null; align?: 'center' | 'left' }) {
@@ -34,6 +35,8 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
   const [showCode, setShowCode] = useState(false);
   const [code, setCode] = useState('');
   const supported = passkeysSupported();
+  // A full page navigation: the server sends the browser to Google and back.
+  const googleUrl = auth.status === 'success' && auth.data?.providers?.google ? api.auth.googleUrl('sign_in') : null;
 
   async function run(kind: 'passkey' | 'code', action: () => Promise<unknown>, then?: () => void) {
     setBusy(kind);
@@ -58,10 +61,11 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
 
   return (
     <div className={`${styles.choices} ${align === 'left' ? styles.left : ''}`}>
-      {!supported && <p className={styles.error}>This browser can’t use passkeys here. Use a recovery code or Last.fm.</p>}
+      {!supported && <p className={styles.error}>This browser can’t use passkeys here. Use {googleUrl ? 'Google, ' : ''}a recovery code or Last.fm.</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}>
-        <button type="button" className={`${stateStyles.primary} ${styles.button}`} disabled={busy !== null || !supported} onClick={() => run('passkey', () => api.auth.signInWithPasskey())}>
+        {googleUrl && <a href={googleUrl} className={`${stateStyles.primary} ${styles.button}`}>Continue with Google</a>}
+        <button type="button" className={`${googleUrl ? stateStyles.secondary : stateStyles.primary} ${styles.button}`} disabled={busy !== null || !supported} onClick={() => run('passkey', () => api.auth.signInWithPasskey())}>
           {busy === 'passkey' ? 'Waiting for your passkey' : 'Sign in with a passkey'}
         </button>
         {lastfmUrl && (
@@ -70,7 +74,7 @@ export function SignIn({ lastfmUrl, align = 'center' }: { lastfmUrl: string | nu
         )}
       </div>
       {lastfmUrl && (
-        <p className={`caption ${styles.caption}`}>Last.fm sign-in is for the archive’s owner. Invited people sign in with a passkey.</p>
+        <p className={`caption ${styles.caption}`}>Last.fm sign-in is for the archive’s owner. Invited people sign in with {googleUrl ? 'Google or a passkey' : 'a passkey'}.</p>
       )}
       {showCode ? (
         <form className={styles.code} onSubmit={submitCode}>

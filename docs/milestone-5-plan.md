@@ -115,6 +115,10 @@ is valid 15 minutes and single use, writes a log line naming the user, and the r
 feature flag is off. There is no web form that issues one. The procedure is written up in
 `docs/railway-deployment.md` §8 beside the other recovery steps.
 
+**Since 2026-11-08: Google sign-in and optional passkeys** (`docs/google-sign-in.md`). Google is a
+second kind of identity found only by its subject; signing in never creates an account; an invited
+person chooses Google or a passkey on the welcome page; an account keeps at least one way in.
+
 ### 2.4 Decoupling the history from Last.fm (same phase, separate PR)
 
 - `ConnectionState` keeps describing the Last.fm *connection*, but `"none"` is returned only to a

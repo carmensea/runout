@@ -6,8 +6,8 @@ module Authentication
   COOKIE_NAME = Rails.env.production? ? "__Host-runout_session" : "runout_session"
 
   # Routes an operator session may not reach at all, GET included: they open, change or hand over a
-  # way into the account (Last.fm and Spotify OAuth, passkey and recovery sign-in, sign-in links).
-  OPERATOR_BLOCKED_CONTROLLERS = %w[api/lastfm_auth api/spotify_auth api/passkey_auth api/recovery_auth api/sign_in_links].freeze
+  # way into the account (Last.fm, Spotify and Google OAuth, passkey and recovery sign-in, sign-in links).
+  OPERATOR_BLOCKED_CONTROLLERS = %w[api/lastfm_auth api/spotify_auth api/google_auth api/passkey_auth api/recovery_auth api/sign_in_links].freeze
 
   included do
     before_action :resume_session

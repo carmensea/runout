@@ -68,7 +68,8 @@ class MultiUserIsolationTest < ActionDispatch::IntegrationTest
     assert_equal({ "status" => "none", "displayName" => "bob", "timezone" => "America/Los_Angeles", "theme" => nil, "features" => [] }, json)
     get "/api/session"
     assert_equal({ "signedIn" => true, "user" => { "displayName" => "bob", "timezone" => "America/Los_Angeles" },
-                   "methods" => { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false } }, json)
+                   "methods" => { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false, "google" => false, "googleEmail" => nil },
+                   "providers" => { "google" => false } }, json)
 
     # The archive waits for stored plays (409), never showing another account's.
     %w[/api/overview /api/search?q=song /api/calendar /api/plays /api/on-this-day?date=2014-03-15 /api/genres/rock /api/loved-tracks].each do |path|

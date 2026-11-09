@@ -44,7 +44,9 @@ module Api
 
     def destroy
       passkey = Current.user.webauthn_credentials.active.find_by(id: params[:id]) or return head(:not_found)
-      if Current.user.webauthn_credentials.active.where.not(id: passkey.id).none? && Current.user.recovery_codes.unused.none?
+      # The last passkey stays unless another way in remains: recovery codes, or Google.
+      if Current.user.webauthn_credentials.active.where.not(id: passkey.id).none? && Current.user.recovery_codes.unused.none? &&
+         Current.user.google_identity.nil?
         return render json: { error: "last_passkey" }, status: :conflict
       end
 

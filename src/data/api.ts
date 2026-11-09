@@ -64,6 +64,13 @@ export interface AuthApi {
   signInWithRecoveryCode(code: string): Promise<SessionInfo>;
   sessions(signal?: AbortSignal): Promise<BrowserSession[]>;
   revokeSession(id: number): Promise<void>;
+  /**
+   * Where to send the browser for Google (a full page navigation): to sign in, or to link Google to
+   * the signed-in account, returning to `back` afterwards. Null when no server is configured.
+   */
+  googleUrl(intent: 'sign_in' | 'link', back?: 'overview' | 'settings' | 'welcome'): string | null;
+  /** ApiError codes: `confirm_first` (sign in again first), `last_method` (the only way in stays). */
+  unlinkGoogle(): Promise<void>;
 }
 
 export interface SourcesApi {
@@ -198,6 +205,8 @@ export function createHttpApi(baseUrl: string): RunoutApi {
     signInWithRecoveryCode: (code) => post<SessionInfo>('/auth/recovery', { code }),
     sessions: async (signal) => (await get<{ sessions: BrowserSession[] }>('/sessions', {}, signal)).sessions,
     revokeSession: (id) => del(`/sessions/${id}`),
+    googleUrl: (intent, back = 'overview') => `${root}/auth/google?${new URLSearchParams({ intent, return: back })}`,
+    unlinkGoogle: () => del('/auth/google'),
   };
 
   // GET /sync answers 304 while nothing changed; the previous answer is reused.
@@ -350,6 +359,8 @@ export const noAuthApi: AuthApi = {
   signInWithPasskey: notConnected,
   signInWithRecoveryCode: notConnected,
   sessions: notConnected,
+  googleUrl: () => null,
+  unlinkGoogle: notConnected,
   revokeSession: notConnected,
 };
 

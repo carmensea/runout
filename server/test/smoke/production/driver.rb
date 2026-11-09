@@ -156,7 +156,7 @@ check("an opened invitation opens again from another browser until a passkey exi
 req(:delete, "/api/session", headers: SAME_ORIGIN) # that other browser signs out again
 $jar = first_browser
 session = JSON.parse(req(:get, "/api/session").body)
-check("the invited account has no passkey, no codes, no Last.fm", session["methods"] == { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false }, session.to_json)
+check("the invited account has no passkey, no codes, no Last.fm", session["methods"] == { "passkeys" => 0, "recoveryCodes" => 0, "lastfm" => false, "google" => false, "googleEmail" => nil }, session.to_json)
 check("the invited account's connection is its own, without Last.fm", JSON.parse(req(:get, "/api/connection").body).values_at("status", "displayName") == [ "none", "Dana" ])
 check("the invited account's archive is empty: 409, never the owner's plays", req(:get, "/api/overview").code == "409")
 check("the invited account sees only its own browser session", JSON.parse(req(:get, "/api/sessions").body)["sessions"].size == 1)
