@@ -181,6 +181,9 @@ What is practical and safe, for the later milestone (§6 of this plan lists the 
 
 ## 3. Phase 2: Spotify playlists from On This Day
 
+**Implementation plan (2026-11-05): `docs/playlists-plan.md`** reviews this section against the current
+code and Spotify's documentation and wins where the two differ.
+
 ### 3.1 Spotify rules that shape the design (checked 2026-11-04)
 
 - Playlist endpoints after February 2026: `POST /me/playlists` (create), `POST /playlists/{id}/items`
